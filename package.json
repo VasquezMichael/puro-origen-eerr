@@ -1,0 +1,33 @@
+{
+  "name": "puro-origen-eerr",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev:web": "npm run dev --workspace=web",
+    "dev:api": "npm run start:dev --workspace=api",
+    "dev": "concurrently npm:dev:web npm:dev:api"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VasquezMichael/puro-origen-eerr.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/VasquezMichael/puro-origen-eerr/issues"
+  },
+  "homepage": "https://github.com/VasquezMichael/puro-origen-eerr#readme",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+.next/
+out/
+coverage/
+.turbo/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+
+# TypeScript build cache
+*.tsbuildinfo
