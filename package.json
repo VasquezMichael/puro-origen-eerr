@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "dev:web": "npm run dev --workspace=web",
     "dev:api": "npm run start:dev --workspace=api",
     "dev": "concurrently npm:dev:web npm:dev:api"
