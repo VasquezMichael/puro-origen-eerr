@@ -96,3 +96,38 @@ input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(46,93,77,.1
 @media (max-width: 430px) {
   .mode-grid { grid-template-columns: 1fr; }
 }
+
+.admin-branches-link { display: flex; justify-content: space-between; margin-top: 1.4rem; padding: 1rem; border: 1px solid var(--line); border-radius: .65rem; color: var(--green); font-weight: 700; text-decoration: none; }
+.branches-shell { max-width: 1200px; margin: 0 auto; padding: 0 2rem 4rem; }
+.branches-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.5rem 0; border-bottom: 1px solid var(--line); }
+.brand-home { display: flex; align-items: center; gap: .8rem; text-decoration: none; color: var(--ink); font-weight: 700; }
+.brand-home .brand-mark { border-color: var(--line); background: var(--green); color: white; }
+.brand-home small { display: block; margin-top: .2rem; color: var(--muted); font-weight: 400; }
+.branches-title { display: flex; justify-content: space-between; align-items: center; gap: 2rem; margin: 3rem 0 2rem; }
+.branches-shell .primary-button { padding: .8rem 1.4rem; }
+.branches-title .primary-button { flex-shrink: 0; }
+.branches-toolbar { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; color: var(--muted); }
+.branch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; list-style: none; padding: 0; }
+.branch-card, .branch-form, .branch-empty, .branch-feedback { padding: 1.5rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--paper); }
+.branch-card-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.branch-card-heading h2 { font-size: 1.7rem; overflow-wrap: anywhere; }
+.branch-badge { border-radius: 2rem; padding: .35rem .65rem; font-size: .75rem; font-weight: 700; white-space: nowrap; }
+.is-active { background: #e3eee7; color: #28513b; }
+.is-inactive { background: #ede9e0; color: #645b4b; }
+.branch-code { color: var(--muted); font-size: .8rem; line-height: 1.7; }
+.branch-code code { display: block; color: var(--ink); overflow-wrap: anywhere; }
+.branch-date { font-size: .9rem; }
+.branch-actions { display: flex; align-items: center; gap: 1.5rem; }
+.branch-card .branch-actions { border-top: 1px solid var(--line); padding-top: .65rem; margin-top: 1rem; }
+.branch-form { margin-top: 1.5rem; }
+.branch-form-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.5rem; }
+.branch-success { padding: .85rem 1rem; background: #e3eee7; color: #28513b; border-radius: .55rem; }
+.branch-feedback { margin-top: 3rem; }
+.branches-shell button:disabled { opacity: .55; cursor: not-allowed; }
+.branches-shell a:focus-visible, .branches-shell button:focus-visible, .admin-branches-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+@media (max-width: 760px) {
+  .branches-shell { padding: 0 1.25rem 3rem; }
+  .branches-title { align-items: stretch; flex-direction: column; gap: 1.3rem; }
+  .branch-grid, .branch-form-fields { grid-template-columns: 1fr; }
+  .branches-header { flex-wrap: wrap; }
+}
