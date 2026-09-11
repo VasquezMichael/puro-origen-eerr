@@ -4,10 +4,10 @@ import { BranchRole } from '../user-role.js';
 
 @Schema({ _id: false })
 export class BranchAccess {
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   branchId!: string;
 
-  @Prop({ required: true, enum: BranchRole })
+  @Prop({ type: String, required: true, enum: BranchRole })
   role!: BranchRole;
 }
 
@@ -15,10 +15,11 @@ const BranchAccessSchema = SchemaFactory.createForClass(BranchAccess);
 
 @Schema({ timestamps: true })
 export class User {
-  @Prop({ required: true, trim: true })
+  @Prop({ type: String, required: true, trim: true })
   name!: string;
 
   @Prop({
+    type: String,
     required: true,
     unique: true,
     lowercase: true,
@@ -27,19 +28,19 @@ export class User {
   })
   email!: string;
 
-  @Prop({ required: true, select: false })
+  @Prop({ type: String, required: true, select: false })
   passwordHash!: string;
 
-  @Prop({ default: false })
+  @Prop({ type: Boolean, default: false })
   isAdmin!: boolean;
 
   @Prop({ type: [BranchAccessSchema], default: [] })
   branchAccesses!: BranchAccess[];
 
-  @Prop({ default: true })
+  @Prop({ type: Boolean, default: true })
   active!: boolean;
 
-  @Prop({ default: true })
+  @Prop({ type: Boolean, default: true })
   mustChangePassword!: boolean;
 }
 
