@@ -1,26 +1,98 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #19342c;
+  --muted: #65736e;
+  --cream: #f7f4eb;
+  --paper: #fffdf8;
+  --green: #2e5d4d;
+  --line: #d9dfda;
+  --accent: #c99545;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  margin: 0;
+  color: var(--ink);
+  background: var(--cream);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+button, input { font: inherit; }
+
+.shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(300px, 0.85fr) minmax(460px, 1.15fr);
+}
+
+.brand-panel {
+  padding: clamp(2rem, 5vw, 5rem);
+  color: #fff;
+  background:
+    radial-gradient(circle at 15% 85%, rgba(201,149,69,.24), transparent 32%),
+    linear-gradient(145deg, #17392e, #2e5d4d);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-content: start;
+  gap: 1rem;
+}
+
+.brand-mark {
+  width: 3rem;
+  height: 3rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.45);
+  border-radius: 50%;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.brand-name { margin: .2rem 0 0; font-weight: 700; font-size: 1.2rem; }
+.brand-product { margin: .25rem 0 0; color: rgba(255,255,255,.68); }
+.brand-message { grid-column: 1 / -1; align-self: end; margin-top: min(40vh, 20rem); max-width: 29rem; }
+.brand-message p { margin: 0 0 1rem; font-family: Georgia, serif; font-size: clamp(2rem, 4vw, 3.6rem); line-height: 1.04; }
+.brand-message span { color: rgba(255,255,255,.74); line-height: 1.6; }
+
+.content-panel { display: grid; place-items: center; padding: 2rem; }
+.login-card, .access-panel { width: min(100%, 31rem); }
+.login-card { display: grid; gap: 1.35rem; }
+.eyebrow { margin: 0 0 .65rem; color: var(--accent); font-size: .75rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+h1, h2 { font-family: Georgia, serif; font-weight: 500; }
+h1 { margin: 0; font-size: clamp(2.3rem, 5vw, 3.5rem); }
+h2 { margin: 0; font-size: 2rem; }
+.intro { margin: .8rem 0 0; color: var(--muted); line-height: 1.55; }
+label { display: grid; gap: .5rem; font-size: .9rem; font-weight: 700; }
+input { width: 100%; padding: .9rem 1rem; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: .65rem; outline: none; }
+input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(46,93,77,.12); }
+.primary-button { min-height: 3.2rem; border: 0; border-radius: .65rem; color: #fff; background: var(--green); font-weight: 800; cursor: pointer; }
+.primary-button:disabled { opacity: .65; cursor: wait; }
+.help, .session-status { color: var(--muted); font-size: .85rem; line-height: 1.5; }
+.error, .notice { padding: .85rem 1rem; border-radius: .55rem; line-height: 1.45; }
+.error { margin: 0; color: #8a2929; background: #fbeaea; }
+.notice { color: #765519; background: #fff2cf; }
+.password-form { display: grid; gap: 1rem; margin-top: 1.5rem; }
+.user-row { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.text-button { padding: .5rem 0; color: var(--green); background: none; border: 0; font-weight: 700; cursor: pointer; }
+.mode-copy { margin-top: 3rem; }
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.4rem; }
+.mode-card { min-height: 12rem; padding: 1.3rem; display: flex; flex-direction: column; align-items: start; gap: .8rem; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 1rem; text-align: left; cursor: pointer; }
+.mode-card:not(:disabled):hover { border-color: var(--green); transform: translateY(-2px); box-shadow: 0 12px 28px rgba(25,52,44,.1); }
+.mode-card:disabled { opacity: .52; cursor: not-allowed; }
+.mode-icon { width: 2.3rem; height: 2.3rem; display: grid; place-items: center; color: #fff; background: var(--green); border-radius: .5rem; font-weight: 800; }
+.mode-card strong { font-size: 1.05rem; }
+.mode-card small { color: var(--muted); line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .shell { grid-template-columns: 1fr; }
+  .brand-panel { min-height: 15rem; }
+  .brand-message { margin-top: 3rem; }
+  .brand-message p { font-size: 2rem; }
+  .content-panel { padding: 3rem 1.25rem; }
+}
+
+@media (max-width: 430px) {
+  .mode-grid { grid-template-columns: 1fr; }
 }

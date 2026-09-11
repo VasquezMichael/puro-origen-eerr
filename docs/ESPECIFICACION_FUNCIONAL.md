@@ -16,6 +16,9 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 - Perspectiva por sucursal: seleccionar sucursal y consultar sus períodos.
 - Perspectiva por período: seleccionar período y consultar sus sucursales.
 - Roles confirmados: Lector y Editor.
+- Acceso cerrado mediante email y contraseña, sin registro público.
+- Administrador global para gestión de usuarios, accesos y recuperación manual.
+- Los permisos Lector y Editor se asignan por sucursal.
 
 ### Sucursales
 
@@ -78,8 +81,6 @@ ante discrepancias con la especificación:
 ## Definiciones pendientes
 
 - Definición final sobre quién puede crear bloques principales.
-- Alcance exacto del rol Administrador mencionado pero no definido; los únicos
-  roles confirmados son Lector y Editor.
 - Creación de períodos futuros.
 - Feedback de usuarios finales.
 
