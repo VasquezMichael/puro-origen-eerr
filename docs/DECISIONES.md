@@ -46,5 +46,33 @@ de cobertura ni simula pruebas en paquetes vacíos.
 - Las contraseñas se almacenan con bcrypt y nunca se devuelven desde la API.
 - La autorización revalida en base de datos que el usuario continúe activo y que
   conserve su condición de administrador.
-- Los accesos de sucursal se almacenan desde este milestone, pero su validación
-  contra sucursales reales se incorporará con el módulo de sucursales.
+- Los accesos por sucursal se validan al crear usuarios o reasignarlos: identificadores
+  MongoDB válidos, sucursales existentes y sin duplicados dentro del usuario.
+
+## Decisiones confirmadas de sucursales (EP-02)
+
+- Datos mínimos: id de MongoDB, código interno, nombre, fecha de inicio, estado
+  activa/inactiva y timestamps de creación y modificación. Sin campos operativos adicionales.
+- Código automático generado por la API con UUID aleatorio nativo de Node.js,
+  prefijo `SUC-`, índice único e inmutable. No depende del nombre ni de una secuencia global.
+- Nombre obligatorio; se normalizan Unicode, mayúsculas, acentos y espacios
+  redundantes para detectar duplicados mediante índice único. La clave de
+  normalización es interna y no se expone en las respuestas.
+- Fecha de inicio opcional en la creación; por defecto coincide con la fecha de
+  creación. La API acepta fechas ISO válidas y la interfaz permite elegir el día.
+- Solo el Administrador global crea, edita nombre/fecha y cambia el estado.
+- Desactivación reversible mediante cambio explícito e idempotente de estado.
+  No existe borrado físico ni endpoint DELETE; la información se conserva.
+- Administradores consultan todas las sucursales. Lectores y Editores consultan
+  únicamente las asignadas, incluidas las inactivas para conservar acceso histórico.
+- El guard revalida los accesos desde el usuario persistido, sin incluir passwordHash.
+- La persistencia de sucursales se comparte con Usuarios mediante un módulo sin
+  rutas ni dependencia de Autenticación; se evita un ciclo entre módulos.
+
+## Requisitos confirmados a implementar con períodos
+
+- Impedir creación de EERR nuevos en sucursales inactivas.
+- Permitir correcciones de históricos en sucursales inactivas.
+
+EP-02 modela el estado reversible y conserva información y accesos; estas operaciones
+de EERR se implementarán con períodos. Son requisitos confirmados, no mejoras del backlog.

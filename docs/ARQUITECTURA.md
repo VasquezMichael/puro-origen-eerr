@@ -23,3 +23,10 @@ entre workspaces antes de consumir artefactos dist.
 
 La web conserva ESLint, la API oxlint y Vitest, y los paquetes el compilador
 TypeScript. La configuración raíz delega en los scripts existentes de cada workspace.
+
+El módulo HTTP `BranchesModule` y `UsersModule` consumen
+`BranchesPersistenceModule`, que registra el esquema y el servicio de sucursales.
+Este módulo no importa Usuarios ni Autenticación. `AuthModule` consume Usuarios
+y registra el guard global que revalida el usuario y sus asignaciones por solicitud.
+La interfaz `/admin/sucursales` consulta la API con la sesión existente; la API
+decide el acceso y restringe todas las operaciones administrativas.

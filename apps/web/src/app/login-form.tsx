@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
 
 type BranchAccess = { branchId: string; role: 'READER' | 'EDITOR' };
 type User = {
@@ -120,6 +121,7 @@ export function LoginForm() {
           <p className="eyebrow">Elegí un modo</p>
           <h2>¿Qué querés hacer hoy?</h2>
         </div>
+        {user.isAdmin && <Link className="admin-branches-link" href="/admin/sucursales">Administrar sucursales <span aria-hidden="true">→</span></Link>}
         <div className="mode-grid">
           <button className="mode-card" type="button" disabled={user.mustChangePassword}>
             <span className="mode-icon">A</span>

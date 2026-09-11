@@ -10,9 +10,14 @@ import type { Request } from 'express';
 import { UsersService } from '../users/users.service.js';
 import { ADMIN_ONLY, IS_PUBLIC, SESSION_COOKIE } from './auth.constants.js';
 import { SessionTokenService } from './session-token.service.js';
+import type { BranchRole } from '../users/user-role.js';
 
 export type AuthenticatedRequest = Request & {
-  user?: { sub: string; isAdmin: boolean };
+  user?: {
+    sub: string;
+    isAdmin: boolean;
+    branchAccesses: { branchId: string; role: BranchRole }[];
+  };
 };
 
 @Injectable()
@@ -38,7 +43,14 @@ export class AuthGuard implements CanActivate {
       const payload = await this.tokens.verify(token);
       const user = await this.users.findActiveById(payload.sub);
       if (!user) throw new UnauthorizedException('Usuario no disponible');
-      request.user = { sub: user.id as string, isAdmin: user.isAdmin };
+      request.user = {
+        sub: user.id as string,
+        isAdmin: user.isAdmin,
+        branchAccesses: user.branchAccesses.map(({ branchId, role }) => ({
+          branchId,
+          role,
+        })),
+      };
     } catch {
       throw new UnauthorizedException('Sesión inválida o vencida');
     }

@@ -4,9 +4,11 @@ import { PasswordService } from './password.service.js';
 import { User, UserSchema } from './schemas/user.schema.js';
 import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
+import { BranchesPersistenceModule } from '../branches/branches-persistence.module.js';
 
 @Module({
   imports: [
+    BranchesPersistenceModule,
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
   ],
   controllers: [UsersController],

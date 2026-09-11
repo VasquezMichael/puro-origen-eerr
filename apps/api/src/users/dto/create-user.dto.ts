@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsMongoId,
   IsOptional,
   IsString,
   MinLength,
@@ -12,8 +13,7 @@ import {
 import { BranchRole } from '../user-role.js';
 
 export class BranchAccessDto {
-  @IsString()
-  @MinLength(1)
+  @IsMongoId({ message: 'Identificador de sucursal inválido' })
   branchId!: string;
 
   @IsEnum(BranchRole)

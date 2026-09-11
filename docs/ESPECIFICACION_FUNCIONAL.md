@@ -22,6 +22,9 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 
 ### Sucursales
 
+- Gestión administrativa de sucursales, código automático e inmutable y cambios
+  reversibles de estado según las decisiones de EP-02 en [DECISIONES.md](DECISIONES.md).
+- Consulta limitada a sucursales asignadas para Lector/Editor; Administrador consulta todas.
 - Fecha de inicio opcional; por defecto se utiliza la fecha de creación.
 - Una sucursal inactiva conserva sus históricos.
 - La corrección de históricos y la creación de EERR en sucursales inactivas se
