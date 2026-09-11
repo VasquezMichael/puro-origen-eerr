@@ -6,6 +6,7 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
 - Chatbot/IA para consultar y analizar EERR.
 - Interpretación de tendencias y dashboards.
 - Ayuda contextual mediante tooltips.
+- Evaluar creación de períodos futuros; EP-03 los rechaza y no habilita esta mejora.
 - Modo oscuro si queda fuera del MVP.
 - Aislar configuración y persistencia del e2e existente antes de incorporarlo a CI.
 - Revisar las vulnerabilidades reportadas por npm ci en las dependencias existentes

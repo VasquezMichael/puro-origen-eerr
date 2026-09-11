@@ -30,3 +30,11 @@ Este módulo no importa Usuarios ni Autenticación. `AuthModule` consume Usuario
 y registra el guard global que revalida el usuario y sus asignaciones por solicitud.
 La interfaz `/admin/sucursales` consulta la API con la sesión existente; la API
 decide el acceso y restringe todas las operaciones administrativas.
+
+`EerrModule` consume `BranchesPersistenceModule` y registra su propio esquema y
+servicio. No requiere importar `AuthModule` ni `UsersModule`; usa el principal
+revalidado por el guard global, sin dependencias circulares. El servidor aplica
+las reglas de creación y limita las consultas por sucursales accesibles.
+La web `/eerr` presenta ambas perspectivas mediante consultas REST con sesión,
+sin persistencia ni cálculos financieros en el navegador.
+Los contratos y el modelo de EP-03 están en [API_EERR.md](API_EERR.md).

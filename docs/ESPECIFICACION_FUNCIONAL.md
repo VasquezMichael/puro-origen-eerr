@@ -38,6 +38,13 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 - Acción para completar con cero las celdas sin movimiento.
 - La creación de períodos futuros permanece pendiente de definición.
 
+EP-03 implementa únicamente el contenedor mensual y la navegación por sucursal
+o por período, con los permisos y restricciones de [DECISIONES.md](DECISIONES.md).
+Un EERR existente comienza `SIN_CARGAR`; una combinación inexistente se muestra
+como tal, sin interpretar su ausencia como importes en cero. No se crean registros
+al consultar. La estructura financiera y clonación se incorporarán en EP-04;
+cierre, reapertura y eliminación, en EP-07. Contratos: [API_EERR.md](API_EERR.md).
+
 ### Carga y estructura
 
 - Los registros nuevos comienzan en cero.
