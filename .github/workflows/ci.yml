@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -29,4 +31,20 @@ jobs:
       - name: Compilar
         run: npm run build
       - name: Verificar espacios del diff
-        run: git diff --check
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            git diff --check "$PR_BASE" "$PR_HEAD" --
+          else
+            base="$PUSH_BEFORE"
+            if [[ "$base" == "0000000000000000000000000000000000000000" ]]; then
+              base=$(git hash-object -t tree /dev/null)
+            fi
+            git diff --check "$base" "$PUSH_SHA" --
+          fi

@@ -1,7 +1,7 @@
 # Arquitectura
 
 La base es un monorepo npm sobre Node.js 24 y TypeScript, organizado como monolito
-modular. Este milestone no implementa funcionalidades de negocio.
+modular.
 
 | Workspace | Tecnología y responsabilidad |
 | --- | --- |
@@ -17,9 +17,9 @@ las pruebas unitarias no deben abrir conexiones ni requerir secretos.
 Las aplicaciones consumen paquetes, nunca al revés. Los paquetes puros no dependen
 de frameworks ni de persistencia. Toda nueva dependencia entre workspaces debe
 justificarse y comprobarse para evitar ciclos. No introducir microservicios.
-Los paquetes actuales contienen únicamente un módulo vacío; no hay reglas de
-negocio implementadas ni dependencias internas declaradas. Si se agregan, adaptar
-el orden de build a sus dependencias antes de consumir artefactos dist.
+`packages/calculation-engine` no debe depender de NestJS, React, Mongoose ni de
+detalles de persistencia. Mantener el orden de build acorde a las dependencias
+entre workspaces antes de consumir artefactos dist.
 
 La web conserva ESLint, la API oxlint y Vitest, y los paquetes el compilador
 TypeScript. La configuración raíz delega en los scripts existentes de cada workspace.

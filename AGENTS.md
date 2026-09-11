@@ -23,17 +23,33 @@ Usar TypeScript estricto y las herramientas y estilos existentes de cada workspa
 En ESM de la API y paquetes, preservar imports compatibles con NodeNext.
 No introducir dependencias sin justificar su necesidad. Evitar duplicar reglas.
 Agregar pruebas significativas a reglas y cálculos cuando se implementen.
-No inventar requisitos: registrar decisiones pendientes y mejoras futuras en los
-documentos correspondientes. Este milestone solo establece la base de desarrollo.
+Cada milestone puede implementar funcionalidades únicamente dentro del alcance
+proporcionado. No inventar requisitos ni resolver pendientes mediante suposiciones;
+consultarlos con el usuario antes de implementar la parte afectada.
+
+Aplicar este orden de autoridad para las definiciones del proyecto:
+
+1. Decisiones confirmadas en `docs/DECISIONES.md`.
+2. Especificación funcional en `docs/ESPECIFICACION_FUNCIONAL.md`.
+3. Alcance concreto del milestone.
+4. `docs/BACKLOG_EVOLUTIVO.md`, que registra mejoras y no autoriza implementación.
+
+El alcance delimita qué se implementa en cada milestone; no habilita a contradecir
+decisiones confirmadas ni a implementar toda la especificación. Registrar decisiones,
+riesgos y pendientes al cerrar cada milestone, y mejoras futuras en el backlog.
 
 ## Git y verificaciones obligatorias
 
 Inspeccionar estructura, package.json y todos los AGENTS.md aplicables; ejecutar
 `git status`. Si hay cambios locales, detenerse y reportarlos sin descartarlos.
-Con árbol limpio, cambiar a main, ejecutar `git pull --ff-only origin main` y crear
-una rama específica. Nunca trabajar directamente en main ni hacer merge automático.
-Escribir commits en español. Solo hacer commit y push tras aprobar las verificaciones;
-crear PR únicamente cuando el usuario lo solicite. Nunca ocultar errores.
+Para un milestone nuevo, con árbol limpio, cambiar a main, ejecutar
+`git pull --ff-only origin main` y crear una rama específica. Si el usuario indica
+continuar en una rama existente, conservarla. Nunca trabajar ni fusionar directamente
+sobre main; no hacer merge automático.
+Usar Conventional Commits con prefijos `feat`, `fix`, `chore`, `docs`, `test` o
+`refactor` y descripción en español. Codex debe hacer commit y push solo tras aprobar
+las verificaciones. La creación y el merge del PR quedan fuera de la ejecución
+automática; el merge requiere revisión humana previa. Nunca ocultar errores.
 
 Desde la raíz, con Node.js 24 y dependencias instaladas mediante `npm ci`:
 
@@ -43,6 +59,7 @@ npm run lint --workspaces --if-present
 npm test --workspaces --if-present
 npm run build --workspaces --if-present
 git diff --check
+git diff --cached --check
 ```
 
 `npm run check` agrupa tipos, lint, pruebas y build. Además revisar archivos

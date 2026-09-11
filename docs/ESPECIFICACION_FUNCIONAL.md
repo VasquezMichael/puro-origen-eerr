@@ -1,27 +1,59 @@
 # Especificación funcional
 
-Registro del alcance solicitado para la gestión integral de estados de resultados
-(EERR) por sucursal y período. Este milestone documenta el alcance; no lo implementa.
+## Requisitos confirmados
+
+### Propósito
+
+Gestión integral de estados de resultados (EERR) de múltiples sucursales y períodos,
+con una interfaz minimalista, fluida, funcional y responsive para escritorio y tablet.
 No se definen fórmulas, permisos detallados ni criterios no provistos por el usuario.
 
-## Interacción y acceso
+### Acceso y navegación
 
-- Modos Editor y Análisis.
-- Perspectivas por sucursal o por período.
-- Roles Lector y Editor.
-- Diseño responsive para escritorio y tablet.
+- Autenticación mediante login.
+- Wizard inicial.
+- Elección entre Modo Editor y Modo Análisis.
+- Perspectiva por sucursal: seleccionar sucursal y consultar sus períodos.
+- Perspectiva por período: seleccionar período y consultar sus sucursales.
+- Roles confirmados: Lector y Editor.
 
-## Carga y gestión
+### Sucursales
 
-- Carga manual, Excel y CSV.
-- Expresiones matemáticas en celdas.
-- Clonación de estructura.
-- Clonación de estructura y valores.
-- Notas.
-- Auditoría de modificaciones.
+- Fecha de inicio opcional; por defecto se utiliza la fecha de creación.
+- Una sucursal inactiva conserva sus históricos.
+- La corrección de históricos y la creación de EERR en sucursales inactivas se
+  rigen por las decisiones aceptadas indicadas más abajo.
+
+### Períodos
+
+- Crear período prepara una plantilla mensual por sucursal.
+- Contemplar el estado “sin cargar”.
 - Cierre y bloqueo de períodos.
+- Acción para completar con cero las celdas sin movimiento.
+- La creación de períodos futuros permanece pendiente de definición.
 
-## Resultados y análisis
+### Carga y estructura
+
+- Los registros nuevos comienzan en cero.
+- Carga manual, Excel y CSV.
+- Celdas numéricas y expresiones matemáticas, por ejemplo `1000 + 500`.
+- Categorías dinámicas sin intervención técnica.
+- Vista previa del cálculo.
+- Notas y auditoría de modificaciones.
+- Posibilidad de agregar ítems durante un período.
+- Aplicar las decisiones aceptadas sobre códigos de categorías, nombres históricos,
+  cantidades enteras y porcentajes con decimales.
+
+### Clonación
+
+- Clonar estructura copia categorías e ítems y coloca valores en cero.
+- La estructura puede clonarse desde cualquier sucursal accesible.
+- Clonar estructura y valores mantiene los montos.
+- Por defecto se clona desde la misma sucursal.
+- Si se clona desde otra sucursal debe existir una advertencia.
+- No se copian notas.
+
+### Resultados y análisis
 
 - Ingresos, costos, margen bruto, gastos y resultado neto.
 - Porcentaje neto sobre ventas.
@@ -31,7 +63,10 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 - Dashboard, semáforos, comparativas y consolidado.
 - Exportación a PDF y Excel.
 
-## Reglas aceptadas
+## Decisiones aceptadas
+
+Estas reglas se registran en [DECISIONES.md](DECISIONES.md), que tiene prioridad
+ante discrepancias con la especificación:
 
 - Sucursales inactivas: permiten corregir históricos, pero no crear EERR nuevos.
 - Categorías identificadas internamente por código.
@@ -42,7 +77,17 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 
 ## Definiciones pendientes
 
-Quedan sin resolver quién puede crear bloques principales, el alcance exacto del
-rol administrador mencionado en la especificación, la creación de períodos futuros
-y el feedback de usuarios finales. Ver DECISIONES.md. No derivar permisos adicionales
-ni resolver interacciones no especificadas entre reglas durante este milestone.
+- Definición final sobre quién puede crear bloques principales.
+- Alcance exacto del rol Administrador mencionado pero no definido; los únicos
+  roles confirmados son Lector y Editor.
+- Creación de períodos futuros.
+- Feedback de usuarios finales.
+
+Consultar [DECISIONES.md](DECISIONES.md). No resolver estos pendientes mediante
+suposiciones ni derivar permisos o interacciones no especificadas entre reglas.
+
+## Backlog evolutivo
+
+Las mejoras futuras se registran por separado en
+[BACKLOG_EVOLUTIVO.md](BACKLOG_EVOLUTIVO.md). El backlog no autoriza implementación
+ni agrega requisitos confirmados. Cada milestone implementa únicamente su alcance.
