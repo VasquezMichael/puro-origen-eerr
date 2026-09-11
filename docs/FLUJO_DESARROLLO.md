@@ -16,8 +16,8 @@ npm ci
 El comando de creación anterior es un ejemplo. El nombre y tipo de rama dependen
 del milestone: `feature/*` para funcionalidades, `fix/*` para correcciones y
 `chore/*` para infraestructura o mantenimiento. Si el usuario indica continuar una
-rama existente, conservarla sin cambiar a main ni crear otra rama. Nunca trabajar
-ni fusionar directamente sobre main.
+rama existente, conservarla sin cambiar a main ni crear otra rama durante el trabajo.
+No desarrollar ni crear commits directamente sobre main: integrar mediante PR.
 Limitar cada milestone al alcance acordado y registrar mejoras en el backlog.
 No agregar dependencias sin justificar su necesidad.
 
@@ -69,6 +69,54 @@ comandos y resultados, decisiones, supuestos y pendientes; confirmar que no se
 versionaron secretos. Al cerrar cada milestone, registrar las decisiones confirmadas
 en DECISIONES.md, los riesgos en el informe de cierre y los pendientes en DECISIONES.md
 o BACKLOG_EVOLUTIVO.md según corresponda. No resolver pendientes por suposición.
-La creación y el merge del PR quedan fuera de la ejecución automática de Codex.
-Usar la plantilla al preparar un PR y mantener revisión humana antes del merge;
-nunca hacer merge automático.
+
+## Circuito automatizado de Codex Work
+
+1. Ejecutar `npm run check`, `git diff --check` y, tras preparar el commit,
+   `git diff --cached --check`. Revisar el diff completo del milestone contra main,
+   además del cambio local. Comprobar que los archivos versionados y el diff no
+   contengan secretos ni .env reales; solo admitir ejemplos ficticios como
+   `.env.example`. No leer apps/api/.env para realizar esta comprobación.
+2. Crear commits Conventional Commits con descripción en español y publicar la
+   rama con `git push -u origin <rama>`. No usar force push.
+3. Crear el Pull Request hacia main. Completar la plantilla de
+   `.github/pull_request_template.md`: resumen, cambios, pruebas ejecutadas,
+   impacto funcional, riesgos, capturas si corresponde, checklist de secretos y
+   pendientes. Describir el resultado completo del milestone, no solo el último commit.
+4. Esperar el resultado real de GitHub Actions para la última revisión del PR.
+   Comprobar todos los controles y las revisiones, conversaciones bloqueantes,
+   conflictos y reglas del repositorio. CI ausente, pendiente, cancelado o fallido
+   no habilita el merge. No omitir ni desactivar controles ni modificar protecciones.
+5. Corregir los fallos dentro del alcance del milestone, repetir las verificaciones
+   afectadas y `npm run check`, revisar el nuevo diff y publicar la corrección.
+   Esperar el CI de la nueva revisión; el resultado de un commit anterior no basta.
+6. Hacer **Squash and merge** únicamente si todas las verificaciones están aprobadas
+   y no hay conflictos, secretos, revisiones bloqueantes ni incertidumbres importantes.
+   Confirmar que el head sigue siendo el verificado y usar un título Conventional
+   Commit en español para el squash. No eludir revisiones requeridas por GitHub.
+7. Confirmar el merge y su SHA antes de eliminar la rama remota. Con árbol local
+   limpio, ejecutar `git switch main` y `git pull --ff-only origin main`.
+   Si falla el fast-forward, detenerse e informar; no resetear ni forzar main.
+8. Comprobar que la rama local no tiene commits adicionales respecto del head
+   integrado y que sus cambios están incorporados en main. Eliminarla con
+   `git branch -d <rama>` cuando Git lo permita. Como squash no preserva la
+   ascendencia, usar `git branch -D <rama>` únicamente después de comprobar la
+   integración por el PR y la ausencia de trabajo adicional o uso en otro worktree.
+9. Verificar con `git status`, `git rev-parse HEAD`, `git rev-parse origin/main` y
+   el listado local/remoto de ramas que main quedó limpio y sincronizado y ambas
+   ramas de trabajo fueron eliminadas. Comprobar también el CI del push a main y
+   reportar su resultado; si falla, informar y corregir dentro del alcance mediante
+   una nueva rama y PR, sin modificar main directamente.
+
+## Intervención humana y reporte
+
+Conservar revisión humana para decisiones funcionales no documentadas, cambios
+de alcance, operaciones irreversibles sobre datos, secretos, credenciales o
+infraestructura y fallos que no puedan resolverse dentro del milestone. Detenerse
+e informar cuando se necesite esa decisión; no integrar mientras exista el bloqueo.
+El circuito de PR y merge autorizado puede completarse sin otra confirmación
+cuando todos los controles anteriores estén satisfechos.
+
+El informe final debe indicar archivos modificados, commits creados, URL y número
+del PR, verificaciones locales, resultado real de CI, método y commit del merge,
+ramas eliminadas, estado final de main, advertencias y tareas pendientes.
