@@ -12,5 +12,8 @@
   "license": "ISC",
   "type": "module",
   "types": "dist/index.d.ts",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@puro-origen/domain": "^0.1.0"
+  }
 }

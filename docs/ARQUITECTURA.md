@@ -52,3 +52,43 @@ funcionen en un checkout limpio. Esta dependencia interna evita duplicar reglas;
 no se incorpora ninguna biblioteca externa. El dominio incorpora pruebas con
 `node:test` sobre su compilación y reutiliza oxlint para lint. Los cambios de TZ
 se prueban en procesos hijos aislados, sin mutar el entorno global de las pruebas.
+
+## Estructura y carga manual (EP-04A)
+
+EerrModule incorpora StructureController, StructureService y StructureRepository.
+Reutiliza el principal y acceso filtrado de EerrService; comprueba autorización
+por operación sin importar Usuarios ni Autenticación.
+
+Modelo híbrido: catálogo eerr_concepts (UUID, tipo, raíz), plantilla eerr_templates
+(clave año-mes, versión, categorías) y snapshot embebido en EERR. Los bloques
+reservados viven en dominio. No se resuelven nombres desde el catálogo al leer.
+schemaVersion identifica formato; structureVersion parte de la versión mensual
+al inicializar y avanza con cambios estructurales; revision avanza en toda edición.
+No se depende de __v para concurrencia.
+
+El repositorio convierte strings a Decimal128 y viceversa. Los esquemas y
+subdocumentos tienen tipos explícitos, sin Mixed para nodos/celdas. Dominio
+centraliza raíces, invariantes, normalización, progreso y dinero exacto con BigInt.
+Shared-types consume tipos de dominio y publica contratos para ambas aplicaciones.
+Los scripts previos compilan dominio y contratos; no hay dependencias externas nuevas.
+
+Inicialización y publicación global adquieren el mismo bloqueo de escritura de
+plantilla dentro de una transacción, evitando inicializaciones con categorías
+atrasadas. Crear ítems transacciona catálogo y snapshot; renombrar ítems o guardar
+importes utiliza una sola escritura atómica. Cada escritura compara revisión.
+
+eerr_previews guarda identificador opaco, usuario, operación, período, revisiones
+y expiración. La API valida vencimiento aunque TTL no haya borrado el documento.
+Confirmar revalida acceso, revisiones y plantilla, y consume la vista previa en
+la transacción. Los reintentos técnicos vuelven a comprobar las precondiciones;
+no habilitan revisiones obsoletas. No hay fallback parcial mediante updateMany.
+
+/eerr/[id] presenta el árbol y carga manual sin resultados financieros. Su reducer
+conserva borradores tras 409 y recarga; solo elimina el de la celda cuyo guardado
+fue confirmado. API/dominio mantienen la autoridad sobre permisos y reglas.
+
+Las pruebas normales siguen sin MongoDB. La integración opcional
+`npm run test:integration:structure --workspace=api` exige MONGOD_BINARY con ruta
+absoluta a un ejecutable local. Lanza y elimina su propio replica set en loopback
+y directorio temporal. No acepta URI externa ni utiliza AppModule, .env o bootstrap.
+No instala infraestructura global. Contratos y validaciones: [API_EERR.md](API_EERR.md).

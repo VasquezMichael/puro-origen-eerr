@@ -14,9 +14,15 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
   su alcance y actualizar con verificación; no aplicar correcciones forzadas a ciegas.
 - Incorporar lint y pruebas en paquetes al implementar sus reglas; agregar pruebas
   web cuando exista comportamiento funcional que verificar.
-- Completar la validación visual manual de EP-03 en escritorio y tablet: ambas
-  perspectivas, creación, mensajes, foco y navegación. El entorno de desarrollo
-  no dispuso de navegador; el control HTTP y el build no sustituyen esta revisión.
+- EP-03: validación manual confirmada por el usuario antes de EP-04A.
+- Validar visualmente EP-04A en escritorio y tablet: preparación explícita de
+  septiembre de Calle 59, categorías globales, carga, cero, limpieza, teclado y
+  conflictos con dos sesiones. No hay navegador disponible en el entorno;
+  pruebas del reducer y build no sustituyen revisión visual.
+- Evaluar límites de EP-04A con datos representativos antes de ampliar 1000 nodos
+  por EERR o 200 EERR por publicación mensual.
+- Automatizar integración MongoDB local aislada en un job específico si se adopta
+  esa infraestructura; el CI actual continúa sin MongoDB ni secretos.
 
 Cualquier mejora futura debe agregarse a este backlog. Los requisitos funcionales
 confirmados están en ESPECIFICACION_FUNCIONAL.md y las decisiones pendientes en

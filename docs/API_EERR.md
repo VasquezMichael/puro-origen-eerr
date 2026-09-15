@@ -100,3 +100,106 @@ Períodos futuros permanecen en el backlog, sin habilitación de creación.
 Las pruebas montan módulos Nest con el guard y servicios reales, conexión
 simulada y modelo en memoria. Verifican la colisión concurrente simulada y el índice
 declarado en el esquema; no prueban un servidor MongoDB real ni escriben en Atlas.
+
+## Estructura y carga manual (EP-04A)
+
+Las rutas anteriores se conservan. `loadStatus` admite ahora SIN_CARGAR, PARCIAL
+y CARGADO, calculados desde las celdas, sin estados de cierre. El detalle enlaza
+la pantalla `/eerr/[id]`. No se calculan totales financieros.
+
+Todas las rutas nuevas validan UUID v4, sesión, acceso y cuerpos estrictos sin
+campos adicionales. Los nombres se normalizan; code/nodeId son generados por API.
+Un EERR ajeno o inexistente devuelve 404. Lector consulta; Administrador y Editor
+asignado editan también históricos de sucursales inactivas. No hay DELETE ni movimientos.
+
+| Método y ruta (prefijo `/eerr/:id`) | Cuerpo | Respuesta |
+| --- | --- | --- |
+| GET `/structure` | — | 200 StructureResponse, sin escrituras |
+| POST `/structure/initialize` | `{ expectedRevision }` | 201 StructureResponse; idempotente |
+| POST `/items` | `{ expectedRevision, parentId, name, quantityEnabled?, unit? }` | 201 StructureResponse |
+| PATCH `/items/:nodeId` | `{ expectedRevision, name }` | 200 StructureResponse |
+| PUT `/items/:nodeId/amount` | `{ expectedRevision, state: "CARGADO", input: "1500,505" }` | 200, valor `"1500.51"` |
+| PUT `/items/:nodeId/amount` | `{ expectedRevision, state: "SIN_CARGAR" }` | 200, entrada/valor null |
+| POST `/categories/preview` | `{ expectedRevision, operation: "CREATE", parentCode, name }` | 201 CategoryPreviewResponse |
+| POST `/categories/preview` | `{ expectedRevision, operation: "RENAME", code, name }` | 201 CategoryPreviewResponse |
+| POST `/categories/confirm` | `{ expectedRevision, previewId, confirm: true }` | 201 StructureResponse |
+
+`expectedRevision` es número entero no negativo; strings/null/fracciones se
+rechazan. La carga admite cero mediante `input: "0"`; volver a SIN_CARGAR no
+admite input, preserva el ítem e incrementa revisión. No se aceptan importes en
+BLOCK/CATEGORY, resultados calculados del cliente, cantidad editable ni expresiones.
+
+StructureResponse contiene `id`, `revision`, `structure` y `progress` con
+`total`, `loaded`, `pending`, `status`. Un EERR previo sin estructura devuelve
+`structure: null`, revisión 0 si estaba ausente, y progreso cero/SIN_CARGAR.
+Esto no representa importes en cero. GET no prepara el EERR.
+
+Un snapshot contiene schemaVersion, structureVersion, initializedAt ISO,
+initializedBy y nodes. Cada nodo contiene nodeId, code, parentId, position, name y
+kind (BLOCK/CATEGORY/ITEM). ITEM agrega quantityEnabled, unit opcional y amount:
+
+```json
+{
+  "state": "CARGADO",
+  "input": "0",
+  "value": "0.00",
+  "currency": "ARS",
+  "scale": 2
+}
+```
+
+Para SIN_CARGAR, input y value son null. Decimal128 nunca se expone como objeto
+BSON: value siempre es string canónico con punto y dos decimales, o null.
+La API aplica la política monetaria de DECISIONES.md, máximo `999999999999.99` ARS.
+No hay separadores de miles. Entrada limitada a 80 caracteres; solo dígitos con
+separador decimal opcional y dígitos a ambos lados. ROUND_HALF_UP es exacto con BigInt.
+
+Las raíces tienen códigos reservados terminados en 001, 002 y 003 respectivamente:
+`00000000-0000-4000-8000-000000000001`, `00000000-0000-4000-8000-000000000002`,
+`00000000-0000-4000-8000-000000000003`. Categorías usan parentCode en la plantilla;
+los snapshots traducen a parentId local. Los nombres se conservan por período.
+
+La vista previa devuelve previewId, operación, nombre, padre global (code/name),
+año/mes, expiresAt, affected, initialized, uninitialized y warning de alcance global.
+No devuelve IDs ni nombres de sucursales ajenas, nodos locales, importes ni revisiones
+internas de otros EERR. Dura cinco minutos; la confirmación está ligada al mismo
+usuario y EERR. Cambiar plantilla, conjunto de EERR o revisiones invalida la vista
+previa. Renombrar conserva identidades, valores y relaciones; solo afecta ese mes/año.
+
+Los EERR sin estructura se cuentan, pero no se modifican por una publicación.
+Reciben las categorías al prepararse explícitamente. Inicialización y publicación
+se coordinan por plantilla dentro de transacciones. Las revisiones de los snapshots
+se comparan e incrementan atómicamente, evitando sobrescribir ediciones concurrentes.
+
+Errores: 400 entrada/invariante inválida; 401 sesión; 403 falta de edición;
+404 no accesible; 409 revisión o preview obsoleta/vencida/utilizada/conflicto de
+estructura; 503 entorno sin transacciones. Un conflicto de otro EERR se informa
+sin revelar su información. No hay fallback de escrituras parciales.
+
+## Verificación de EP-04A y validación manual
+
+Pruebas de dominio: raíces, ciclos, padres, duplicados, código estable, progreso,
+coma/punto, redondeo, límites y literales rechazados. HTTP usa guard y servicios
+reales con persistencia en memoria; cubre permisos, historial inactivo, revisión,
+publicación limitada al año/mes, previews y rollback simulado. Esquemas se construyen
+sin metadatos ni conexión. La web prueba preservación de borradores y revisión.
+
+La integración opcional `npm run test:integration:structure --workspace=api`
+utiliza un mongod local indicado por MONGOD_BINARY y lanza su propio replica set
+temporal en loopback. Verifica Decimal128, CAS, inicialización concurrente y rollback
+real. No forma parte del check ni del CI sin MongoDB. No importa AppModule ni usa .env.
+No se crea PLAN_PRUEBAS.md: no existía y las instrucciones no exigen esa ruta;
+la estrategia queda documentada aquí y en ARQUITECTURA.md.
+
+EP-03 fue validado manualmente según confirmación del usuario. EP-04A requiere
+revisión visual de escritorio/tablet y flujo con dos sesiones. Los EERR de Calle 59
+de agosto y septiembre no se modifican durante desarrollo ni por el merge.
+Después del merge, preparar septiembre es una acción manual del usuario.
+No ejecutar bootstrap ni cambiar al administrador. Agosto se elimina recién en EP-07.
+
+Mutaciones manuales de EP-04A: ROUND_HALF_UP, cero cargado, nombre de raíz,
+ITEM como padre, permiso Editor, expiración y revisiones globales, filtro CAS,
+filtro mensual, timestamps de inicialización, atomicidad transaccional y
+preservación de borradores. Las doce fueron detectadas y restauradas. La prueba
+CAS usa una barrera para que ambas solicitudes lean la misma revisión antes de
+competir en la escritura, evitando que el orden temporal oculte una regresión.

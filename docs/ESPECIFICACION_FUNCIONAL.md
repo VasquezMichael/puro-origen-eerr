@@ -50,7 +50,8 @@ cierre, reapertura y eliminación, en EP-07. Contratos: [API_EERR.md](API_EERR.m
 
 ### Carga y estructura
 
-- Los registros nuevos comienzan en cero.
+- Las celdas nuevas comienzan SIN_CARGAR con valor null; cero requiere carga
+  explícita. EP-04A reemplaza la antigua indicación de inicio automático en cero.
 - Carga manual, Excel y CSV.
 - Celdas numéricas y expresiones matemáticas, por ejemplo `1000 + 500`.
 - Categorías dinámicas sin intervención técnica.
@@ -62,7 +63,8 @@ cierre, reapertura y eliminación, en EP-07. Contratos: [API_EERR.md](API_EERR.m
 
 ### Clonación
 
-- Clonar estructura copia categorías e ítems y coloca valores en cero.
+- Clonar estructura copia categorías e ítems sin copiar importes; las nuevas
+  celdas quedan SIN_CARGAR conforme a EP-04A. Completar con cero será explícito.
 - La estructura puede clonarse desde cualquier sucursal accesible.
 - Clonar estructura y valores mantiene los montos.
 - Por defecto se clona desde la misma sucursal.
@@ -70,6 +72,14 @@ cierre, reapertura y eliminación, en EP-07. Contratos: [API_EERR.md](API_EERR.m
 - No se copian notas.
 
 ### Resultados y análisis
+
+EP-04A implementa preparación explícita, tres bloques protegidos, categorías
+globales con vista previa/confirmación, ítems locales, importes literales ARS
+y revisión optimista. Permite cargar cero o volver a SIN_CARGAR. Históricos
+inactivos admiten correcciones autorizadas; Lector consulta. Los EERR anteriores
+no cambian hasta su preparación manual. Cantidades editables, notas, expresiones
+y movimientos quedan para EP-04B; clonación, importación y completar sin movimiento
+para EP-04C. Los siguientes resultados financieros pertenecen a EP-05/EP-06.
 
 - Ingresos, costos, margen bruto, gastos y resultado neto.
 - Porcentaje neto sobre ventas.
@@ -93,7 +103,6 @@ ante discrepancias con la especificación:
 
 ## Definiciones pendientes
 
-- Definición final sobre quién puede crear bloques principales.
 - Creación de períodos futuros.
 - Feedback de usuarios finales.
 

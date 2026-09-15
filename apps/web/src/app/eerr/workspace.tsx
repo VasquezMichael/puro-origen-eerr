@@ -1,34 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import { eerrApi as api } from './api';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { EERR_TIME_ZONE, businessMonthAt, eerrCalendarIssue } from '@puro-origen/domain';
 
 type User = { isAdmin: boolean; branchAccesses: { branchId: string; role: 'READER' | 'EDITOR' }[] };
 type Branch = { id: string; name: string; active: boolean; startDate: string };
-type Eerr = { id: string; branchId: string; year: number; month: number; loadStatus: 'SIN_CARGAR'; createdAt: string };
+type Eerr = { id: string; branchId: string; year: number; month: number; loadStatus: 'SIN_CARGAR' | 'PARCIAL' | 'CARGADO'; createdAt: string };
 type MonthContext = { branch: Branch; exists: true; eerr: Eerr } | { branch: Branch; exists: false; eerr: null };
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const periodName = (year: number, month: number) => `${months[month - 1]} ${year}`;
 const dateName = (value: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZone: EERR_TIME_ZONE }).format(new Date(value));
 const canCreate = (user: User, branch: Branch) => branch.active && (user.isAdmin || user.branchAccesses.some((access) => access.branchId === branch.id && access.role === 'EDITOR'));
-
-async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(`${API_URL}${path}`, { ...options, credentials: 'include', cache: 'no-store' });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') throw error;
-    throw new Error('No pudimos conectarnos con el servidor. Intentá nuevamente.');
-  }
-  const body = await response.json();
-  if (!response.ok) {
-    if (response.status === 401) throw new Error('Tu sesión venció. Volvé al inicio para ingresar.');
-    throw new Error(Array.isArray(body.message) ? body.message.join('. ') : body.message ?? 'No se pudo completar la operación');
-  }
-  return body as T;
-}
 
 export function EerrWorkspace() {
   const [session, setSession] = useState<{ user: User; branches: Branch[] } | null>(null);
@@ -111,7 +95,7 @@ function Results({ path, perspective, user, disabled, onCreate, onOpen }: { path
 }
 
 function EerrSummary({ row }: { row: Eerr }) {
-  return <><p><span className="branch-badge is-inactive">Sin cargar</span></p><p className="branch-date">Creado el {dateName(row.createdAt)}</p></>;
+  return <><p><span className="branch-badge is-inactive">{{ SIN_CARGAR: 'Sin cargar', PARCIAL: 'Carga parcial', CARGADO: 'Cargado' }[row.loadStatus]}</span></p><p className="branch-date">Creado el {dateName(row.createdAt)}</p></>;
 }
 
 function CreateForm({ initial, onCancel, onCreated }: { initial: { branch: Branch; year: number; month: number }; onCancel: () => void; onCreated: (row: Eerr) => void }) {
@@ -156,6 +140,6 @@ function Detail({ id, branches, onClose }: { id: string; branches: Branch[]; onC
     return () => controller.abort();
   }, [id]);
   return <section className="branch-feedback" aria-labelledby="eerr-detail-title"><div className="branch-card-heading"><h2 id="eerr-detail-title" tabIndex={-1} ref={heading}>Contexto del EERR</h2><button className="text-button" onClick={onClose}>Cerrar detalle</button></div>
-    {error ? <p className="error" role="alert">{error}</p> : row ? <><h3>{branches.find((branch) => branch.id === row.branchId)?.name} · {periodName(row.year, row.month)}</h3><EerrSummary row={row} /><p className="branch-code">Identificador<code>{row.id}</code></p><p className="intro">Este EERR existe y está sin cargar. Todavía no contiene estructura financiera ni importes.</p></> : <p role="status">Consultando EERR…</p>}
+    {error ? <p className="error" role="alert">{error}</p> : row ? <><h3>{branches.find((branch) => branch.id === row.branchId)?.name} · {periodName(row.year, row.month)}</h3><EerrSummary row={row} /><p className="branch-code">Identificador<code>{row.id}</code></p><Link className="primary-button" href={`/eerr/${row.id}`}>Abrir estructura y carga</Link></> : <p role="status">Consultando EERR…</p>}
   </section>;
 }
