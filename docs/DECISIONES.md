@@ -79,6 +79,15 @@ de EERR se implementarán con períodos. Son requisitos confirmados, no mejoras 
 
 ## Creación y contexto del EERR (EP-03)
 
+- El calendario oficial del negocio es `America/Argentina/Buenos_Aires`, una
+  regla fija de dominio, sin variable de entorno. Tanto el instante actual como
+  la fecha de inicio persistida de la sucursal se convierten primero a ese
+  calendario para obtener el año y mes. No se usa UTC ni la zona del sistema.
+- El período persiste como `year` y `month` explícitos, nunca como timestamp.
+  A las `2026-10-01T01:00:00Z` todavía es septiembre; octubre comienza a las
+  `2026-10-01T03:00:00Z` en Buenos Aires. La API es la autoridad de validación.
+- `packages/domain` centraliza la zona y las reglas calendarias, compartidas
+  por API y web mediante `Intl.DateTimeFormat`, sin bibliotecas externas.
 - Un `Eerr` es un contenedor mensual, colección `eerr`, con UUID v4 propio como
   clave primaria MongoDB. UUID, sucursal, año, mes y creador son inmutables.
 - Hay como máximo un EERR por sucursal/año/mes, con validación previa e índice

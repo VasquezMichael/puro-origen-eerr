@@ -38,3 +38,17 @@ las reglas de creación y limita las consultas por sucursales accesibles.
 La web `/eerr` presenta ambas perspectivas mediante consultas REST con sesión,
 sin persistencia ni cálculos financieros en el navegador.
 Los contratos y el modelo de EP-03 están en [API_EERR.md](API_EERR.md).
+
+API y web consumen `@puro-origen/domain` para el calendario fijo
+`America/Argentina/Buenos_Aires`. `businessMonthAt` convierte instantes con
+`Intl.DateTimeFormat`; `eerrCalendarIssue` compara períodos explícitos y recibe
+el instante actual como argumento. No depende de Nest, React, MongoDB ni de la
+zona del sistema operativo. La API suministra ese instante mediante `EerrClock`,
+reemplazable en pruebas; la web reutiliza las mismas funciones y constante.
+
+Los scripts previos de las aplicaciones compilan el paquete antes de tipos,
+build, pruebas de API y desarrollo, para que los imports ESM y declaraciones
+funcionen en un checkout limpio. Esta dependencia interna evita duplicar reglas;
+no se incorpora ninguna biblioteca externa. El dominio incorpora pruebas con
+`node:test` sobre su compilación y reutiliza oxlint para lint. Los cambios de TZ
+se prueban en procesos hijos aislados, sin mutar el entorno global de las pruebas.

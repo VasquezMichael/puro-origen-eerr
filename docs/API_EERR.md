@@ -18,6 +18,28 @@ ni bloqueo. Los documentos previos no definen un enum de ciclo de vida; EP-03 no
 introduce `ABIERTO` ni transiciones. Su definición corresponde a EP-07.
 No hay categorías, ítems, importes, notas ni registros financieros ficticios.
 
+## Calendario del negocio
+
+La zona oficial es **`America/Argentina/Buenos_Aires`**, centralizada como regla
+fija en `@puro-origen/domain`. No se configura mediante `.env` ni depende de la
+zona horaria del navegador, servidor o sistema operativo.
+
+El instante actual y la fecha de inicio persistida de la sucursal se convierten
+primero al calendario de Buenos Aires con `Intl.DateTimeFormat`. Sus respectivos
+años y meses determinan el último y primer período permitidos. Por ejemplo, un
+inicio `2026-10-01T01:00:00Z` pertenece a septiembre del negocio, mientras que
+`2026-10-01T03:00:00Z` pertenece a octubre. Se conservan las fechas persistidas;
+no se ejecutan migraciones ni se modifican sucursales existentes.
+
+Los EERR guardan `year` y `month` como números explícitos: no se construye un
+timestamp para representar el período. Los timestamps de creación y actualización
+siguen siendo instantes ISO. La vista de EERR muestra sus fechas en Buenos Aires.
+
+La API utiliza un reloj inyectable y es la autoridad final. La web comparte la
+utilidad para el mes inicial y la validación anticipada del formulario; cada POST
+vuelve a validar el calendario y los permisos en el servidor. Las pruebas fijan
+instantes explícitos y comprueban también el cambio de mes exacto y de año.
+
 ## Contratos HTTP
 
 Todas las rutas requieren la cookie de sesión existente y revalidan el usuario

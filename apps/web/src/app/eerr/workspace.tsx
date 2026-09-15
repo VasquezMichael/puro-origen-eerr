@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { EERR_TIME_ZONE, businessMonthAt, eerrCalendarIssue } from '@puro-origen/domain';
 
 type User = { isAdmin: boolean; branchAccesses: { branchId: string; role: 'READER' | 'EDITOR' }[] };
 type Branch = { id: string; name: string; active: boolean; startDate: string };
@@ -10,7 +11,7 @@ type MonthContext = { branch: Branch; exists: true; eerr: Eerr } | { branch: Bra
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const periodName = (year: number, month: number) => `${months[month - 1]} ${year}`;
-const dateName = (value: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(value));
+const dateName = (value: string) => new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeZone: EERR_TIME_ZONE }).format(new Date(value));
 const canCreate = (user: User, branch: Branch) => branch.active && (user.isAdmin || user.branchAccesses.some((access) => access.branchId === branch.id && access.role === 'EDITOR'));
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -52,7 +53,7 @@ export function EerrWorkspace() {
 function ContextBrowser({ user, branches }: { user: User; branches: Branch[] }) {
   const [perspective, setPerspective] = useState<'branch' | 'month'>('branch');
   const [branchId, setBranchId] = useState(branches[0]?.id ?? '');
-  const [period, setPeriod] = useState(() => ({ year: new Date().getUTCFullYear(), month: new Date().getUTCMonth() + 1 }));
+  const [period, setPeriod] = useState(() => businessMonthAt(new Date()));
   const [revision, setRevision] = useState(0);
   const [creation, setCreation] = useState<{ branch: Branch; year: number; month: number } | null>(null);
   const [success, setSuccess] = useState('');
@@ -123,6 +124,11 @@ function CreateForm({ initial, onCancel, onCreated }: { initial: { branch: Branc
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current) return;
+    const issue = eerrCalendarIssue(period, new Date(initial.branch.startDate), new Date());
+    if (issue) {
+      setError(issue === 'FUTURE' ? 'No se pueden crear períodos futuros.' : 'El período es anterior al mes de inicio de la sucursal.');
+      return;
+    }
     submitting.current = true; setBusy(true); setError('');
     try {
       const row = await api<Eerr>('/eerr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ branchId: initial.branch.id, ...period }) });

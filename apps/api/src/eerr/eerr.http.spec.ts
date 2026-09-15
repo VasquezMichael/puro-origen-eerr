@@ -14,6 +14,8 @@ import { SESSION_COOKIE } from '../auth/auth.constants.js';
 import { SessionTokenService } from '../auth/session-token.service.js';
 import { BranchRole } from '../users/user-role.js';
 import { EerrModule } from './eerr.module.js';
+import { EerrClock } from './eerr-clock.js';
+import { businessMonthAt, eerrCalendarIssue } from '@puro-origen/domain';
 
 const branchId = '123456789012345678901234';
 const otherId = 'abcdefabcdefabcdefabcdef';
@@ -70,6 +72,7 @@ const matches = (row: Row, filter: Filter) =>
 
 describe('EERR HTTP con módulos y autorización reales; persistencia en memoria', () => {
   let app: INestApplication;
+  let now: Date;
   let rows: Row[];
   let branches: {
     id: string;
@@ -99,8 +102,8 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
       month,
       loadStatus: 'SIN_CARGAR',
       createdBy: userId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
     };
     rows.push(row);
     return row;
@@ -111,6 +114,8 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
     })
       .overrideProvider(SessionTokenService)
       .useValue({ verify: async () => ({ sub: userId }) })
+      .overrideProvider(EerrClock)
+      .useValue({ now: () => new Date(now) })
       .compile();
     app = module.createNestApplication();
     app.useGlobalPipes(
@@ -127,8 +132,7 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
   });
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'));
+    now = new Date('2026-09-15T12:00:00Z');
     rows = [];
     branches = [branchId, otherId].map((id, index) => ({
       id,
@@ -136,8 +140,8 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
       code: `SUC-${index}`,
       active: true,
       startDate: new Date('2025-01-15T12:00:00Z'),
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
     }));
     viewer = { id: userId, active: true, isAdmin: true, branchAccesses: [] };
     userModel.findOne.mockReturnValue({ exec: async () => viewer });
@@ -189,10 +193,6 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
       },
     );
   });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it('exige sesión y revalida los permisos desde el usuario', async () => {
     await api().get('/eerr').expect(401);
     await api()
@@ -291,6 +291,46 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
     await create({ branchId: 'invalid', year: 2026, month: 8 }).expect(400);
     await create({ branchId: missingId, year: 2026, month: 8 }).expect(404);
   });
+  it.each([
+    ['2026-10-01T01:00:00Z', 9, 400],
+    ['2026-10-01T02:59:59.999Z', 9, 400],
+    ['2026-10-01T03:00:00Z', 10, 201],
+  ] as const)(
+    'API y dominio coinciden al cambiar de mes en %s',
+    async (instant, month, status) => {
+      now = new Date(instant);
+      expect(businessMonthAt(now)).toEqual({ year: 2026, month });
+      const input = { branchId, year: 2026, month: 10 };
+      expect(eerrCalendarIssue(input, branches[0].startDate, now)).toBe(
+        status === 400 ? 'FUTURE' : null,
+      );
+      const response = await create(input).expect(status);
+      if (status === 400) {
+        expect(response.body.message).toBe(
+          'No se pueden crear períodos futuros',
+        );
+        expect(eerrModel.create).not.toHaveBeenCalled();
+      } else {
+        expect(response.body).toMatchObject({ year: 2026, month: 10 });
+      }
+    },
+  );
+  it.each([
+    ['2026-10-01T01:00:00Z', 201],
+    ['2026-10-01T03:00:00Z', 400],
+  ] as const)(
+    'el inicio %s se interpreta como mes del negocio',
+    async (start, status) => {
+      now = new Date('2026-11-01T12:00:00Z');
+      branches[0].startDate = new Date(start);
+      const input = { branchId, year: 2026, month: 9 };
+      expect(eerrCalendarIssue(input, branches[0].startDate, now)).toBe(
+        status === 400 ? 'BEFORE_START' : null,
+      );
+      await create(input).expect(status);
+      await create({ branchId, year: 2026, month: 8 }).expect(400);
+    },
+  );
   it('rechaza duplicado previo sin intentar una segunda escritura', async () => {
     seed(branchId);
     const response = await create().expect(409);

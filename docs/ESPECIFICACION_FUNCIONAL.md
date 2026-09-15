@@ -32,6 +32,9 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 
 ### Períodos
 
+- Calendario oficial: `America/Argentina/Buenos_Aires`, tanto para el mes actual
+  como para el mes de inicio de la sucursal. Los períodos se guardan como año y
+  mes explícitos; la API aplica las validaciones definitivas.
 - Crear período prepara una plantilla mensual por sucursal.
 - Contemplar el estado “sin cargar”.
 - Cierre y bloqueo de períodos.

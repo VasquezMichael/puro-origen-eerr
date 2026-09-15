@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "npm run build --workspace=@puro-origen/domain",
+    "pretypecheck": "npm run build --workspace=@puro-origen/domain",
+    "predev": "npm run build --workspace=@puro-origen/domain",
     "typecheck": "next typegen && tsc --noEmit",
     "dev": "next dev",
     "build": "next build",
@@ -10,6 +13,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@puro-origen/domain": "0.1.0",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"

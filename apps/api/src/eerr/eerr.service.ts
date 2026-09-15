@@ -7,12 +7,14 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { eerrCalendarIssue } from '@puro-origen/domain';
 import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import { BranchesService } from '../branches/branches.service.js';
 import { requireMongoId } from '../branches/mongo-id.pipe.js';
 import { BranchRole } from '../users/user-role.js';
 import { Eerr, EerrDocument } from './schemas/eerr.schema.js';
 import type { CreateEerrDto, EerrMonthDto } from './dto/eerr.dto.js';
+import { EerrClock } from './eerr-clock.js';
 
 type Viewer = NonNullable<AuthenticatedRequest['user']>;
 
@@ -21,6 +23,7 @@ export class EerrService {
   constructor(
     @InjectModel(Eerr.name) private readonly eerr: Model<EerrDocument>,
     private readonly branches: BranchesService,
+    private readonly clock: EerrClock,
   ) {}
 
   private assertAccess(branchId: string, viewer: Viewer, create = false) {
@@ -43,14 +46,10 @@ export class EerrService {
       throw new BadRequestException(
         'No se puede crear un EERR en una sucursal inactiva',
       );
-    const now = new Date();
-    const current = now.getUTCFullYear() * 12 + now.getUTCMonth();
-    const start =
-      branch.startDate.getUTCFullYear() * 12 + branch.startDate.getUTCMonth();
-    const period = input.year * 12 + input.month - 1;
-    if (period > current)
+    const issue = eerrCalendarIssue(input, branch.startDate, this.clock.now());
+    if (issue === 'FUTURE')
       throw new BadRequestException('No se pueden crear períodos futuros');
-    if (period < start)
+    if (issue === 'BEFORE_START')
       throw new BadRequestException(
         'El período es anterior al mes de inicio de la sucursal',
       );
