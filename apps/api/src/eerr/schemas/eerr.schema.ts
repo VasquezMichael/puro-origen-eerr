@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Schema as MongoSchema, Types } from 'mongoose';
+import {
+  type HydratedDocument,
+  Schema as MongoSchema,
+  type Types,
+} from 'mongoose';
 import { StructureSchema, type StoredStructure } from './structure.schema.js';
 
 export enum EerrLoadStatus {

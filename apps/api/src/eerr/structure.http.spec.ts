@@ -3,7 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { Reflector } from '@nestjs/core';
 import { randomUUID } from 'node:crypto';
-import { Model } from 'mongoose';
+import type { Model } from 'mongoose';
 import request from 'supertest';
 import { ROOTS } from '@puro-origen/domain';
 import { AuthGuard } from '../auth/auth.guard.js';
