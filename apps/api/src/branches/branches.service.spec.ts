@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Model, Mongoose } from 'mongoose';
+import { type Model, Mongoose } from 'mongoose';
 import { BranchesService } from './branches.service.js';
 import { BranchSchema, BranchDocument } from './schemas/branch.schema.js';
 import { normalizeBranchName } from './branch-name.js';

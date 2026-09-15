@@ -4,7 +4,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model, type ClientSession } from 'mongoose';
+import type { Connection, Model, ClientSession } from 'mongoose';
 import {
   loadProgress,
   STRUCTURE_LIMITS,

@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import type { Model } from 'mongoose';
 import { eerrCalendarIssue } from '@puro-origen/domain';
 import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import { BranchesService } from '../branches/branches.service.js';
