@@ -122,6 +122,7 @@ export function LoginForm() {
           <h2>¿Qué querés hacer hoy?</h2>
         </div>
         {user.isAdmin && <Link className="admin-branches-link" href="/admin/sucursales">Administrar sucursales <span aria-hidden="true">→</span></Link>}
+        {!user.mustChangePassword && <Link className="admin-branches-link" href="/eerr">Sucursales y períodos · EERR <span aria-hidden="true">→</span></Link>}
         <div className="mode-grid">
           <button className="mode-card" type="button" disabled={user.mustChangePassword}>
             <span className="mode-icon">A</span>

@@ -7,6 +7,12 @@
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
+    "prebuild": "npm run build --workspace=@puro-origen/domain",
+    "pretypecheck": "npm run build --workspace=@puro-origen/domain",
+    "pretest": "npm run build --workspace=@puro-origen/domain",
+    "prestart": "npm run build --workspace=@puro-origen/domain",
+    "prestart:dev": "npm run build --workspace=@puro-origen/domain",
+    "prestart:debug": "npm run build --workspace=@puro-origen/domain",
     "bootstrap:admin": "npm run build && node dist/scripts/bootstrap-admin.js",
     "typecheck": "tsc --noEmit",
     "build": "nest build",
@@ -24,6 +30,7 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
   },
   "dependencies": {
+    "@puro-origen/domain": "0.1.0",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.1",

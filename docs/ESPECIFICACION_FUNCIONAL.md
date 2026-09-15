@@ -32,11 +32,21 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 
 ### Períodos
 
+- Calendario oficial: `America/Argentina/Buenos_Aires`, tanto para el mes actual
+  como para el mes de inicio de la sucursal. Los períodos se guardan como año y
+  mes explícitos; la API aplica las validaciones definitivas.
 - Crear período prepara una plantilla mensual por sucursal.
 - Contemplar el estado “sin cargar”.
 - Cierre y bloqueo de períodos.
 - Acción para completar con cero las celdas sin movimiento.
 - La creación de períodos futuros permanece pendiente de definición.
+
+EP-03 implementa únicamente el contenedor mensual y la navegación por sucursal
+o por período, con los permisos y restricciones de [DECISIONES.md](DECISIONES.md).
+Un EERR existente comienza `SIN_CARGAR`; una combinación inexistente se muestra
+como tal, sin interpretar su ausencia como importes en cero. No se crean registros
+al consultar. La estructura financiera y clonación se incorporarán en EP-04;
+cierre, reapertura y eliminación, en EP-07. Contratos: [API_EERR.md](API_EERR.md).
 
 ### Carga y estructura
 
