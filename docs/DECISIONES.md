@@ -25,7 +25,6 @@
 
 ## Pendientes explícitos, sin resolver
 
-- Definición final sobre quién puede crear bloques principales.
 - Creación de períodos futuros.
 - Feedback de usuarios finales.
 
@@ -107,3 +106,63 @@ de EERR se implementarán con períodos. Son requisitos confirmados, no mejoras 
   corrección de históricos se mantiene confirmada para el milestone de edición.
 
 Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
+
+## Estructura e ingreso manual básico (EP-04A)
+
+- Snapshot independiente de nodos planos con parentId, nombre, posición y código.
+  `code` es UUID estable del concepto; `nodeId`, UUID de su instancia. Ambos se
+  generan en la API, independientemente del nombre. Catálogo estable, plantilla
+  mensual versionada y snapshot embebido tienen responsabilidades separadas.
+- Exactamente tres bloques protegidos: INGRESOS, COSTOS y GASTOS GENERALES.
+  Nadie agrega bloques, los renombra, mueve, elimina ni reutiliza sus códigos reservados.
+- Categorías y subcategorías globales por año/mes: Administrador o Editor de un
+  EERR autorizado del período puede crear o renombrar. No obtiene acceso a valores ajenos.
+- Vista previa y confirmación obligatorias, ligadas al usuario, EERR de origen,
+  operación, período, plantilla, revisiones y vencimiento de cinco minutos.
+  Solo se muestran conteos y datos globales; nunca información de sucursales ajenas.
+- Plantilla, catálogo y snapshots se escriben en una transacción. Sin soporte
+  transaccional se rechaza, sin fallback parcial. Conflictos locales bloquean
+  toda la publicación con un mensaje sin datos ajenos; deben resolverse con los
+  usuarios autorizados antes de generar una nueva vista previa.
+- Renombrar mantiene código, instancia, relaciones e importes, y modifica solo
+  nombres del mismo año/mes. Los demás períodos conservan sus nombres históricos.
+  Esto precisa el alcance de la regla histórica anterior.
+- Ítems locales: Administrador/Editor asignado crea y renombra. Nombres obligatorios
+  normalizados; sin duplicados entre hermanos tras normalizar Unicode, espacios,
+  mayúsculas y acentos. ITEM no admite hijos.
+- Toda celda nueva empieza SIN_CARGAR con entrada y resultado null. Cero requiere
+  carga explícita: CARGADO con resultado `"0.00"`. Esta decisión posterior reemplaza
+  la antigua inicialización automática de registros en cero.
+- Progreso: sin ítems o ninguno cargado → SIN_CARGAR; algunos → PARCIAL; todos y
+  al menos uno → CARGADO. Son estados de carga, no de cierre.
+- ARS, escala 2, ROUND_HALF_UP; API con strings y persistencia Decimal128. Máximo
+  `999999999999.99` ARS por celda, rechazando también entradas superiores antes del
+  redondeo. Límite conservador de 14 dígitos significativos, inferior a Decimal128.
+  Nunca se convierte primero a Number. BigInt permite resolver los literales
+  exactamente sin bibliotecas nuevas ni configuración global.
+- Solo literales no negativos con punto o coma, sin miles, signos, notación
+  científica, expresiones ni evaluadores dinámicos.
+- Inicialización explícita e idempotente: bloques y categorías vigentes, sin ítems
+  ni importes ficticios. Conserva UUID, período, sucursal, creador y ambos timestamps
+  originales; registra initializedAt/initializedBy e incrementa revision.
+  GET nunca inicializa; documentos previos devuelven structure: null.
+- Escrituras con expectedRevision, comparación e incremento atómicos. Revisión
+  ausente equivale a cero. HTTP 409 conserva borradores y exige recargar/revisar;
+  no hay reintento automático de una edición monetaria obsoleta.
+- Históricos inactivos admiten correcciones autorizadas; nuevos períodos siguen
+  prohibidos en sucursales inactivas. Lector nunca modifica.
+- Límites técnicos: 1000 nodos por EERR, profundidad de 12 contando el bloque,
+  nombres de 120 caracteres, unidad de 40 y entrada de 80. Publicación hasta
+  200 EERR por período; superar el límite exige revisión técnica, nunca lotes parciales.
+
+## Decisiones para incrementos posteriores
+
+- EP-04B: expresiones seguras; notas por celda y período; cantidad opcional entera
+  no negativa (cero válido, fracciones rechazadas). No se calcula importe como
+  cantidad × precio. EP-04A solo prepara quantityEnabled y unidad opcional visible.
+- EP-04B: movimientos y reordenamiento dentro de una misma raíz. Durante el MVP
+  no se reclasifica entre bloques; reclasificar requiere un concepto con otro código.
+- EP-04C: clonación solo a destinos sin estructura/valores; importación sin
+  sobrescritura implícita; ambas con vista previa. Completar sin movimiento será
+  explícito. No copiar notas ni auditoría al clonar.
+- EP-07: eliminación del período de prueba de agosto, no incluida en EP-04A.

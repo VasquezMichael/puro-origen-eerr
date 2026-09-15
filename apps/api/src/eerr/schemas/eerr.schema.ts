@@ -1,13 +1,22 @@
 import { randomUUID } from 'node:crypto';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongoSchema, Types } from 'mongoose';
+import { StructureSchema, type StoredStructure } from './structure.schema.js';
 
 export enum EerrLoadStatus {
   SIN_CARGAR = 'SIN_CARGAR',
+  PARCIAL = 'PARCIAL',
+  CARGADO = 'CARGADO',
 }
 
 @Schema({ collection: 'eerr', timestamps: true })
 export class Eerr {
+  @Prop({ type: Number, default: 0, min: 0, validate: Number.isSafeInteger })
+  revision!: number;
+
+  @Prop({ type: StructureSchema, default: null })
+  structure!: StoredStructure | null;
+
   @Prop({ type: String, default: randomUUID, immutable: true })
   _id!: string;
 
