@@ -1,0 +1,48 @@
+.context {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.contextLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  max-width: 100%;
+  text-align: center;
+}
+
+.actions,
+.itemHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem 1.5rem;
+  min-width: 0;
+}
+
+.itemHeading > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.actions > button,
+.itemHeading > button {
+  min-height: 2.75rem;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.amountForm > label {
+  flex: 1 1 16rem;
+  min-width: 0;
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.amountForm > .actions {
+  max-width: 100%;
+}
