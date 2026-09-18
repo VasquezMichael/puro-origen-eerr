@@ -6,6 +6,8 @@ import { test } from 'node:test';
 // simular Mongoose. No se importa AppModule ni se instancian conexiones.
 for (const [modulePath, exportName] of [
   ['eerr/structure.repository.js', 'StructureRepository'],
+  ['eerr/structure.service.js', 'StructureService'],
+  ['eerr/structure.controller.js', 'StructureController'],
   ['eerr/eerr.service.js', 'EerrService'],
   ['branches/branches.service.js', 'BranchesService'],
   ['users/users.service.js', 'UsersService'],

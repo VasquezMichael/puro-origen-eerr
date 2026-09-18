@@ -166,3 +166,52 @@ Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
   sobrescritura implícita; ambas con vista previa. Completar sin movimiento será
   explícito. No copiar notas ni auditoría al clonar.
 - EP-07: eliminación del período de prueba de agosto, no incluida en EP-04A.
+
+
+## Expresiones, cantidades y notas (EP-04B1)
+
+- Se amplía la restricción de literales de EP-04A: `amount.input` conserva la
+  expresión original con solo trim exterior; `amount.value` contiene el resultado
+  normalizado. No se agrega un segundo campo de expresión ni se modifica el
+  importe de registros anteriores. Una entrada histórica ausente se presenta null.
+- Gramática de constantes: `suma = producto ((+|-) producto)*`;
+  `producto = unario ((*|/) unario)*`; `unario = (+|-)* primario`;
+  `primario = número | (suma)`. Número: dígitos, opcionalmente punto/coma y más
+  dígitos. Se aceptan espacios entre tokens, no dentro de un número. Multiplicación
+  implícita, variables, funciones, exponentes y miles se rechazan. `1,000` significa
+  decimal 1, no mil; `1,000.00` es inválido. Signos unarios se procesan explícitamente.
+- Evaluación racional exacta con numerador/denominador BigInt, reducción por MCD
+  en cada operación y ROUND_HALF_UP una sola vez al final. Se permiten resultados
+  intermedios negativos; el resultado final debe estar entre 0 y 999999999999.99 ARS
+  antes de redondear. División por cero se rechaza. Persistencia Decimal128 y API
+  con strings de dos decimales, reutilizando la política monetaria existente.
+- EXPRESSION_LIMITS centraliza: 256 caracteres de entrada, 128 tokens, 16 niveles
+  de paréntesis, 80 dígitos por literal y 1024 caracteres por entero intermedio.
+  No se usan eval, Function ni intérpretes de JavaScript, ni se agregan dependencias.
+- Cantidad opcional independiente en cada ítem, conforme al alcance EP-04B1.
+  `quantityEnabled` anterior se conserva por compatibilidad, sin restringir la
+  nueva carga ni modificar su valor histórico. Cantidad: estado SIN_CARGAR y valor
+  null, o CARGADO y string entero canónico entre 0 y 999999999999. Entrada de hasta
+  12 dígitos, sin signos, espacios, fracciones o exponentes. Persistencia String
+  exacta, sin coerción numérica. No multiplica importes ni altera su progreso.
+- Nota del ítem: hasta 1000 unidades UTF-16; nota del EERR: hasta 4000. Límites
+  compartidos por API y web; se rechaza exceso antes de trim. Saltos internos se
+  conservan. Vacío tras trim elimina el campo. Solo texto plano, sin HTML ejecutable.
+  Ambas notas y cantidades son locales. No se copiarán notas en futuras clonaciones.
+- Todas las operaciones usan expectedRevision/CAS e incremento atómico de la misma
+  revisión del EERR. Una nota general puede guardarse incluso sin estructura,
+  sin prepararla. La nota general se actualiza mediante $set/$unset, sin reemplazar
+  el snapshot. Cualquier edición invalida previews globales anteriores.
+- GET no escribe: cantidades ausentes se interpretan SIN_CARGAR, notas ausentes
+  sin nota. Campos nuevos quedan ausentes hasta una acción explícita. No hay
+  migraciones, cambios de identidad/nombres/timestamps de creación ni recálculo
+  automático de importes históricos. updatedAt avanza solo por edición explícita.
+- Administrador y Editor asignado editan, incluso históricos inactivos; Lector
+  solo consulta. Acceso ajeno devuelve 404. La API recalcula y no acepta resultados
+  calculados por el cliente. No se altera el administrador ni se usa bootstrap.
+- La web separa expresión, vista previa y valor guardado; mantiene borradores de
+  importe, cantidad y ambas notas ante errores, 409 y recarga. Guardar un campo
+  elimina únicamente su borrador. No hay reintento automático de escrituras.
+- EP-04B2 difiere movimientos/reordenamiento dentro de raíz; EP-04C difiere
+  clonación, importación y completar sin movimiento. Sin EP-05/EP-06 ni auditoría
+  completa, cierre, reapertura o borrado de períodos.

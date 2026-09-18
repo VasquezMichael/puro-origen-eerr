@@ -13,7 +13,11 @@ import {
   emptyAmount,
   initialNodes,
   loadProgress,
-  normalizeMoney,
+  evaluateMoneyExpression,
+  normalizeQuantity,
+  emptyQuantity,
+  normalizeNote,
+  NOTE_LIMITS,
   ROOTS,
   type EerrStructure,
   type StructureNode,
@@ -30,6 +34,9 @@ import {
 } from './schemas/structure.schema.js';
 import type {
   AmountDto,
+  QuantityDto,
+  ItemNoteDto,
+  PeriodNoteDto,
   CategoryConfirmDto,
   CategoryPreviewDto,
   ItemDto,
@@ -98,6 +105,7 @@ export class StructureService {
     return {
       id: row._id,
       revision: row.revision ?? 0,
+      note: row.note ?? null,
       structure,
       progress: loadProgress(structure?.nodes ?? []),
     };
@@ -231,12 +239,35 @@ export class StructureService {
           ? emptyAmount()
           : {
               state: 'CARGADO',
-              input: input.input!,
-              value: normalizeMoney(input.input!),
+              ...evaluateMoneyExpression(input.input!),
               currency: 'ARS',
               scale: 2,
             };
     });
+  }
+  quantity(id: string, nodeId: string, input: QuantityDto, viewer: Viewer) {
+    if (input.state === 'SIN_CARGAR' && input.input !== undefined)
+      throw new BadRequestException('SIN_CARGAR no admite entrada');
+    return this.editItem(id, nodeId, input.expectedRevision, viewer, (node) => {
+      node.quantity =
+        input.state === 'SIN_CARGAR'
+          ? emptyQuantity()
+          : { state: 'CARGADO', value: normalizeQuantity(input.input!) };
+    });
+  }
+  itemNote(id: string, nodeId: string, input: ItemNoteDto, viewer: Viewer) {
+    return this.editItem(id, nodeId, input.expectedRevision, viewer, (node) => {
+      const note = normalizeNote(input.note, NOTE_LIMITS.item);
+      if (note === null) delete node.note;
+      else node.note = note;
+    });
+  }
+  async periodNote(id: string, input: PeriodNoteDto, viewer: Viewer) {
+    const accessible = await this.access(id, viewer, true);
+    const note = this.rule(() => normalizeNote(input.note, NOTE_LIMITS.period));
+    return this.response(
+      await this.store.writeNote(accessible.id, input.expectedRevision, note),
+    );
   }
   private updatedCategories(
     template: MonthlyTemplate,

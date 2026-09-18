@@ -318,7 +318,7 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     ).toBe(400);
     expect((await amount(randomUUID(), 2, 'CARGADO', '1')).status).toBe(400);
   });
-  it.each(['-1', '1e3', 'NaN', 'Infinity', '1+2', '999999999999.999'])(
+  it.each(['-1', '1e3', 'NaN', 'Infinity', '1+', '999999999999.999'])(
     'rechaza importe %s sin escribir',
     async (value) => {
       await init();
@@ -385,6 +385,19 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     const item = (await createItem('Nombre confidencial')).body.structure
       .nodes[3];
     await amount(item.nodeId, 2, 'CARGADO', '765.43');
+    await put(`items/${item.nodeId}/quantity`, {
+      expectedRevision: 3,
+      state: 'CARGADO',
+      input: '7',
+    }).expect(200);
+    await put(`items/${item.nodeId}/note`, {
+      expectedRevision: 4,
+      note: 'Nota local',
+    }).expect(200);
+    await put('note', {
+      expectedRevision: 5,
+      note: 'Nota general local',
+    }).expect(200);
     id = originalId;
     viewer = {
       ...viewer,
@@ -406,6 +419,7 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     expect(result.status).toBe(201);
     const updated = await store.get(other._id);
     expect(updated!.structure!.nodes[3]).toEqual(before!.structure!.nodes[3]);
+    expect(updated!.note).toBe(before!.note);
     expect((await store.get(august._id))!.structure).toBeUndefined();
     expect((await store.get(nextYear._id))!.structure).toBeUndefined();
     expect((await store.get(pending._id))!.structure).toBeUndefined();
@@ -523,5 +537,258 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
       ).status,
     ).toBe(403);
     expect((await read()).body.revision).toBe(2);
+  });
+  const put = (path: string, body: object, target = id) =>
+    api()
+      .put(`/eerr/${target}/${path}`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send(body);
+  const prepareItem = async () => {
+    await init();
+    return (await createItem()).body.structure.nodes[3];
+  };
+  it('EP-04B1: recalcula la expresión y conserva únicamente espacios internos', async () => {
+    const node = await prepareItem();
+    const result = await amount(
+      node.nodeId,
+      2,
+      'CARGADO',
+      '  (1000 + 500) / 3  ',
+    );
+    expect(result.status).toBe(200);
+    expect(result.body.structure.nodes[3].amount).toMatchObject({
+      input: '(1000 + 500) / 3',
+      value: '500.00',
+    });
+    await put(`items/${node.nodeId}/amount`, {
+      expectedRevision: 3,
+      state: 'CARGADO',
+      input: '1+2',
+      value: '99.00',
+    }).expect(400);
+    expect((await read()).body.revision).toBe(3);
+  });
+  it.each([
+    '1/0',
+    '(1',
+    '1e4',
+    'Math.random()',
+    '1,000.00',
+    '1'.repeat(257),
+    '('.repeat(17) + '1' + ')'.repeat(17),
+  ])('API rechaza expresión %s', async (input) => {
+    const node = await prepareItem();
+    await put(`items/${node.nodeId}/amount`, {
+      expectedRevision: 2,
+      state: 'CARGADO',
+      input,
+    }).expect(400);
+    expect((await read()).body.revision).toBe(2);
+  });
+  it('cantidad independiente: entero, cero y sin cargar no cambian importe ni progreso', async () => {
+    const node = await prepareItem();
+    await amount(node.nodeId, 2, 'CARGADO', '12.30');
+    const before = (await read()).body;
+    for (const [revision, body, expected] of [
+      [
+        3,
+        { state: 'CARGADO', input: '999999999999' },
+        { state: 'CARGADO', value: '999999999999' },
+      ],
+      [4, { state: 'CARGADO', input: '0' }, { state: 'CARGADO', value: '0' }],
+      [5, { state: 'SIN_CARGAR' }, { state: 'SIN_CARGAR', value: null }],
+    ] as const) {
+      const result = await put(`items/${node.nodeId}/quantity`, {
+        expectedRevision: revision,
+        ...body,
+      }).expect(200);
+      expect(result.body.structure.nodes[3].quantity).toEqual(expected);
+      expect(result.body.structure.nodes[3].amount).toEqual(
+        before.structure.nodes[3].amount,
+      );
+      expect(result.body.progress).toEqual(before.progress);
+    }
+  });
+  it.each(['-1', '1.5', '1,5', '1e2', 'abc', '1000000000000', '', 12, null])(
+    'API rechaza cantidad %j sin modificar',
+    async (input) => {
+      const node = await prepareItem();
+      await put(`items/${node.nodeId}/quantity`, {
+        expectedRevision: 2,
+        state: 'CARGADO',
+        input,
+      }).expect(400);
+      expect((await read()).body.revision).toBe(2);
+    },
+  );
+  it.each(['item', 'period'])(
+    'nota %s: crear, editar, preservar saltos y eliminar; solo su EERR',
+    async (kind) => {
+      const node = await prepareItem();
+      const other = store.seed(fixtureOtherBranch);
+      const before = JSON.stringify(await store.get(other._id));
+      const path = kind === 'item' ? `items/${node.nodeId}/note` : 'note';
+      for (const [revision, note, expected] of [
+        [2, '  primera\n  segunda  ', 'primera\n  segunda'],
+        [3, 'editada', 'editada'],
+        [4, ' \n ', null],
+      ] as const) {
+        const result = await put(path, {
+          expectedRevision: revision,
+          note,
+        }).expect(200);
+        expect(
+          kind === 'item'
+            ? (result.body.structure.nodes[3].note ?? null)
+            : result.body.note,
+        ).toBe(expected);
+      }
+      expect(JSON.stringify(await store.get(other._id))).toBe(before);
+      expect((await read()).body.progress.loaded).toBe(0);
+    },
+  );
+  it.each([
+    ['item', 1000],
+    ['period', 4000],
+  ] as const)('nota %s valida máximo y campos extra', async (kind, limit) => {
+    const node = await prepareItem();
+    const path = kind === 'item' ? `items/${node.nodeId}/note` : 'note';
+    await put(path, {
+      expectedRevision: 2,
+      note: 'x'.repeat(limit + 1),
+    }).expect(400);
+    await put(path, { expectedRevision: 2, note: 'texto', extra: true }).expect(
+      400,
+    );
+    await put(path, { expectedRevision: 2, note: null }).expect(400);
+    await put(path, { expectedRevision: 2, note: 'x'.repeat(limit) }).expect(
+      200,
+    );
+  });
+  it('nota general no prepara estructura ni reemplaza timestamps originales', async () => {
+    const before = await store.get(id);
+    const result = await put('note', {
+      expectedRevision: 0,
+      note: 'General',
+    }).expect(200);
+    expect(result.body.structure).toBeNull();
+    expect((await store.get(id))!.createdAt).toEqual(before!.createdAt);
+    expect((await store.get(id))!.structure).toBeUndefined();
+  });
+  const edits = ['amount', 'quantity', 'item-note', 'period-note'] as const;
+  const editRequest = (
+    kind: (typeof edits)[number],
+    nodeId: string,
+    expectedRevision = 2,
+  ) => ({
+    path:
+      kind === 'period-note'
+        ? 'note'
+        : `items/${nodeId}/${kind === 'item-note' ? 'note' : kind}`,
+    body: {
+      expectedRevision,
+      ...(kind.endsWith('note')
+        ? { note: 'Prueba' }
+        : { state: 'CARGADO', input: '2' }),
+    },
+  });
+  it.each(edits)(
+    '%s: CAS obsoleto no sobrescribe valor ni filtra detalles',
+    async (kind) => {
+      const node = await prepareItem();
+      const edit = editRequest(kind, node.nodeId);
+      await put(edit.path, edit.body).expect(200);
+      const before = JSON.stringify(await store.get(id));
+      const response = await put(edit.path, edit.body).expect(409);
+      expect(JSON.stringify(await store.get(id))).toBe(before);
+      expect(JSON.stringify(response.body)).not.toMatch(
+        /Mongo|findOneAndUpdate|stack/,
+      );
+    },
+  );
+  for (const role of ['admin', 'EDITOR', 'READER', 'unassigned'] as const) {
+    it.each(edits)(
+      `${role}: permiso en %s de histórico inactivo`,
+      async (kind) => {
+        const node = await prepareItem();
+        viewer.isAdmin = role === 'admin';
+        viewer.branchAccesses =
+          role === 'unassigned'
+            ? []
+            : [
+                {
+                  branchId: fixtureBranch,
+                  role:
+                    role === 'READER' ? BranchRole.READER : BranchRole.EDITOR,
+                },
+              ];
+        const edit = editRequest(kind, node.nodeId);
+        await put(edit.path, edit.body).expect(
+          role === 'admin' || role === 'EDITOR'
+            ? 200
+            : role === 'READER'
+              ? 403
+              : 404,
+        );
+      },
+    );
+  }
+  it('GET legado preserva entrada ausente y no escribe cantidades o notas al renombrar', async () => {
+    const node = await prepareItem();
+    await amount(node.nodeId, 2, 'CARGADO', '7.20');
+    const stored = store.state.rows[0];
+    delete (stored.structure!.nodes[3].amount as { input?: string }).input;
+    const before = JSON.stringify(store.state);
+    const result = await read();
+    expect(result.body.structure.nodes[3].amount).toMatchObject({
+      input: null,
+      value: '7.20',
+    });
+    expect(result.body.structure.nodes[3].quantity).toBeUndefined();
+    expect(result.body.note).toBeNull();
+    expect(JSON.stringify(store.state)).toBe(before);
+    await api()
+      .patch(`/eerr/${id}/items/${node.nodeId}`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 3, name: 'Nueva' })
+      .expect(200);
+    expect(store.state.rows[0].structure!.nodes[3].quantity).toBeUndefined();
+    expect(store.state.rows[0].structure!.nodes[3].note).toBeUndefined();
+    expect(
+      store.state.rows[0].structure!.nodes[3].amount!.value!.toString(),
+    ).toBe('7.20');
+  });
+  it.each(edits)(
+    '%s: rechaza UUID, revisión y campos adicionales',
+    async (kind) => {
+      const node = await prepareItem();
+      const edit = editRequest(kind, node.nodeId);
+      await put(edit.path, edit.body, 'invalid').expect(400);
+      if (kind !== 'period-note')
+        await put(edit.path.replace(node.nodeId, 'bad'), edit.body).expect(400);
+      for (const revision of [-1, 1.5, '2', null])
+        await put(edit.path, {
+          ...edit.body,
+          expectedRevision: revision,
+        }).expect(400);
+      await put(edit.path, { ...edit.body, extra: 1 }).expect(400);
+    },
+  );
+  it('SIN_CARGAR de cantidad rechaza entrada; solo ítems admiten cantidad y nota', async () => {
+    const node = await prepareItem();
+    await put(`items/${node.nodeId}/quantity`, {
+      expectedRevision: 2,
+      state: 'SIN_CARGAR',
+      input: '1',
+    }).expect(400);
+    const root = (await read()).body.structure.nodes[0].nodeId;
+    await put(`items/${root}/quantity`, {
+      expectedRevision: 2,
+      state: 'CARGADO',
+      input: '1',
+    }).expect(400);
+    await put(`items/${root}/note`, { expectedRevision: 2, note: 'X' }).expect(
+      400,
+    );
   });
 });

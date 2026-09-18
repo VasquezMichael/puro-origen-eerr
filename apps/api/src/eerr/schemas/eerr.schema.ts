@@ -15,6 +15,9 @@ export enum EerrLoadStatus {
 
 @Schema({ collection: 'eerr', timestamps: true })
 export class Eerr {
+  @Prop({ type: String, default: undefined })
+  note?: string;
+
   @Prop({ type: Number, default: 0, min: 0, validate: Number.isSafeInteger })
   revision!: number;
 

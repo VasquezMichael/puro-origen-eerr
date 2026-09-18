@@ -21,11 +21,18 @@ describe('esquemas EP-04A sin metadatos, entorno ni MongoDB', () => {
         publicStructure,
       } = await import('./structure.schema.js');
       expect(EerrSchema.path('revision').instance).toBe('Number');
+      expect(EerrSchema.path('note').instance).toBe('String');
       expect(StructureSchema.path('initializedAt').instance).toBe('Date');
       for (const field of ['nodeId', 'code', 'name', 'kind', 'parentId'])
         expect(NodeSchema.path(field).instance).toBe('String');
       expect(AmountSchema.path('value').instance).toBe('Decimal128');
       expect(NodeSchema.path('quantityEnabled').instance).toBe('Boolean');
+      expect(NodeSchema.path('note').instance).toBe('String');
+      expect(
+        NodeSchema.path<Schema.Types.Subdocument>('quantity').schema.path(
+          'value',
+        ).instance,
+      ).toBe('String');
       for (const schema of [
         TemplateSchema,
         ConceptSchema,
@@ -50,6 +57,8 @@ describe('esquemas EP-04A sin metadatos, entorno ni MongoDB', () => {
         parentId: structure.nodes[0].nodeId,
         position: 0,
         kind: 'ITEM',
+        quantity: { state: 'CARGADO', value: '999999999999' },
+        note: 'Primera\nSegunda',
         amount: {
           ...emptyAmount(),
           state: 'CARGADO',
@@ -61,6 +70,11 @@ describe('esquemas EP-04A sin metadatos, entorno ni MongoDB', () => {
       expect(stored.nodes[3].amount!.value).toBeInstanceOf(Types.Decimal128);
       const output = publicStructure(stored)!;
       expect(output.nodes[3].amount!.value).toBe('12.30');
+      expect(output.nodes[3].quantity).toEqual({
+        state: 'CARGADO',
+        value: '999999999999',
+      });
+      expect(output.nodes[3].note).toBe('Primera\nSegunda');
       expect(JSON.stringify(output)).not.toContain('$numberDecimal');
       const connection = createConnection();
       const model = connection.model('OfflineStructure', EerrSchema);
@@ -69,10 +83,13 @@ describe('esquemas EP-04A sin metadatos, entorno ni MongoDB', () => {
         year: 2026,
         month: 9,
         createdBy: structure.initializedBy,
+        note: 'General\nEERR',
         structure: stored,
       });
       await expect(doc.validate()).resolves.toBeUndefined();
       expect(doc.structure!.nodes[3].amount!.value!.toString()).toBe('12.30');
+      expect(doc.structure!.nodes[3].quantity!.value).toBe('999999999999');
+      expect(doc.note).toBe('General\nEERR');
       await connection.close();
     } finally {
       metadata.mockRestore();

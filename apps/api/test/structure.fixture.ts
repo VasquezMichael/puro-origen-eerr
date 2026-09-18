@@ -118,6 +118,17 @@ export class MemoryStructureRepository {
   async addConcept(concept: Concept) {
     this.state.concepts.push(copy(concept));
   }
+  async writeNote(id: string, revision: number, note: string | null) {
+    const row = this.state.rows.find((row) => row._id === id);
+    if (!row || (row.revision ?? 0) !== revision)
+      throw new ConflictException('Revisión conflictiva');
+    this.writes++;
+    if (note === null) delete row.note;
+    else row.note = note;
+    row.revision = revision + 1;
+    row.updatedAt = new Date('2026-09-15T13:00:00Z');
+    return copy(row);
+  }
   async savePreview(preview: GlobalPreview) {
     this.state.previews[preview._id] = copy(preview);
   }

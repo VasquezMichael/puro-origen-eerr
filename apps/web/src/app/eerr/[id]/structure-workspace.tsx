@@ -3,13 +3,14 @@
 import Link from "next/link";
 import styles from "../layout.module.css";
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
-import type { StructureNode } from "@puro-origen/domain";
+import { NOTE_LIMITS, type StructureNode } from "@puro-origen/domain";
 import type {
   CategoryPreviewResponse,
   StructureResponse,
 } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "../api";
 import { editorReducer, initialEditorState } from "./editor-state";
+import { ValueEditor, NoteEditor } from "./field-editors";
 
 type User = {
   isAdmin: boolean;
@@ -25,7 +26,6 @@ type Action = {
   node: StructureNode;
   name: string;
   unit: string;
-  quantityEnabled: boolean;
 };
 
 export function StructureWorkspace({ id }: { id: string }) {
@@ -78,6 +78,7 @@ export function StructureWorkspace({ id }: { id: string }) {
     method: string,
     body: object | undefined,
     success: (result: T) => void,
+    failure?: (message: string) => void,
   ) {
     if (sending.current) return;
     sending.current = true;
@@ -102,6 +103,7 @@ export function StructureWorkspace({ id }: { id: string }) {
       success(result);
     } catch (error) {
       setError((error as Error).message);
+      failure?.((error as Error).message);
       setStatus("No se pudo completar la operación.");
       if (error instanceof EerrApiError && error.status === 409) {
         dispatch({ type: "CONFLICT" });
@@ -119,7 +121,6 @@ export function StructureWorkspace({ id }: { id: string }) {
       node,
       name: kind.startsWith("RENAME") ? node.name : "",
       unit: "",
-      quantityEnabled: false,
     });
     requestAnimationFrame(() => formHeading.current?.focus());
   }
@@ -150,7 +151,6 @@ export function StructureWorkspace({ id }: { id: string }) {
           ...(action.kind === "ITEM"
             ? {
                 parentId: action.node.nodeId,
-                quantityEnabled: action.quantityEnabled,
                 ...(action.unit ? { unit: action.unit } : {}),
               }
             : {}),
@@ -162,27 +162,31 @@ export function StructureWorkspace({ id }: { id: string }) {
       );
     }
   }
-  function saveAmount(
-    node: StructureNode,
-    state: "CARGADO" | "SIN_CARGAR",
-    zero = false,
+  function fieldProps(key: string) {
+    return {
+      canEdit,
+      busy,
+      conflict,
+      draft: drafts[key],
+      onDraft: (input: string) =>
+        dispatch({ type: "DRAFT", draftKey: key, input }),
+    };
+  }
+  function saveField(
+    key: string,
+    path: string,
+    body: object,
+    failure: (message: string) => void,
   ) {
     if (!data || conflict) return;
-    const input = zero
-      ? "0"
-      : (drafts[node.nodeId] ?? node.amount?.input ?? "");
     void perform<StructureResponse>(
-      `items/${node.nodeId}/amount`,
+      path,
       "PUT",
-      {
-        expectedRevision: data.revision,
-        state,
-        ...(state === "CARGADO" ? { input } : {}),
-      },
+      { expectedRevision: data.revision, ...body },
       (result) => {
-        dispatch({ type: "SAVED", data: result, nodeId: node.nodeId });
-        setStatus(`Guardado: ${node.name}.`);
+        dispatch({ type: "SAVED", data: result, draftKey: key });
       },
+      failure,
     );
   }
   const disabled = busy || conflict;
@@ -198,12 +202,6 @@ export function StructureWorkspace({ id }: { id: string }) {
                 <div>
                   <strong>{node.name}</strong>
                   {node.unit && <span className="help"> · {node.unit}</span>}
-                  {node.quantityEnabled && (
-                    <p className="help">
-                      Cantidad habilitada; la carga de cantidades aún no está
-                      disponible.
-                    </p>
-                  )}
                 </div>
                 {canEdit && (
                   <button
@@ -215,69 +213,51 @@ export function StructureWorkspace({ id }: { id: string }) {
                   </button>
                 )}
               </div>
-              <p
-                className={
-                  node.amount?.state === "SIN_CARGAR"
-                    ? "eerr-pending"
-                    : "eerr-amount"
+              <ValueEditor
+                kind="amount"
+                name={node.name}
+                state={node.amount?.state ?? "SIN_CARGAR"}
+                value={node.amount?.value ?? null}
+                original={node.amount?.input}
+                {...fieldProps(node.nodeId)}
+                onSave={(body, failure) =>
+                  saveField(
+                    node.nodeId,
+                    `items/${node.nodeId}/amount`,
+                    body,
+                    failure,
+                  )
                 }
-              >
-                {node.amount?.state === "SIN_CARGAR"
-                  ? "SIN CARGAR"
-                  : `${node.amount?.value?.replace(".", ",")} ARS`}
-              </p>
-              {canEdit && (
-                <form
-                  className={`eerr-amount-form ${styles.amountForm}`}
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    saveAmount(node, "CARGADO");
-                  }}
-                >
-                  <label>
-                    Importe de {node.name}
-                    <input
-                      inputMode="decimal"
-                      maxLength={80}
-                      required
-                      value={drafts[node.nodeId] ?? node.amount?.input ?? ""}
-                      disabled={busy}
-                      onChange={(event) =>
-                        dispatch({
-                          type: "DRAFT",
-                          nodeId: node.nodeId,
-                          input: event.target.value,
-                        })
-                      }
-                      placeholder="Ej. 1500,50"
-                    />
-                  </label>
-                  <div className={styles.actions}>
-                    <button className="primary-button" disabled={disabled}>
-                      Guardar
-                    </button>
-                    <button
-                      type="button"
-                      className="text-button"
-                      disabled={disabled}
-                      onClick={() => saveAmount(node, "CARGADO", true)}
-                    >
-                      Cargar cero
-                    </button>
-                    <button
-                      type="button"
-                      className="text-button"
-                      disabled={disabled}
-                      onClick={() => saveAmount(node, "SIN_CARGAR")}
-                    >
-                      Volver a sin cargar
-                    </button>
-                  </div>
-                  {Object.hasOwn(drafts, node.nodeId) && (
-                    <span className="help">Borrador sin guardar</span>
-                  )}
-                </form>
-              )}
+              />
+              <ValueEditor
+                kind="quantity"
+                name={node.name}
+                state={node.quantity?.state ?? "SIN_CARGAR"}
+                value={node.quantity?.value ?? null}
+                {...fieldProps(`quantity:${node.nodeId}`)}
+                onSave={(body, failure) =>
+                  saveField(
+                    `quantity:${node.nodeId}`,
+                    `items/${node.nodeId}/quantity`,
+                    body,
+                    failure,
+                  )
+                }
+              />
+              <NoteEditor
+                title={`Nota del ítem · ${node.name}`}
+                saved={node.note ?? null}
+                limit={NOTE_LIMITS.item}
+                {...fieldProps(`note:${node.nodeId}`)}
+                onSave={(body, failure) =>
+                  saveField(
+                    `note:${node.nodeId}`,
+                    `items/${node.nodeId}/note`,
+                    body,
+                    failure,
+                  )
+                }
+              />
             </li>
           );
         return (
@@ -410,6 +390,15 @@ export function StructureWorkspace({ id }: { id: string }) {
             </p>
           )}
           {!canEdit && <p className="notice">Acceso de lectura.</p>}
+          <NoteEditor
+            title="Nota general del EERR"
+            saved={data.note ?? null}
+            limit={NOTE_LIMITS.period}
+            {...fieldProps("period-note")}
+            onSave={(body, failure) =>
+              saveField("period-note", "note", body, failure)
+            }
+          />
           {!data.structure ? (
             <section className="branch-feedback">
               <h2>Estructura sin preparar</h2>
@@ -495,19 +484,6 @@ export function StructureWorkspace({ id }: { id: string }) {
                               setAction({ ...action, unit: event.target.value })
                             }
                           />
-                        </label>
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={action.quantityEnabled}
-                            onChange={(event) =>
-                              setAction({
-                                ...action,
-                                quantityEnabled: event.target.checked,
-                              })
-                            }
-                          />{" "}
-                          Este ítem admite cantidad (carga aún no disponible)
                         </label>
                       </>
                     )}

@@ -152,6 +152,24 @@ export class StructureRepository {
   async addConcept(concept: Concept, session: ClientSession) {
     await this.concepts().create([concept], { session });
   }
+  async writeNote(id: string, revision: number, note: string | null) {
+    const row = await this.eerrs
+      .findOneAndUpdate(
+        { _id: id, ...revisionFilter(revision) },
+        {
+          ...(note === null ? { $unset: { note: 1 } } : { $set: { note } }),
+          $inc: { revision: 1 },
+        },
+        { returnDocument: 'after', runValidators: true },
+      )
+      .lean()
+      .exec();
+    if (!row)
+      throw new ConflictException(
+        'El EERR cambió. Conservá tu borrador y recargá antes de guardar',
+      );
+    return row;
+  }
   async savePreview(preview: GlobalPreview) {
     await this.previews().create(preview);
   }

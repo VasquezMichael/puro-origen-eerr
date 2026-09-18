@@ -1,3 +1,9 @@
+import {
+  normalizeQuantity,
+  normalizeNote,
+  NOTE_LIMITS,
+  type QuantityCell,
+} from "./eerr-fields.js";
 export const ROOTS = [
   { code: "00000000-0000-4000-8000-000000000001", name: "INGRESOS" },
   { code: "00000000-0000-4000-8000-000000000002", name: "COSTOS" },
@@ -25,6 +31,8 @@ export type StructureNode = {
   kind: "BLOCK" | "CATEGORY" | "ITEM";
   amount?: AmountCell;
   quantityEnabled?: boolean;
+  quantity?: QuantityCell;
+  note?: string | null;
   unit?: string | null;
 };
 export type CategoryConcept = {
@@ -136,11 +144,22 @@ export function assertStructure(nodes: StructureNode[]): void {
         (cell.state === "SIN_CARGAR"
           ? cell.value !== null || cell.input !== null
           : cell.state !== "CARGADO" ||
-            cell.input === null ||
             cell.value === null ||
             !/^\d+\.\d{2}$/.test(cell.value))
       )
         throw new Error("Celda inválida");
+      if (node.quantity) {
+        const quantity = node.quantity;
+        if (
+          quantity.state === "SIN_CARGAR"
+            ? quantity.value !== null
+            : quantity.state !== "CARGADO" ||
+              quantity.value === null ||
+              normalizeQuantity(quantity.value) !== quantity.value
+        )
+          throw new Error("Cantidad inválida");
+      }
+      if (node.note != null) normalizeNote(node.note, NOTE_LIMITS.item);
     } else if (node.amount !== undefined)
       throw new Error("Solo ITEM admite importe");
   }

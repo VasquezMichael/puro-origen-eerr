@@ -8,6 +8,19 @@ export const MONEY = {
 export const MAX_MONEY_INPUT_LENGTH = 80;
 const maximumCents = BigInt(MONEY.max.replace(".", ""));
 
+/** Redondea una sola vez un resultado racional exacto; valida antes de redondear. */
+export function rationalMoney(numerator: bigint, denominator: bigint): string {
+  if (denominator <= 0n) throw new Error("Denominador inválido");
+  if (numerator < 0n) throw new Error("El importe no puede ser negativo");
+  const scaled = numerator * 100n;
+  if (scaled > maximumCents * denominator)
+    throw new Error(`El importe máximo es ${MONEY.max} ARS`);
+  const cents =
+    scaled / denominator +
+    (2n * (scaled % denominator) >= denominator ? 1n : 0n);
+  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
+}
+
 export function normalizeMoney(input: string): string {
   if (
     typeof input !== "string" ||
@@ -19,17 +32,8 @@ export function normalizeMoney(input: string): string {
     );
   }
   const [integer, fraction = ""] = input.replace(",", ".").split(".");
-  let cents = BigInt(integer!) * 100n + BigInt((fraction + "00").slice(0, 2));
-  // Comprobar el máximo también antes del redondeo.
-  if (
-    cents > maximumCents ||
-    (cents === maximumCents && /[1-9]/.test(fraction.slice(2)))
-  ) {
-    throw new Error(`El importe máximo es ${MONEY.max} ARS`);
-  }
-  if ((fraction[2] ?? "0") >= "5") cents += 1n;
-  if (cents > maximumCents) {
-    throw new Error(`El importe máximo es ${MONEY.max} ARS`);
-  }
-  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
+  return rationalMoney(
+    BigInt(integer! + fraction),
+    10n ** BigInt(fraction.length),
+  );
 }
