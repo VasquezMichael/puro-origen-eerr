@@ -34,6 +34,21 @@ export const NodeSchema = new Schema<StoredNode>(
     kind: { type: String, enum: ['BLOCK', 'CATEGORY', 'ITEM'], required: true },
     amount: { type: AmountSchema, default: undefined },
     quantityEnabled: { type: Boolean, default: undefined },
+    quantity: {
+      type: new Schema(
+        {
+          state: {
+            type: String,
+            enum: ['SIN_CARGAR', 'CARGADO'],
+            required: true,
+          },
+          value: { type: String, default: null },
+        },
+        options,
+      ),
+      default: undefined,
+    },
+    note: { type: String, default: undefined },
     unit: { type: String, default: undefined },
   },
   options,
@@ -148,9 +163,18 @@ export function publicStructure(
         ? {
             quantityEnabled: node.quantityEnabled ?? false,
             unit: node.unit ?? null,
+            ...(node.quantity === undefined
+              ? {}
+              : {
+                  quantity: {
+                    state: node.quantity.state,
+                    value: node.quantity.value,
+                  },
+                }),
+            ...(node.note === undefined ? {} : { note: node.note }),
             amount: {
               state: node.amount!.state,
-              input: node.amount!.input,
+              input: node.amount!.input ?? null,
               currency: node.amount!.currency,
               scale: node.amount!.scale,
               value:

@@ -92,3 +92,29 @@ Las pruebas normales siguen sin MongoDB. La integración opcional
 absoluta a un ejecutable local. Lanza y elimina su propio replica set en loopback
 y directorio temporal. No acepta URI externa ni utiliza AppModule, .env o bootstrap.
 No instala infraestructura global. Contratos y validaciones: [API_EERR.md](API_EERR.md).
+
+
+## Carga ampliada (EP-04B1)
+
+Dominio incorpora money-expression (parser de constantes y racionales BigInt) y
+eerr-fields (cantidades/notas). API y web consumen estas reglas puras; la API
+recalcula y valida siempre. rationalMoney comparte rango y redondeo con los
+literales originales. calculation-engine sigue reservado para EP-05/EP-06; no
+se agregan relaciones ni dependencias nuevas.
+
+Amount conserva input original y value Decimal128. NodeSchema agrega quantity
+(subdocumento explícito state/value String) y note opcionales. Eerr agrega note
+String opcional para la nota general, independiente de la inicialización. Los
+esquemas no crean defaults para estos campos ausentes. La conversión pública
+conserva ausencia; la interfaz interpreta SIN_CARGAR/sin nota sin escribir.
+
+StructureService reutiliza editItem, permisos y write con el CAS existente para
+importes/cantidades/notas de ítem. writeNote actualiza solo note y revision con
+el mismo revisionFilter; no sustituye estructura, progreso ni createdAt. Una
+publicación global conserva los nuevos datos locales y compite por la misma revisión.
+
+field-editors presenta los controles; structure-workspace conserva el estado y
+coordina envíos. El reducer utiliza claves de borrador por campo: UUID del importe,
+quantity:UUID, note:UUID y period-note. Errores y recarga conservan todas las claves.
+El CSS Module limita estilos al EERR; textarea mantiene saltos y foco visible.
+Plan y límites: [PLAN_PRUEBAS.md](PLAN_PRUEBAS.md), [DECISIONES.md](DECISIONES.md).

@@ -76,6 +76,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       launchError = error;
     });
     const uri = `mongodb://127.0.0.1:${port}/ep04_test?directConnection=true`;
+    let lastConnectionError: unknown;
     for (let attempt = 0; attempt < 60; attempt++) {
       if (launchError) throw launchError;
       const candidate = createConnection(uri, {
@@ -84,11 +85,15 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       try {
         connection = await candidate.asPromise();
         break;
-      } catch {
+      } catch (error) {
+        lastConnectionError = error;
         await candidate.close().catch(() => undefined);
       }
     }
-    if (!connection) throw new Error('No inició MongoDB local');
+    if (!connection)
+      throw new Error('No inició MongoDB local', {
+        cause: lastConnectionError,
+      });
     await connection.db!.admin().command({
       replSetInitiate: {
         _id: replica,
@@ -332,5 +337,146 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
     );
     expect((await service.get(nextYear._id, viewer)).structure).toBeNull();
     expect((await repository.template('2026-8')).categories).toHaveLength(0);
+  });
+  it('EP-04B1 persiste expresiones, cantidad exacta y notas; las elimina sin cambiar importe ni identidad', async () => {
+    const initial = await service.initialize(id, 0, viewer);
+    const created = await service.createItem(
+      id,
+      {
+        expectedRevision: 1,
+        parentId: initial.structure!.nodes[0].nodeId,
+        name: 'Local',
+      },
+      viewer,
+    );
+    const node = created.structure!.nodes[3];
+    await service.amount(
+      id,
+      node.nodeId,
+      { expectedRevision: 2, state: 'CARGADO', input: ' (1000 + 500) / 3 ' },
+      viewer,
+    );
+    await service.quantity(
+      id,
+      node.nodeId,
+      { expectedRevision: 3, state: 'CARGADO', input: '999999999999' },
+      viewer,
+    );
+    await service.itemNote(
+      id,
+      node.nodeId,
+      { expectedRevision: 4, note: ' Primera\nSegunda ' },
+      viewer,
+    );
+    await service.periodNote(
+      id,
+      { expectedRevision: 5, note: ' General\nPeríodo ' },
+      viewer,
+    );
+    const stored = await model.findById(id).lean();
+    expect(stored!.structure!.nodes[3]).toMatchObject({
+      nodeId: node.nodeId,
+      code: node.code,
+      quantity: { state: 'CARGADO', value: '999999999999' },
+      note: 'Primera\nSegunda',
+      amount: { input: '(1000 + 500) / 3' },
+    });
+    expect(stored!.structure!.nodes[3].amount!.value!.toString()).toBe(
+      '500.00',
+    );
+    expect(stored!.note).toBe('General\nPeríodo');
+    const before = JSON.stringify(stored);
+    await service.get(id, viewer);
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+    await service.itemNote(
+      id,
+      node.nodeId,
+      { expectedRevision: 6, note: '' },
+      viewer,
+    );
+    await service.periodNote(id, { expectedRevision: 7, note: ' ' }, viewer);
+    await service.quantity(
+      id,
+      node.nodeId,
+      { expectedRevision: 8, state: 'SIN_CARGAR' },
+      viewer,
+    );
+    const cleared = await model.findById(id).lean();
+    expect(cleared).not.toHaveProperty('note');
+    expect(cleared!.structure!.nodes[3]).not.toHaveProperty('note');
+    expect(cleared!.structure!.nodes[3].amount!.value!.toString()).toBe(
+      '500.00',
+    );
+    expect(cleared!.structure!.nodes[3].quantity).toEqual({
+      state: 'SIN_CARGAR',
+      value: null,
+    });
+    expect(cleared!.createdAt).toEqual(stored!.createdAt);
+  });
+  it('CAS real compartido entre nota general y snapshot: solo gana una edición concurrente', async () => {
+    const initial = await service.initialize(id, 0, viewer);
+    const created = await service.createItem(
+      id,
+      {
+        expectedRevision: 1,
+        parentId: initial.structure!.nodes[0].nodeId,
+        name: 'A',
+      },
+      viewer,
+    );
+    const node = created.structure!.nodes[3];
+    let arrivals = 0;
+    let release!: () => void;
+    const ready = new Promise<void>((resolveReady) => {
+      release = resolveReady;
+    });
+    const wait = async () => {
+      if (++arrivals === 2) release();
+      await ready;
+    };
+    const write = repository.write.bind(repository);
+    const writeNote = repository.writeNote.bind(repository);
+    const a = vi
+      .spyOn(repository, 'write')
+      .mockImplementation(async (...args) => {
+        await wait();
+        return write(...args);
+      });
+    const b = vi
+      .spyOn(repository, 'writeNote')
+      .mockImplementation(async (...args) => {
+        await wait();
+        return writeNote(...args);
+      });
+    let results: PromiseSettledResult<unknown>[];
+    try {
+      results = await Promise.allSettled([
+        service.quantity(
+          id,
+          node.nodeId,
+          { expectedRevision: 2, state: 'CARGADO', input: '5' },
+          viewer,
+        ),
+        service.periodNote(
+          id,
+          { expectedRevision: 2, note: 'Concurrente' },
+          viewer,
+        ),
+      ]);
+    } finally {
+      a.mockRestore();
+      b.mockRestore();
+    }
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find(
+      (r) => r.status === 'rejected',
+    ) as PromiseRejectedResult;
+    expect(rejected.reason.getStatus()).toBe(409);
+    const stored = await model.findById(id).lean();
+    expect(stored!.revision).toBe(3);
+    expect(
+      Number(stored!.note !== undefined) +
+        Number(stored!.structure!.nodes[3].quantity !== undefined),
+    ).toBe(1);
   });
 });

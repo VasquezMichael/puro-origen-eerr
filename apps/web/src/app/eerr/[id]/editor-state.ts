@@ -7,8 +7,8 @@ export type EditorState = {
 };
 export type EditorEvent =
   | { type: "RELOAD"; data: StructureResponse }
-  | { type: "SAVED"; data: StructureResponse; nodeId?: string }
-  | { type: "DRAFT"; nodeId: string; input: string }
+  | { type: "SAVED"; data: StructureResponse; draftKey?: string }
+  | { type: "DRAFT"; draftKey: string; input: string }
   | { type: "CONFLICT" };
 export const initialEditorState: EditorState = {
   data: null,
@@ -24,12 +24,12 @@ export function editorReducer(
   if (event.type === "DRAFT")
     return {
       ...state,
-      drafts: { ...state.drafts, [event.nodeId]: event.input },
+      drafts: { ...state.drafts, [event.draftKey]: event.input },
     };
   if (event.type === "CONFLICT") return { ...state, conflict: true };
   if (event.type === "RELOAD")
     return { ...state, data: event.data, conflict: false };
   const drafts = { ...state.drafts };
-  if (event.nodeId !== undefined) delete drafts[event.nodeId];
+  if (event.draftKey !== undefined) delete drafts[event.draftKey];
   return { data: event.data, drafts, conflict: false };
 }

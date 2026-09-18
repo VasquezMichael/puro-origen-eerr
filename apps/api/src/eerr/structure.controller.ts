@@ -12,6 +12,9 @@ import {
 import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import {
   AmountDto,
+  QuantityDto,
+  ItemNoteDto,
+  PeriodNoteDto,
   CategoryConfirmDto,
   CategoryPreviewDto,
   ItemDto,
@@ -77,5 +80,31 @@ export class StructureController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.structures.amount(id, nodeId, input, req.user!);
+  }
+  @Put('items/:nodeId/quantity')
+  quantity(
+    @Param('id', uuid) id: string,
+    @Param('nodeId', uuid) nodeId: string,
+    @Body() input: QuantityDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.structures.quantity(id, nodeId, input, req.user!);
+  }
+  @Put('items/:nodeId/note')
+  itemNote(
+    @Param('id', uuid) id: string,
+    @Param('nodeId', uuid) nodeId: string,
+    @Body() input: ItemNoteDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.structures.itemNote(id, nodeId, input, req.user!);
+  }
+  @Put('note')
+  periodNote(
+    @Param('id', uuid) id: string,
+    @Body() input: PeriodNoteDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.structures.periodNote(id, input, req.user!);
   }
 }

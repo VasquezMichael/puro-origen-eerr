@@ -114,3 +114,25 @@ suposiciones ni derivar permisos o interacciones no especificadas entre reglas.
 Las mejoras futuras se registran por separado en
 [BACKLOG_EVOLUTIVO.md](BACKLOG_EVOLUTIVO.md). El backlog no autoriza implementación
 ni agrega requisitos confirmados. Cada milestone implementa únicamente su alcance.
+
+
+## Incremento implementado EP-04B1
+
+El importe acepta constantes con +, -, *, /, paréntesis, espacios y punto/coma
+decimal. La vista previa usa el mismo dominio que la API, que recalcula el resultado.
+Se conserva expresión original y resultado exacto normalizado. Cero y SIN_CARGAR
+siguen siendo distintos; limpiar elimina entrada y resultado. No hay referencias
+a celdas, resultados financieros ni ejecución de código.
+
+Cada ítem permite cantidad entera opcional independiente del importe: 0 a
+999999999999, o SIN_CARGAR. No participa del contador monetario ni se propaga.
+Nota de ítem (1000) y nota general del EERR (4000) conservan saltos de línea;
+las notas se abren/contraen, se editan o eliminan con contenido vacío. No se copiarán
+al clonar. Guardar requiere revisión vigente; 409 conserva todos los borradores
+y permite recargar sin perderlos. Lectores visualizan sin controles de escritura.
+
+Compatibilidad: GET no inicializa campos ni estructura; ausencia significa sin
+cantidad/sin nota. Los importes antiguos no se recalculan, y el valor guardado se
+muestra aun sin expresión histórica. No se modifican datos reales de Calle 59.
+EP-04B2: movimientos y reordenamiento. EP-04C: clonación/importación/completar cero.
+Límites y gramática exactos en DECISIONES.md; contratos en API_EERR.md.

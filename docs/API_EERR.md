@@ -188,11 +188,11 @@ La integración opcional `npm run test:integration:structure --workspace=api`
 utiliza un mongod local indicado por MONGOD_BINARY y lanza su propio replica set
 temporal en loopback. Verifica Decimal128, CAS, inicialización concurrente y rollback
 real. No forma parte del check ni del CI sin MongoDB. No importa AppModule ni usa .env.
-No se crea PLAN_PRUEBAS.md: no existía y las instrucciones no exigen esa ruta;
-la estrategia queda documentada aquí y en ARQUITECTURA.md.
+En EP-04A no existía PLAN_PRUEBAS.md; EP-04B1 incorpora ese plan con la cobertura
+ampliada y mantiene las comprobaciones anteriores.
 
-EP-03 fue validado manualmente según confirmación del usuario. EP-04A requiere
-revisión visual de escritorio/tablet y flujo con dos sesiones. Los EERR de Calle 59
+EP-03 y la funcionalidad principal de EP-04A fueron validados manualmente según
+confirmación del usuario. EP-04B1 requiere validación funcional manual posterior. Los EERR de Calle 59
 de agosto y septiembre no se modifican durante desarrollo ni por el merge.
 Después del merge, preparar septiembre es una acción manual del usuario.
 No ejecutar bootstrap ni cambiar al administrador. Agosto se elimina recién en EP-07.
@@ -203,3 +203,41 @@ filtro mensual, timestamps de inicialización, atomicidad transaccional y
 preservación de borradores. Las doce fueron detectadas y restauradas. La prueba
 CAS usa una barrera para que ambas solicitudes lean la misma revisión antes de
 competir en la escritura, evitando que el orden temporal oculte una regresión.
+
+
+## Extensiones compatibles EP-04B1
+
+Prevalecen sobre las restricciones históricas de EP-04A de las secciones anteriores.
+PUT amount conserva ruta/cuerpo; input admite la gramática de DECISIONES.md y
+hasta EXPRESSION_LIMITS.length (256) caracteres. Ejemplo:
+`{ "expectedRevision": 2, "state": "CARGADO", "input": " (1000 + 500) / 3 " }`
+produce input `"(1000 + 500) / 3"` y value `"500.00"`. El cliente no puede enviar
+value, resultado ni expresión por otro campo. Cero usa input `"0"`; SIN_CARGAR
+no admite input (ni null) y deja input/value null. Resultados en Decimal128, API strings.
+
+| Método y ruta, prefijo /eerr/:id | Cuerpo | Resultado |
+| --- | --- | --- |
+| PUT /items/:nodeId/quantity | `{ expectedRevision, state: "CARGADO", input: "12" }` | quantity `{ state: "CARGADO", value: "12" }` |
+| PUT /items/:nodeId/quantity | `{ expectedRevision, state: "SIN_CARGAR" }` | quantity `{ state: "SIN_CARGAR", value: null }` |
+| PUT /items/:nodeId/note | `{ expectedRevision, note: "Texto" }` | nota local en node.note; vacío elimina |
+| PUT /note | `{ expectedRevision, note: "Texto general" }` | nota general; vacío elimina |
+
+Todas responden 200 StructureResponse; cantidad cero usa input `"0"`. Las rutas
+requieren UUID v4 de EERR/nodo y revisión numérica entera 0..MAX_SAFE_INTEGER.
+DTO estrictos, sin campos extra. input de cantidad es string de hasta 12 dígitos;
+nota siempre string, no null. Cada escritura aplica rango/longitud también en dominio.
+BLOCK/CATEGORY no admiten cantidad ni nota de ítem. Permisos y errores HTTP se
+conservan: 400 entrada inválida, 401 sesión, 403 Lector, 404 ajeno/inexistente,
+409 CAS obsoleto. No se devuelven detalles internos de persistencia.
+
+StructureResponse agrega note (string o null) para el período. Los nodos pueden
+incluir quantity y note; ausencia de quantity equivale a SIN_CARGAR, ausencia de
+note a sin nota. Se conservan opcionales para no persistir defaults durante otras
+ediciones. amount.input histórico ausente se expone null; value no se recalcula.
+La nota general puede editarse sin preparar estructura. El progreso depende solo
+de amount.state. Campos locales se preservan al publicar categorías globales.
+La marca histórica quantityEnabled se conserva, pero la cantidad opcional está
+disponible para todos los ítems en el alcance EP-04B1.
+
+GET no ejecuta migraciones ni escrituras. No se toca Atlas para verificar estos
+contratos. Plan actualizado en [PLAN_PRUEBAS.md](PLAN_PRUEBAS.md).
