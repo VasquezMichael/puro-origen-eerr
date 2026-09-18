@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import styles from "../layout.module.css";
 import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
 import type { StructureNode } from "@puro-origen/domain";
 import type {
@@ -193,15 +194,17 @@ export function StructureWorkspace({ id }: { id: string }) {
         if (node.kind === "ITEM")
           return (
             <li className="eerr-item" key={node.nodeId}>
-              <div>
-                <strong>{node.name}</strong>
-                {node.unit && <span className="help"> · {node.unit}</span>}
-                {node.quantityEnabled && (
-                  <p className="help">
-                    Cantidad habilitada; la carga de cantidades aún no está
-                    disponible.
-                  </p>
-                )}
+              <div className={styles.itemHeading}>
+                <div>
+                  <strong>{node.name}</strong>
+                  {node.unit && <span className="help"> · {node.unit}</span>}
+                  {node.quantityEnabled && (
+                    <p className="help">
+                      Cantidad habilitada; la carga de cantidades aún no está
+                      disponible.
+                    </p>
+                  )}
+                </div>
                 {canEdit && (
                   <button
                     className="text-button"
@@ -225,7 +228,7 @@ export function StructureWorkspace({ id }: { id: string }) {
               </p>
               {canEdit && (
                 <form
-                  className="eerr-amount-form"
+                  className={`eerr-amount-form ${styles.amountForm}`}
                   onSubmit={(event) => {
                     event.preventDefault();
                     saveAmount(node, "CARGADO");
@@ -249,7 +252,7 @@ export function StructureWorkspace({ id }: { id: string }) {
                       placeholder="Ej. 1500,50"
                     />
                   </label>
-                  <div className="branch-actions">
+                  <div className={styles.actions}>
                     <button className="primary-button" disabled={disabled}>
                       Guardar
                     </button>
@@ -290,7 +293,7 @@ export function StructureWorkspace({ id }: { id: string }) {
                 )}
               </summary>
               {canEdit && (
-                <div className="branch-actions">
+                <div className={styles.actions}>
                   <button
                     className="text-button"
                     disabled={disabled}

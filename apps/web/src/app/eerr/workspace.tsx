@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import styles from './layout.module.css';
 import { eerrApi as api } from './api';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { EERR_TIME_ZONE, businessMonthAt, eerrCalendarIssue } from '@puro-origen/domain';
@@ -139,7 +140,7 @@ function Detail({ id, branches, onClose }: { id: string; branches: Branch[]; onC
     api<Eerr>(`/eerr/${id}`, { signal: controller.signal }).then(setRow).catch((error: Error) => { if (!controller.signal.aborted) setError(error.message); });
     return () => controller.abort();
   }, [id]);
-  return <section className="branch-feedback" aria-labelledby="eerr-detail-title"><div className="branch-card-heading"><h2 id="eerr-detail-title" tabIndex={-1} ref={heading}>Contexto del EERR</h2><button className="text-button" onClick={onClose}>Cerrar detalle</button></div>
-    {error ? <p className="error" role="alert">{error}</p> : row ? <><h3>{branches.find((branch) => branch.id === row.branchId)?.name} · {periodName(row.year, row.month)}</h3><EerrSummary row={row} /><p className="branch-code">Identificador<code>{row.id}</code></p><Link className="primary-button" href={`/eerr/${row.id}`}>Abrir estructura y carga</Link></> : <p role="status">Consultando EERR…</p>}
+  return <section className={`branch-feedback ${styles.context}`} aria-labelledby="eerr-detail-title"><div className="branch-card-heading"><h2 id="eerr-detail-title" tabIndex={-1} ref={heading}>Contexto del EERR</h2><button className="text-button" onClick={onClose}>Cerrar detalle</button></div>
+    {error ? <p className="error" role="alert">{error}</p> : row ? <><h3>{branches.find((branch) => branch.id === row.branchId)?.name} · {periodName(row.year, row.month)}</h3><EerrSummary row={row} /><p className="branch-code">Identificador<code>{row.id}</code></p><Link className={`primary-button ${styles.contextLink}`} href={`/eerr/${row.id}`}>Abrir estructura y carga</Link></> : <p role="status">Consultando EERR…</p>}
   </section>;
 }
