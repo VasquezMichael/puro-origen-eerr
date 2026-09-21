@@ -215,3 +215,35 @@ Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
 - EP-04B2 difiere movimientos/reordenamiento dentro de raíz; EP-04C difiere
   clonación, importación y completar sin movimiento. Sin EP-05/EP-06 ni auditoría
   completa, cierre, reapertura o borrado de períodos.
+
+
+## Experiencia del espacio de carga (EP-04UX)
+
+- Patrón híbrido: grilla jerárquica para carga frecuente y modales para crear
+  ítems/categorías, renombrar, consultar/editar detalle, notas y confirmaciones.
+  Bloques protegidos y categorías se pliegan solo visualmente. No hay tarjetas
+  por nodo ni formularios estructurales desplegados dentro de la grilla.
+- Guardado explícito por campo; Enter envía únicamente un borrador válido y
+  diferente del valor persistido. Sin guardado por blur. Expresión, resultado
+  y estado guardado se distinguen; SIN_CARGAR no se interpreta como cero.
+- El detalle completo ofrece nombre, importe, cantidad y nota. Cada campo tiene
+  su guardado independiente, sin introducir un contrato de edición múltiple.
+- Crear/renombrar categoría exige preview y confirmación global. Generar un
+  preview no se anuncia como publicación. Cero y limpieza de valores tienen
+  confirmación explícita, indicando que reemplazan solo ese campo y su borrador.
+- Cerrar modal conserva borradores en memoria durante la estancia en el EERR.
+  No se persisten en localStorage ni se prometen después de abandonar/recargar
+  la página. Clic exterior no cierra el modal; Escape/cierre se bloquean al escribir.
+- Mensajes y errores identifican el campo o formulario. Ante 409 se conserva
+  el borrador, se recarga la revisión y se revisa antes de reenviar. Otros
+  borradores no se eliminan por guardar un campo o cerrar un modal.
+- Escritorio: navegación lateral y cinco columnas. Hasta 1100 px cantidad y
+  nota pasan al detalle; estructura, importe y acciones permanecen. Hasta
+  800 px la navegación se compacta arriba. En móvil las filas fluyen en dos
+  columnas, sin desplazamiento horizontal obligatorio ni acciones ocultas.
+- Administrador y Editor asignado mantienen edición de históricos inactivos;
+  Lector ve valores, expresiones y notas en lectura, sin controles de escritura.
+  No se cambia ningún permiso, regla, endpoint ni documento de MongoDB.
+- EP-04B1 fue validado funcionalmente por el usuario. EP-04UX deja para EP-04B2
+  movimientos/reordenamiento y para EP-04C clonación/importación/completar cero.
+  No incorpora eliminación, cierre, cálculos derivados, dashboard ni gráficos.

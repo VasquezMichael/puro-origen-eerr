@@ -75,3 +75,51 @@ La validación funcional real de EP-04A ya fue confirmada por el usuario. Para
 EP-04B1 queda la validación manual posterior del usuario con su entorno y tablet
 física; no se usan ni cambian los EERR reales de agosto/septiembre durante desarrollo.
 No se prueba ni implementa clonación, movimientos, auditoría completa o EP-05/06.
+
+
+## EP-04UX: grilla, overlays y borradores
+
+Pruebas normales: workspace.test.mjs renderiza componentes React reales mediante
+react-dom/server y un loader local de TSX (TypeScript ya instalado). Solo CSS se
+sustituye por nombres de clases para SSR; no se simulan componentes ni dominio.
+Cubre jerarquía/plegado/profundidad, capacidades por tipo/rol, cambios explícitos,
+preview exacto, errores y bloqueo de guardado, cero/SIN_CARGAR, cantidad sin ARS,
+notas, semántica de overlays, navegación real y conservación de formularios.
+El render no ejecuta efectos; las interacciones se comprueban en navegador.
+
+Smoke reproducible opcional: test/workspace.browser.mjs. Requiere Playwright y
+Chromium instalados fuera del repositorio; no agrega dependencias del producto.
+Con la web compilada en http://127.0.0.1:3100 y sin iniciar la API:
+
+```powershell
+$env:PLAYWRIGHT_MODULE = '<ruta absoluta a playwright/index.mjs>'
+$env:BROWSER_BINARY = '<ruta absoluta al ejecutable Chromium>'
+node apps/web/test/workspace.browser.mjs
+```
+
+Intercepta toda llamada API con fixtures; aborta cualquier destino externo no
+esperado. Nunca importa AppModule, lee .env, ejecuta bootstrap ni usa Atlas.
+Verifica 1440×900, 1280×720, 1024×768, 768×1024 y 390×844. Incluye:
+
+- Plegado, sangría multinivel, textos largos y ausencia de escrituras al montar.
+- Edición por Enter, preview, error local y guardado explícito.
+- Borradores de cuatro campos y nombres al cerrar/reabrir, errores y 409.
+- Conflictos dentro de renombrado y publicación, recarga y nuevo preview.
+- Envío único, bloqueo de cierre durante escritura y restauración del foco.
+- Todos los modales, notas multilínea, menús por teclado y top layer sin recortes.
+- Administrador, Editor, Lector y acceso rechazado; preparación explícita.
+- Geometría sin desbordes ni controles superpuestos y capturas en carpeta temporal.
+
+El CI normal sigue sin navegador/MongoDB y ejecuta las pruebas de render y estado.
+El smoke del navegador se ejecuta localmente contra el build de producción.
+La validación funcional de EP-04A/EP-04B1 fue confirmada por el usuario. Queda
+para el usuario la evaluación del nuevo diseño en su tablet física y flujo real.
+
+Resultado EP-04UX: 332 pruebas normales aprobadas (170 API, 6 smoke ESM,
+124 dominio y 32 web; 26 nuevas), más smoke real en los cinco tamaños.
+Nueve mutaciones manuales detectadas por fallos de aserción y restauradas:
+plegado desactivado, profundidad anulada, menú de Lector habilitado, detección
+de cambios anulada, guardado habilitado con expresión inválida, guardado
+habilitado con conflicto, controles de edición para Lector, cierre habilitado
+durante escritura y recarga que elimina borradores. Las pruebas web se vuelven
+a ejecutar sobre los originales restaurados.

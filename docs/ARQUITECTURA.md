@@ -118,3 +118,32 @@ coordina envíos. El reducer utiliza claves de borrador por campo: UUID del impo
 quantity:UUID, note:UUID y period-note. Errores y recarga conservan todas las claves.
 El CSS Module limita estilos al EERR; textarea mantiene saltos y foco visible.
 Plan y límites: [PLAN_PRUEBAS.md](PLAN_PRUEBAS.md), [DECISIONES.md](DECISIONES.md).
+
+
+## Espacio de carga híbrido (EP-04UX)
+
+La ruta /eerr/[id] utiliza WorkspaceShell, integrado solo en el espacio de carga.
+La navegación enlaza Inicio y Estados de resultados; Sucursales se muestra al
+Administrador porque la ruta disponible es administrativa. Login, selector y
+administración conservan su presentación. Sin nuevas rutas ni dependencias.
+
+La tabla semántica presenta nodos planos como filas ordenadas e indentadas por
+profundidad. visibleRows resuelve exclusivamente presentación y plegado, sin
+mutar el snapshot. ValueEditor mantiene edición directa de importe/expresión y
+cantidad; reutiliza dominio para validación y preview. No hay autosave.
+
+Modal utiliza dialog/showModal nativo: fondo inerte, foco contenido, restauración
+al disparador y Escape controlado. ActionMenu usa popover en la capa superior
+del navegador, con navegación por flechas/Home/End, Escape y nombres accesibles.
+El CSS Module workspace.module.css concentra tokens y estilos locales; no cambia
+los estilos globales ni la API. Se requiere un navegador moderno con dialog y popover.
+
+El reducer conserva borradores por clave de campo. Nombres y unidades de creación
+también se almacenan en el workspace, fuera del ciclo de vida del modal. Cerrar no
+descarta; al reabrir se recuperan. El detalle guarda cada campo por separado, con
+la revisión vigente devuelta por la escritura anterior. No simula atomicidad
+entre endpoints distintos. El bloqueo de envío por ref evita solicitudes dobles.
+
+HTTP 409 identifica la operación, conserva todos los borradores, invalida el
+preview y bloquea nuevas escrituras hasta recargar/revisar. La recarga actualiza
+solo datos persistidos; no recarga la página. La API sigue siendo autoridad final.
