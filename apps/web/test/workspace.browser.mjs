@@ -878,6 +878,36 @@ try {
     assert.equal(await amount().inputValue(), "77");
     await amount().press("Escape");
     await page.waitForFunction(() => window.beforeUnloadCount() === 0);
+    // Finishing the last save clears an open departure intent; a later draft must not reopen it.
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
+    await amount().fill("1500");
+    delay = true;
+    await rowLocator()
+      .getByRole("button", { name: "Guardar importe de Digitales" })
+      .click();
+    await page
+      .getByRole("link", { name: "← Estados de resultados", exact: true })
+      .click();
+    await dialog
+      .getByRole("heading", { name: "Borradores sin guardar" })
+      .waitFor();
+    assert.ok(
+      await dialog
+        .getByRole("button", { name: "Descartar y salir" })
+        .isDisabled(),
+    );
+    await dialog.waitFor({ state: "hidden" });
+    delay = false;
+    await page.waitForFunction(() => window.beforeUnloadCount() === 0);
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
+    await amount().fill("88");
+    await page.waitForFunction(() => window.beforeUnloadCount() === 1);
+    assert.equal(await dialog.count(), 0);
+    await amount().press("Escape");
     // Explicit discard allows an internal navigation; no stale beforeunload listener remains.
     await rowLocator()
       .getByRole("button", { name: "Editar importe de Digitales", exact: true })

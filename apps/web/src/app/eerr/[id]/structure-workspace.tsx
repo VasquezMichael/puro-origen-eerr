@@ -397,7 +397,11 @@ export function StructureWorkspace({ id }: { id: string }) {
           : "Sin cambios pendientes")
       }
     >
-      <DraftNavigationGuard dirty={pending > 0} busy={busy} />
+      <DraftNavigationGuard
+        key={pending > 0 ? "dirty" : "clean"}
+        dirty={pending > 0}
+        busy={busy}
+      />
       {!data || !context ? (
         <section>
           <h1>Estado de resultados</h1>
