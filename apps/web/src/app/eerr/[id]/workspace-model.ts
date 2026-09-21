@@ -1,4 +1,4 @@
-import type { StructureNode } from "@puro-origen/domain";
+import { isArchived, type StructureNode } from "@puro-origen/domain";
 import type { StructureResponse } from "@puro-origen/shared-types";
 
 export function visibleRows(
@@ -8,7 +8,7 @@ export function visibleRows(
   const rows: { node: StructureNode; depth: number }[] = [];
   function visit(parent: string | null, depth: number) {
     for (const node of nodes
-      .filter((n) => n.parentId === parent)
+      .filter((n) => n.parentId === parent && !isArchived(n))
       .sort((a, b) => a.position - b.position)) {
       rows.push({ node, depth });
       if (!collapsed.has(node.nodeId)) visit(node.nodeId, depth + 1);
@@ -18,6 +18,8 @@ export function visibleRows(
   return rows;
 }
 export type NodeAction =
+  | "ARCHIVE"
+  | "RESTORE"
   | "DETAIL"
   | "RENAME_ITEM"
   | "NOTE"
@@ -29,6 +31,8 @@ export type NodeAction =
   | "CATEGORY"
   | "RENAME_CATEGORY";
 export const actionLabels: Record<NodeAction, string> = {
+  ARCHIVE: "Archivar ítem",
+  RESTORE: "Restaurar ítem",
   DETAIL: "Editar detalle",
   RENAME_ITEM: "Renombrar ítem",
   NOTE: "Editar nota",
@@ -43,8 +47,10 @@ export const actionLabels: Record<NodeAction, string> = {
 export function nodeActions(
   kind: StructureNode["kind"],
   canEdit: boolean,
+  archived = false,
 ): NodeAction[] {
   if (!canEdit) return [];
+  if (kind === "ITEM" && archived) return ["RESTORE"];
   if (kind === "ITEM")
     return [
       "DETAIL",
@@ -54,6 +60,7 @@ export function nodeActions(
       "CLEAR_AMOUNT",
       "ZERO_QUANTITY",
       "CLEAR_QUANTITY",
+      "ARCHIVE",
     ];
   return kind === "CATEGORY"
     ? ["ITEM", "CATEGORY", "RENAME_CATEGORY"]
@@ -93,4 +100,10 @@ export function pendingDraftCount(
   return Object.entries(drafts).filter(([key, value]) =>
     changedValue(value, saved[key] ?? ""),
   ).length;
+}
+
+/** Formatting only: no floating-point conversion or changes to monetary rules. */
+export function formatAmount(value: string): string {
+  const [integer, fraction] = value.split(".");
+  return `${integer.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${fraction ?? "00"} ARS`;
 }

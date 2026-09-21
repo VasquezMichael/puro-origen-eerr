@@ -241,3 +241,30 @@ disponible para todos los ítems en el alcance EP-04B1.
 
 GET no ejecuta migraciones ni escrituras. No se toca Atlas para verificar estos
 contratos. Plan actualizado en [PLAN_PRUEBAS.md](PLAN_PRUEBAS.md).
+
+## Archivo recuperable EP-04UX.1
+
+| Método y ruta, prefijo /eerr/:id | Cuerpo estricto | Respuesta |
+| --- | --- | --- |
+| PATCH /items/:nodeId/archive | `{ expectedRevision }` | 200 StructureResponse |
+| PATCH /items/:nodeId/restore | `{ expectedRevision }` | 200 StructureResponse |
+
+Ambos identificadores deben ser UUID v4. expectedRevision es entero numérico
+0..MAX_SAFE_INTEGER; se rechazan campos adicionales. Solo ITEM: bloques y categorías
+no admiten estas operaciones. 400 para nodo/transición/padre inválido, 401 sin sesión,
+403 Lector, 404 EERR ajeno/inexistente, 409 revisión obsoleta. Administrador y Editor
+asignado están autorizados, incluso en sucursales inactivas. Sin endpoints DELETE.
+
+StructureResponse.structure.nodes conserva activos y archivados. El campo opcional
+archive tiene `state: "ARCHIVED" | "ACTIVE"`, `at: string ISO` y `by: string` del actor.
+Ausencia significa activo histórico; no hay migración durante GET. El helper de dominio
+isArchived centraliza esta interpretación. Restaurar conserva at/by del último archivo.
+progress excluye todos los archivados, cargados y pendientes, y vuelve a incluirlos
+al restaurar. Mientras estén archivados se rechazan rename, amount, quantity y note.
+
+Archivo/restauración actualizan atómicamente solo metadata, loadStatus y revisión;
+conservan el snapshot restante, BSON/Decimal128 y timestamps originales. No crean
+nodos ni cambian padre, posición, código, cantidad, expresión o notas. Comparten CAS
+con todas las escrituras anteriores; conflictos no reintentan ni sobrescriben.
+No hay cambios en catálogo global, otros EERR o períodos. Se conservan las restricciones
+de unicidad del árbol, incluidos archivados. Publicar categorías preserva su estado.

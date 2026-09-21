@@ -27,6 +27,7 @@ export function Modal({
     return () => {
       element.close();
       if (origin?.isConnected) origin.focus();
+      else document.getElementById("eerr-main")?.focus();
     };
   }, []);
   useEffect(() => {

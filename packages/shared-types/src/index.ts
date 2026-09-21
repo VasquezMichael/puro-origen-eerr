@@ -31,3 +31,4 @@ export type QuantityRequest = { expectedRevision: number } & (
   { state: "CARGADO"; input: string } | { state: "SIN_CARGAR" }
 );
 export type NoteRequest = { expectedRevision: number; note: string };
+export type ItemArchiveRequest = { expectedRevision: number };

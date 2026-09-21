@@ -247,3 +247,45 @@ Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
 - EP-04B1 fue validado funcionalmente por el usuario. EP-04UX deja para EP-04B2
   movimientos/reordenamiento y para EP-04C clonación/importación/completar cero.
   No incorpora eliminación, cierre, cálculos derivados, dashboard ni gráficos.
+
+## Lectura, edición explícita y archivo recuperable (EP-04UX.1)
+
+- El importe persistido es la información principal (`1.500,00 ARS`), con la
+  expresión original debajo. Cero se muestra `0,00 ARS`; SIN_CARGAR, «Sin cargar».
+  Un importe histórico sin expresión no inventa una. Expresiones extensas ofrecen
+  una vista abreviada y un desplegable accesible con el texto completo.
+- Importe y cantidad se editan bajo demanda, con foco en la entrada, preview,
+  Guardar/Enter y Cancelar/Escape. Cancelar descarta solo el borrador de esa celda;
+  guardar vuelve a lectura. Blur y clic exterior no guardan ni descartan.
+- Se autoriza archivo lógico exclusivamente de ITEM local. No hay DELETE ni
+  eliminación física, ni archivo de bloques, categorías o subcategorías. Su gestión
+  requiere una decisión independiente. No se implementan movimiento ni reordenamiento.
+- `archive` es opcional: `{ state: "ARCHIVED" | "ACTIVE", at, by }`. Ausencia significa
+  activo histórico; `at` es el instante ISO del último archivo y `by` su actor
+  autenticado. Restaurar cambia solo el estado a ACTIVE, conservando esa metadata.
+  Archivar nuevamente registra el nuevo archivo. No constituye auditoría completa.
+- Archivo/restauración conservan nodeId, código, nombre, padre, posición, importes,
+  expresión, cantidad, nota y todos los timestamps existentes, incluido updatedAt.
+  La escritura modifica únicamente archive, loadStatus y la revisión CAS del EERR.
+  No reescribe el snapshot ni Decimal128, ni modifica otros EERR o la categoría global.
+  Esta regla específica prevalece sobre el avance de updatedAt de otras ediciones.
+- Archivados no aparecen en la grilla activa ni cuentan como cargados o pendientes.
+  Futuros cálculos, clonaciones e importaciones deberán excluirlos como origen de
+  cálculo o destino activo. Esos módulos siguen fuera de alcance. Restaurar reincluye
+  los valores y el progreso en la misma posición, sin crear identidad nueva.
+- La estructura devuelve todos los nodos con su estado opcional explícito; dominio
+  centraliza `isArchived`. GET no migra ni escribe. Restaurar con padre inexistente
+  falla de manera controlada; nunca mueve ni crea categorías automáticamente.
+  Se conservan las restricciones existentes de nombres/posiciones también para
+  archivados: no se permite crear duplicados que impidan recuperar su ubicación.
+- Administrador y Editor asignado pueden archivar/restaurar, incluso históricos de
+  sucursales inactivas. Lector consulta archivados sin modificarlos; ajenos no acceden.
+  La API rechaza edición de nombre, importe, cantidad y nota mientras esté archivado.
+- Ambas operaciones exigen confirmación contextual y expectedRevision. Comparten
+  el CAS existente: una sola escritura gana, la perdedora devuelve 409 sin sobrescribir.
+  Solo una escritura exitosa incrementa revisión; invalida previews globales anteriores.
+- Borradores agregados de celdas, notas y formularios se mantienen en memoria.
+  Los enlaces internos que abandonan el workspace muestran un modal propio para
+  continuar editando o descartar y salir. Recarga/cierre/salida externa usan
+  beforeunload solo mientras hay cambios; el navegador controla su advertencia.
+  Sin borradores no hay bloqueo. No se utiliza almacenamiento local, de sesión ni DB.

@@ -152,6 +152,39 @@ export class StructureRepository {
   async addConcept(concept: Concept, session: ClientSession) {
     await this.concepts().create([concept], { session });
   }
+  async writeArchive(
+    id: string,
+    revision: number,
+    nodeId: string,
+    archive: NonNullable<EerrStructure['nodes'][number]['archive']>,
+    loadStatus: ReturnType<typeof loadProgress>['status'],
+  ) {
+    const row = await this.eerrs
+      .findOneAndUpdate(
+        {
+          _id: id,
+          ...revisionFilter(revision),
+          'structure.nodes': { $elemMatch: { nodeId, kind: 'ITEM' } },
+        },
+        {
+          $set: { 'structure.nodes.$[item].archive': archive, loadStatus },
+          $inc: { revision: 1 },
+        },
+        {
+          arrayFilters: [{ 'item.nodeId': nodeId, 'item.kind': 'ITEM' }],
+          returnDocument: 'after',
+          runValidators: true,
+          timestamps: false,
+        },
+      )
+      .lean()
+      .exec();
+    if (!row)
+      throw new ConflictException(
+        'El EERR cambió. Conservá tu borrador y recargá antes de guardar',
+      );
+    return row;
+  }
   async writeNote(id: string, revision: number, note: string | null) {
     const row = await this.eerrs
       .findOneAndUpdate(

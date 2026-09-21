@@ -791,4 +791,227 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
       400,
     );
   });
+  const archive = (
+    nodeId: string,
+    expectedRevision: number,
+    restore = false,
+    extra = {},
+  ) =>
+    api()
+      .patch(`/eerr/${id}/items/${nodeId}/${restore ? 'restore' : 'archive'}`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision, ...extra });
+  const preparedItem = async () => {
+    await init();
+    const created = await createItem('Prueba recuperable');
+    return created.body.structure.nodes.find(
+      (n: { kind: string }) => n.kind === 'ITEM',
+    );
+  };
+  it('archivo y restauración conservan identidad, valores, timestamps y otros EERR sin duplicar', async () => {
+    const item = await preparedItem();
+    await amount(item.nodeId, 2, 'CARGADO', '1000 + 500');
+    const row = store.state.rows.find((r) => r._id === id)!;
+    const saved = row.structure!.nodes.find((n) => n.nodeId === item.nodeId)!;
+    saved.quantity = { state: 'CARGADO', value: '42' };
+    saved.note = 'Nota conservada';
+    const other = store.seed(fixtureOtherBranch);
+    const before = JSON.stringify(row),
+      otherBefore = JSON.stringify(other);
+    const nodeBefore = JSON.stringify(saved);
+    const result = await archive(item.nodeId, 3);
+    expect(result.status).toBe(200);
+    expect(result.body.revision).toBe(4);
+    expect(result.body.progress).toMatchObject({
+      total: 0,
+      loaded: 0,
+      pending: 0,
+    });
+    expect(
+      result.body.structure.nodes.find(
+        (n: { nodeId: string }) => n.nodeId === item.nodeId,
+      ).archive,
+    ).toEqual({ state: 'ARCHIVED', at: now.toISOString(), by: fixtureUser });
+    const { archive: metadata, ...retained } = saved;
+    expect(metadata!.state).toBe('ARCHIVED');
+    expect(JSON.stringify(retained)).toBe(nodeBefore);
+    expect(row.createdAt.toISOString()).toBe(JSON.parse(before).createdAt);
+    expect(row.updatedAt.toISOString()).toBe(JSON.parse(before).updatedAt);
+    const archivedBefore = JSON.stringify(row);
+    await read();
+    expect(JSON.stringify(row)).toBe(archivedBefore);
+    const restored = await archive(item.nodeId, 4, true);
+    expect(restored.status).toBe(200);
+    expect(restored.body.revision).toBe(5);
+    expect(restored.body.progress).toMatchObject({
+      total: 1,
+      loaded: 1,
+      pending: 0,
+    });
+    expect(
+      restored.body.structure.nodes.filter(
+        (n: { nodeId: string }) => n.nodeId === item.nodeId,
+      ),
+    ).toHaveLength(1);
+    expect(saved.archive).toEqual({ ...metadata, state: 'ACTIVE' });
+    const { archive: _archive, ...restoredNode } = saved;
+    expect(JSON.stringify(restoredNode)).toBe(nodeBefore);
+    expect(JSON.stringify(other)).toBe(otherBefore);
+    expect(row.updatedAt.toISOString()).toBe(JSON.parse(before).updatedAt);
+  });
+  it.each(['admin', 'editor', 'reader', 'unassigned'] as const)(
+    '%s: permisos reales de archivo y restauración en sucursal inactiva',
+    async (role) => {
+      const item = await preparedItem();
+      const assign = () => {
+        viewer.isAdmin = role === 'admin';
+        viewer.branchAccesses =
+          role === 'unassigned' || role === 'admin'
+            ? []
+            : [
+                {
+                  branchId: fixtureBranch,
+                  role:
+                    role === 'editor' ? BranchRole.EDITOR : BranchRole.READER,
+                },
+              ];
+      };
+      assign();
+      const expected =
+        role === 'reader' ? 403 : role === 'unassigned' ? 404 : 200;
+      expect((await archive(item.nodeId, 2)).status).toBe(expected);
+      if (expected !== 200) {
+        viewer.isAdmin = true;
+        expect((await archive(item.nodeId, 2)).status).toBe(200);
+      }
+      assign();
+      expect((await read()).status).toBe(role === 'unassigned' ? 404 : 200);
+      expect((await archive(item.nodeId, 3, true)).status).toBe(expected);
+    },
+  );
+  it('GET histórico interpreta activo sin migración ni timestamp nuevo', async () => {
+    const item = await preparedItem();
+    const before = JSON.stringify(store.state),
+      writes = store.writes;
+    const result = await read();
+    expect(
+      result.body.structure.nodes.find(
+        (n: { nodeId: string }) => n.nodeId === item.nodeId,
+      ),
+    ).not.toHaveProperty('archive');
+    expect(result.body.progress.total).toBe(1);
+    expect(JSON.stringify(store.state)).toBe(before);
+    expect(store.writes).toBe(writes);
+  });
+  it.each(['amount', 'quantity', 'note', 'rename'])(
+    'archivado rechaza edición directa de %s',
+    async (field) => {
+      const item = await preparedItem();
+      await archive(item.nodeId, 2);
+      const before = JSON.stringify(store.state);
+      const path = `/eerr/${id}/items/${item.nodeId}${field === 'rename' ? '' : `/${field}`}`;
+      const req = field === 'rename' ? api().patch(path) : api().put(path);
+      const body =
+        field === 'note'
+          ? { note: 'No' }
+          : field === 'rename'
+            ? { name: 'No' }
+            : { state: 'CARGADO', input: '9' };
+      expect(
+        (
+          await req
+            .set('Cookie', `${SESSION_COOKIE}=offline`)
+            .send({ expectedRevision: 3, ...body })
+        ).status,
+      ).toBe(400);
+      expect(JSON.stringify(store.state)).toBe(before);
+    },
+  );
+  it.each(['BLOCK', 'CATEGORY'])('no archiva ni restaura %s', async (kind) => {
+    await init();
+    if (kind === 'CATEGORY') {
+      const p = await category();
+      await confirm(p.body.previewId, 1);
+    }
+    const current = (await read()).body;
+    const node = current.structure.nodes.find(
+      (n: { kind: string }) => n.kind === kind,
+    );
+    for (const restore of [false, true])
+      expect(
+        (await archive(node.nodeId, current.revision, restore)).status,
+      ).toBe(400);
+  });
+  it.each([false, true])(
+    'valida UUID, revisión y campos adicionales (restore=%s)',
+    async (restore) => {
+      const item = await preparedItem();
+      const before = JSON.stringify(store.state);
+      expect((await archive('no-uuid', 2, restore)).status).toBe(400);
+      expect((await archive(randomUUID(), 2, restore)).status).toBe(400);
+      expect((await archive(item.nodeId, -1, restore)).status).toBe(400);
+      expect((await archive(item.nodeId, 2.5, restore)).status).toBe(400);
+      expect(
+        (await archive(item.nodeId, 2, restore, { nodeId: item.nodeId }))
+          .status,
+      ).toBe(400);
+      expect(
+        (
+          await api()
+            .patch(
+              `/eerr/${id}/items/${item.nodeId}/${restore ? 'restore' : 'archive'}`,
+            )
+            .set('Cookie', `${SESSION_COOKIE}=offline`)
+            .send({})
+        ).status,
+      ).toBe(400);
+      expect(JSON.stringify(store.state)).toBe(before);
+    },
+  );
+  it('revisión obsoleta y transiciones repetidas no escriben', async () => {
+    const item = await preparedItem();
+    expect((await archive(item.nodeId, 1)).status).toBe(409);
+    expect((await archive(item.nodeId, 2, true)).status).toBe(400);
+    await archive(item.nodeId, 2);
+    const before = JSON.stringify(store.state);
+    expect((await archive(item.nodeId, 3)).status).toBe(400);
+    expect((await archive(item.nodeId, 2, true)).status).toBe(409);
+    expect(JSON.stringify(store.state)).toBe(before);
+  });
+  it('padre inexistente devuelve error controlado sin restauración arbitraria', async () => {
+    const item = await preparedItem();
+    await archive(item.nodeId, 2);
+    const row = store.state.rows.find((r) => r._id === id)!;
+    row.structure!.nodes.find((n) => n.nodeId === item.nodeId)!.parentId =
+      randomUUID();
+    const before = JSON.stringify(row);
+    const result = await archive(item.nodeId, 3, true);
+    expect(result.status).toBe(400);
+    expect(result.body.message).toContain('padre');
+    expect(JSON.stringify(row)).toBe(before);
+  });
+  it.each(['archive', 'amount'])(
+    'archivo concurrente contra %s: un ganador, revisión única y datos conservados',
+    async (contender) => {
+      const item = await preparedItem();
+      const results = await Promise.all([
+        archive(item.nodeId, 2),
+        contender === 'archive'
+          ? archive(item.nodeId, 2)
+          : amount(item.nodeId, 2, 'CARGADO', '5+5'),
+      ]);
+      expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+      const result = (await read()).body;
+      expect(result.revision).toBe(3);
+      const saved = result.structure.nodes.find(
+        (n: { nodeId: string }) => n.nodeId === item.nodeId,
+      );
+      expect(saved.code).toBe(item.code);
+      if (results[0].status === 200) expect(saved.amount).toEqual(item.amount);
+      else {
+        expect(saved.amount.value).toBe('10.00');
+        expect(saved.archive).toBeUndefined();
+      }
+    },
+  );
 });

@@ -72,6 +72,36 @@ export class StructureController {
   ) {
     return this.structures.renameItem(id, nodeId, input, req.user!);
   }
+  @Patch('items/:nodeId/archive')
+  archive(
+    @Param('id', uuid) id: string,
+    @Param('nodeId', uuid) nodeId: string,
+    @Body() input: RevisionDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.structures.changeArchive(
+      id,
+      nodeId,
+      input.expectedRevision,
+      false,
+      req.user!,
+    );
+  }
+  @Patch('items/:nodeId/restore')
+  restore(
+    @Param('id', uuid) id: string,
+    @Param('nodeId', uuid) nodeId: string,
+    @Body() input: RevisionDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.structures.changeArchive(
+      id,
+      nodeId,
+      input.expectedRevision,
+      true,
+      req.user!,
+    );
+  }
   @Put('items/:nodeId/amount')
   amount(
     @Param('id', uuid) id: string,

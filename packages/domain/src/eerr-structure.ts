@@ -34,7 +34,12 @@ export type StructureNode = {
   quantity?: QuantityCell;
   note?: string | null;
   unit?: string | null;
+  archive?: { state: "ACTIVE" | "ARCHIVED"; at: string; by: string };
 };
+/** Legacy nodes without archive metadata remain active. */
+export function isArchived(node: StructureNode): boolean {
+  return node.kind === "ITEM" && node.archive?.state === "ARCHIVED";
+}
 export type CategoryConcept = {
   code: string;
   parentCode: string;
@@ -70,7 +75,9 @@ export function emptyAmount(): AmountCell {
   };
 }
 export function loadProgress(nodes: StructureNode[]) {
-  const items = nodes.filter((node) => node.kind === "ITEM");
+  const items = nodes.filter(
+    (node) => node.kind === "ITEM" && !isArchived(node),
+  );
   const loaded = items.filter(
     (node) => node.amount?.state === "CARGADO",
   ).length;
@@ -100,6 +107,14 @@ export function assertStructure(nodes: StructureNode[]): void {
   const siblings = new Set<string>();
   const positions = new Set<string>();
   for (const node of nodes) {
+    if (
+      node.archive &&
+      (node.kind !== "ITEM" ||
+        !["ACTIVE", "ARCHIVED"].includes(node.archive.state) ||
+        !Number.isFinite(Date.parse(node.archive.at)) ||
+        !node.archive.by)
+    )
+      throw new Error("Estado de archivo inválido");
     if (!uuid.test(node.code) || !uuid.test(node.nodeId))
       throw new Error("Identidad inválida");
     cleanConceptName(node.name);

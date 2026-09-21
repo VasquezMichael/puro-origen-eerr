@@ -32,6 +32,17 @@ export const NodeSchema = new Schema<StoredNode>(
     position: { type: Number, required: true },
     name: { type: String, required: true },
     kind: { type: String, enum: ['BLOCK', 'CATEGORY', 'ITEM'], required: true },
+    archive: {
+      type: new Schema(
+        {
+          state: { type: String, enum: ['ACTIVE', 'ARCHIVED'], required: true },
+          at: { type: String, required: true },
+          by: { type: String, required: true },
+        },
+        options,
+      ),
+      default: undefined,
+    },
     amount: { type: AmountSchema, default: undefined },
     quantityEnabled: { type: Boolean, default: undefined },
     quantity: {
@@ -172,6 +183,15 @@ export function publicStructure(
                   },
                 }),
             ...(node.note === undefined ? {} : { note: node.note }),
+            ...(node.archive === undefined
+              ? {}
+              : {
+                  archive: {
+                    state: node.archive.state,
+                    at: node.archive.at,
+                    by: node.archive.by,
+                  },
+                }),
             amount: {
               state: node.amount!.state,
               input: node.amount!.input ?? null,

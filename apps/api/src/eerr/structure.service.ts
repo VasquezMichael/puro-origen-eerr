@@ -13,6 +13,7 @@ import {
   emptyAmount,
   initialNodes,
   loadProgress,
+  isArchived,
   evaluateMoneyExpression,
   normalizeQuantity,
   emptyQuantity,
@@ -212,6 +213,8 @@ export class StructureService {
     );
     if (!node || node.kind !== 'ITEM')
       throw new BadRequestException('El nodo no es un ítem de este EERR');
+    if (isArchived(node))
+      throw new BadRequestException('Restaurá el ítem antes de editarlo');
     this.rule(() => {
       edit(node, structure);
       assertStructure(structure.nodes);
@@ -228,6 +231,51 @@ export class StructureService {
         node.name = cleanConceptName(input.name);
         structure.structureVersion += 1;
       },
+    );
+  }
+  async changeArchive(
+    id: string,
+    nodeId: string,
+    expected: number,
+    restore: boolean,
+    viewer: Viewer,
+  ) {
+    const accessible = await this.access(id, viewer, true);
+    const row = (await this.store.get(accessible.id))!;
+    this.requireRevision(row, expected);
+    const structure = this.requireStructure(row);
+    const node = structure.nodes.find(
+      (item) => item.nodeId === nodeId.toLowerCase(),
+    );
+    if (!node || node.kind !== 'ITEM')
+      throw new BadRequestException('El nodo no es un ítem de este EERR');
+    if (isArchived(node) !== restore)
+      throw new BadRequestException(
+        restore ? 'El ítem ya está activo' : 'El ítem ya está archivado',
+      );
+    const parent = structure.nodes.find(
+      (item) => item.nodeId === node.parentId,
+    );
+    if (!parent || parent.kind === 'ITEM')
+      throw new BadRequestException(
+        'No se puede resolver la categoría o bloque padre del ítem',
+      );
+    node.archive = restore
+      ? { ...node.archive!, state: 'ACTIVE' }
+      : {
+          state: 'ARCHIVED',
+          at: this.clock.now().toISOString(),
+          by: viewer.sub,
+        };
+    this.rule(() => assertStructure(structure.nodes));
+    return this.response(
+      await this.store.writeArchive(
+        row._id,
+        expected,
+        node.nodeId,
+        node.archive,
+        loadProgress(structure.nodes).status,
+      ),
     );
   }
   amount(id: string, nodeId: string, input: AmountDto, viewer: Viewer) {

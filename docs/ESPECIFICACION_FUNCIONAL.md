@@ -158,3 +158,32 @@ datos sin perder los borradores de otros campos o formularios.
 
 El rediseño no altera datos al consultar ni agrega escrituras automáticas.
 No modifica contratos, reglas financieras, identificadores ni permisos.
+
+## Incremento confirmado EP-04UX.1
+
+La grilla prioriza el resultado guardado en ARS, seguido de la expresión original.
+Cero y Sin cargar son estados diferentes; cantidad muestra el entero persistido.
+No hay inputs permanentes: Editar importe/cantidad abre el campo y lo enfoca.
+Guardar (o Enter válido) persiste y vuelve a lectura; Cancelar o Escape descarta
+solo esa celda y restaura el foco. Errores y conflictos conservan los borradores.
+Una expresión extensa puede desplegarse completa; históricos sin expresión no inventan una.
+
+Archivar ítem requiere confirmar nombre, ubicación, sucursal y período. Retira solo
+el ítem local de la carga y del progreso, conservando todos sus datos e identidad.
+«Ver ítems archivados (N)» permite consultar sus valores sin editarlos. Restaurar
+requiere confirmación y recupera el mismo ítem en su ubicación/posición, con sus
+valores y participación en progreso. Si falta el padre, se informa un error y no
+se restaura en una ubicación arbitraria. No hay eliminación física ni acción sobre
+bloques o categorías. Archivo y restauración no modifican otros EERR.
+
+Administrador y Editor asignado pueden archivar/restaurar, también en históricos
+inactivos. Lector solo consulta. La API protege estas restricciones y rechaza
+revisiones obsoletas con 409 sin sobrescribir datos. Archivados no contarán en
+futuros cálculos, clonaciones ni como destinos activos de importación; esas funciones
+siguen pendientes y las categorías requieren una decisión independiente.
+
+Cuando un enlace interno abandona el workspace con borradores, se ofrece continuar
+editando o descartar y salir. La recarga, cierre y salida externa usan la protección
+nativa del navegador solo mientras hay cambios. No hay guardado automático ni
+persistencia de borradores entre sesiones. Guardar/cancelar un campo no elimina
+borradores de otros campos; cerrar un modal tampoco los descarta.
