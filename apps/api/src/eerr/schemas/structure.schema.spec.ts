@@ -28,6 +28,11 @@ describe('esquemas EP-04A sin metadatos, entorno ni MongoDB', () => {
       expect(AmountSchema.path('value').instance).toBe('Decimal128');
       expect(NodeSchema.path('quantityEnabled').instance).toBe('Boolean');
       expect(NodeSchema.path('note').instance).toBe('String');
+      for (const key of ['state', 'at', 'by'])
+        expect(
+          NodeSchema.path<Schema.Types.Subdocument>('archive').schema.path(key)
+            .instance,
+        ).toBe('String');
       expect(
         NodeSchema.path<Schema.Types.Subdocument>('quantity').schema.path(
           'value',
@@ -59,6 +64,11 @@ describe('esquemas EP-04A sin metadatos, entorno ni MongoDB', () => {
         kind: 'ITEM',
         quantity: { state: 'CARGADO', value: '999999999999' },
         note: 'Primera\nSegunda',
+        archive: {
+          state: 'ARCHIVED',
+          at: '2026-09-15T12:00:00.000Z',
+          by: structure.initializedBy,
+        },
         amount: {
           ...emptyAmount(),
           state: 'CARGADO',
@@ -75,6 +85,8 @@ describe('esquemas EP-04A sin metadatos, entorno ni MongoDB', () => {
         value: '999999999999',
       });
       expect(output.nodes[3].note).toBe('Primera\nSegunda');
+      expect(output.nodes[3].archive).toEqual(structure.nodes[3].archive);
+      expect(output.nodes[0]).not.toHaveProperty('archive');
       expect(JSON.stringify(output)).not.toContain('$numberDecimal');
       const connection = createConnection();
       const model = connection.model('OfflineStructure', EerrSchema);

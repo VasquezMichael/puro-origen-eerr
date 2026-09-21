@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   NOTE_LIMITS,
+  isArchived,
   cleanConceptName,
   type StructureNode,
 } from "@puro-origen/domain";
@@ -17,6 +18,7 @@ import type {
   StructureResponse,
 } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "../api";
+import { DraftNavigationGuard } from "./draft-navigation-guard";
 import { WorkspaceShell } from "../workspace-shell";
 import { Modal, ActionMenu } from "../overlays";
 import styles from "../workspace.module.css";
@@ -40,7 +42,10 @@ type Context = {
   branch: { name: string; active: boolean };
   eerr: { branchId: string; year: number; month: number };
 };
-type Overlay = { kind: NodeAction | "GENERAL" | "PREPARE"; nodeId?: string };
+type Overlay = {
+  kind: NodeAction | "GENERAL" | "PREPARE" | "ARCHIVED";
+  nodeId?: string;
+};
 export function StructureWorkspace({ id }: { id: string }) {
   const [context, setContext] = useState<Context | null>(null);
   const [{ data, drafts, conflict }, dispatch] = useReducer(
@@ -101,7 +106,8 @@ export function StructureWorkspace({ id }: { id: string }) {
     label: string,
     success: (result: T) => void,
   ) {
-    if (sending.current || (method !== "GET" && (!canEdit || conflict))) return;
+    if (sending.current || (method !== "GET" && (!canEdit || conflict)))
+      return false;
     sending.current = true;
     setBusy(true);
     setError("");
@@ -126,6 +132,7 @@ export function StructureWorkspace({ id }: { id: string }) {
             ? `Vista previa lista: ${label}. Falta confirmar la publicación.`
             : `Guardado: ${label}.`,
       );
+      return true;
     } catch (cause) {
       const message = (cause as Error).message;
       const isConflict = cause instanceof EerrApiError && cause.status === 409;
@@ -140,6 +147,7 @@ export function StructureWorkspace({ id }: { id: string }) {
         setConflictLabel(label);
         setPreview(null);
       }
+      return false;
     } finally {
       sending.current = false;
       setBusy(false);
@@ -157,6 +165,18 @@ export function StructureWorkspace({ id }: { id: string }) {
         setPreview(null);
         setFeedback({});
         setConflictLabel("");
+        setOverlay((current) => {
+          const item = result.structure?.nodes.find(
+            (n) => n.nodeId === current?.nodeId,
+          );
+          if (!current || !item || item.kind !== "ITEM") return current;
+          if (
+            (isArchived(item) && current.kind !== "RESTORE") ||
+            (!isArchived(item) && current.kind === "RESTORE")
+          )
+            return { kind: "DETAIL", nodeId: item.nodeId };
+          return current;
+        });
       },
     );
   }
@@ -172,8 +192,8 @@ export function StructureWorkspace({ id }: { id: string }) {
     }
   }
   function saveField(key: string, path: string, body: object, label: string) {
-    if (!data) return;
-    void perform<StructureResponse>(
+    if (!data) return false;
+    return perform<StructureResponse>(
       path,
       "PUT",
       { ...body, expectedRevision: data.revision },
@@ -190,6 +210,14 @@ export function StructureWorkspace({ id }: { id: string }) {
       draft: drafts[key],
       feedback: feedback[key],
       onDraft: (input: string) => draft(key, input),
+      onCancel: () => {
+        dispatch({ type: "CANCEL", draftKey: key });
+        setFeedback((previous) => {
+          const next = { ...previous };
+          delete next[key];
+          return next;
+        });
+      },
     };
   }
   function valueEditor(item: StructureNode, kind: "amount" | "quantity") {
@@ -203,6 +231,7 @@ export function StructureWorkspace({ id }: { id: string }) {
         value={cell?.value ?? null}
         original={kind === "amount" ? item.amount?.input : undefined}
         {...fieldProps(key)}
+        canEdit={canEdit && !isArchived(item)}
         onSave={(body) =>
           saveField(
             key,
@@ -348,6 +377,7 @@ export function StructureWorkspace({ id }: { id: string }) {
     ? `${String(context.eerr.month).padStart(2, "0")}/${context.eerr.year}`
     : "";
   const pending = pendingDraftCount(data, drafts);
+  const archived = nodes.filter(isArchived);
   return (
     <WorkspaceShell
       role={
@@ -367,6 +397,11 @@ export function StructureWorkspace({ id }: { id: string }) {
           : "Sin cambios pendientes")
       }
     >
+      <DraftNavigationGuard
+        key={pending > 0 ? "dirty" : "clean"}
+        dirty={pending > 0}
+        busy={busy}
+      />
       {!data || !context ? (
         <section>
           <h1>Estado de resultados</h1>
@@ -452,6 +487,11 @@ export function StructureWorkspace({ id }: { id: string }) {
                     },
                   ]}
                 />
+              )}
+              {archived.length > 0 && (
+                <button disabled={busy} onClick={() => open("ARCHIVED")}>
+                  Ver ítems archivados ({archived.length})
+                </button>
               )}
               {!conflict && (
                 <button disabled={busy} onClick={reload}>
@@ -626,17 +666,19 @@ export function StructureWorkspace({ id }: { id: string }) {
               title={
                 preview
                   ? "Confirmar publicación global"
-                  : overlay.kind === "GENERAL"
-                    ? "Nota general del EERR"
-                    : overlay.kind === "PREPARE"
-                      ? "Preparar estructura"
-                      : overlay.kind === "DETAIL"
-                        ? canEdit
-                          ? "Detalle del ítem"
-                          : "Consultar ítem"
-                        : overlay.kind === "NOTE" && !canEdit
-                          ? "Nota del ítem"
-                          : actionLabels[overlay.kind]
+                  : overlay.kind === "ARCHIVED"
+                    ? "Ítems archivados"
+                    : overlay.kind === "GENERAL"
+                      ? "Nota general del EERR"
+                      : overlay.kind === "PREPARE"
+                        ? "Preparar estructura"
+                        : overlay.kind === "DETAIL"
+                          ? canEdit
+                            ? "Detalle del ítem"
+                            : "Consultar ítem"
+                          : overlay.kind === "NOTE" && !canEdit
+                            ? "Nota del ítem"
+                            : actionLabels[overlay.kind]
               }
               context={`${context.branch.name} · ${period}${node ? ` · ${node.name}` : ""}`}
               busy={busy}
@@ -647,6 +689,46 @@ export function StructureWorkspace({ id }: { id: string }) {
                 <p role="alert" className={styles.error}>
                   {error}
                 </p>
+              )}
+              {overlay.kind === "ARCHIVED" && (
+                <ul className={styles.archivedList}>
+                  {archived.map((item) => (
+                    <li key={item.nodeId}>
+                      <h3>
+                        {item.name}{" "}
+                        <span className={styles.badge}>Archivado</span>
+                      </h3>
+                      <p>
+                        Ubicación:{" "}
+                        {nodes.find((parent) => parent.nodeId === item.parentId)
+                          ?.name ?? "Padre no disponible"}
+                      </p>
+                      {valueEditor(item, "amount")}
+                      <p>
+                        Cantidad:{" "}
+                        {item.quantity?.state === "CARGADO"
+                          ? item.quantity.value
+                          : "Sin cargar"}
+                      </p>
+                      <p className={styles.noteText}>
+                        {item.note ?? "Sin nota"}
+                      </p>
+                      <div className={styles.actions}>
+                        <button onClick={() => open("DETAIL", item.nodeId)}>
+                          Consultar detalle de {item.name}
+                        </button>
+                        {canEdit && (
+                          <button
+                            disabled={disabled}
+                            onClick={() => open("RESTORE", item.nodeId)}
+                          >
+                            Restaurar ítem {item.name}
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
               {overlay.kind === "GENERAL" && (
                 <NoteEditor
@@ -688,6 +770,54 @@ export function StructureWorkspace({ id }: { id: string }) {
               )}
               {node && (
                 <>
+                  {isArchived(node) && overlay.kind === "DETAIL" && (
+                    <p className={styles.notice}>
+                      Archivado · solo consulta. Ubicación:{" "}
+                      {nodes.find((parent) => parent.nodeId === node.parentId)
+                        ?.name ?? "Padre no disponible"}
+                    </p>
+                  )}
+                  {(overlay.kind === "ARCHIVE" ||
+                    overlay.kind === "RESTORE") && (
+                    <section>
+                      <p>
+                        Ubicación:{" "}
+                        {nodes.find((parent) => parent.nodeId === node.parentId)
+                          ?.name ?? "Padre no disponible"}
+                      </p>
+                      <p>
+                        {overlay.kind === "ARCHIVE"
+                          ? "El ítem dejará la carga activa y el progreso. No se eliminarán sus datos; podrás restaurarlo en este EERR."
+                          : "El ítem volverá a su ubicación y posición originales, con todos sus valores conservados, y participará nuevamente del progreso."}
+                      </p>
+                      <div className={styles.actions}>
+                        <button
+                          className={styles.primary}
+                          disabled={disabled}
+                          onClick={() =>
+                            void perform<StructureResponse>(
+                              `items/${node.nodeId}/${overlay.kind === "ARCHIVE" ? "archive" : "restore"}`,
+                              "PATCH",
+                              { expectedRevision: data.revision },
+                              `archive:${node.nodeId}`,
+                              `${actionLabels[overlay.kind as "ARCHIVE" | "RESTORE"]} · ${node.name}`,
+                              (result) => {
+                                dispatch({ type: "SAVED", data: result });
+                                setOverlay(null);
+                              },
+                            )
+                          }
+                        >
+                          {overlay.kind === "ARCHIVE"
+                            ? "Confirmar archivo"
+                            : "Confirmar restauración"}
+                        </button>
+                        <button disabled={busy} onClick={close}>
+                          Cancelar
+                        </button>
+                      </div>
+                    </section>
+                  )}
                   {(overlay.kind === "ITEM" || overlay.kind === "CATEGORY") &&
                     !preview && (
                       <label className={styles.parentSelector}>
@@ -718,7 +848,9 @@ export function StructureWorkspace({ id }: { id: string }) {
                     "RENAME_ITEM",
                     "RENAME_CATEGORY",
                   ].includes(overlay.kind) ||
-                    (overlay.kind === "DETAIL" && canEdit)) &&
+                    (overlay.kind === "DETAIL" &&
+                      canEdit &&
+                      !isArchived(node))) &&
                     !preview &&
                     nameForm()}
                   {overlay.kind.includes("CATEGORY") && !preview && (
@@ -804,6 +936,7 @@ export function StructureWorkspace({ id }: { id: string }) {
                       saved={node.note ?? null}
                       limit={NOTE_LIMITS.item}
                       {...fieldProps(`note:${node.nodeId}`)}
+                      canEdit={canEdit && !isArchived(node)}
                       onSave={(body) =>
                         saveField(
                           `note:${node.nodeId}`,

@@ -125,7 +125,8 @@ test("Sin cambios no presenta guardado", () => {
     state: "CARGADO",
     value: "0.00",
   });
-  assert.doesNotMatch(html, /<button/);
+  assert.doesNotMatch(html, /<input|Guardar importe/);
+  assert.match(html, /Editar importe/);
   assert.match(html, /0,00 ARS/);
 });
 test("Cantidad independiente sin ARS y SIN CARGAR distinto de cero", () => {
@@ -143,8 +144,8 @@ test("Cantidad independiente sin ARS y SIN CARGAR distinto de cero", () => {
     state: "CARGADO",
     value: "0",
   });
-  assert.match(empty, /SIN CARGAR/);
-  assert.doesNotMatch(zero, /SIN CARGAR/);
+  assert.match(empty, /Sin cargar/);
+  assert.doesNotMatch(zero, /Sin cargar/);
   assert.doesNotMatch(zero, /ARS/);
 });
 for (const state of ["saving", "error", "conflict", "saved"])
@@ -163,7 +164,7 @@ for (const state of ["saving", "error", "conflict", "saved"])
         ...(state === "error" ? { message: "Falló la escritura" } : {}),
       },
     });
-    assert.match(html, /aria-live="polite"/);
+    assert.match(html, /role="status"/);
     if (state === "saving" || state === "conflict")
       assert.match(html, /<button[^>]*disabled/);
     if (state === "error") assert.match(html, /Falló la escritura/);
@@ -285,4 +286,61 @@ test("Contador no anuncia borradores idénticos a datos persistidos", () => {
     0,
   );
   assert.equal(pendingDraftCount(data, { i: "3", "name:i": "B" }), 2);
+});
+
+test("Resultado monetario prioritario, expresión completa secundaria e histórico sin expresión inventada", () => {
+  const base = {
+    ...props,
+    kind: "amount",
+    name: "Prueba",
+    state: "CARGADO",
+    value: "1500.00",
+  };
+  const html = render(ValueEditor, { ...base, original: "1000 + 500" });
+  assert.ok(html.indexOf("1.500,00 ARS") < html.indexOf("1000 + 500"));
+  assert.match(html, /class="result"/);
+  assert.match(html, /class="expression"/);
+  assert.doesNotMatch(html, /<input|<form/);
+  const legacy = render(ValueEditor, base);
+  assert.doesNotMatch(legacy, /class="expression"|undefined|<input/);
+  assert.match(legacy, /1.500,00 ARS/);
+});
+test("Archivados se excluyen de grilla y sus capacidades se limitan a restaurar", () => {
+  const nodes = structuredClone(tree);
+  nodes[0].archive = { state: "ARCHIVED" };
+  assert.equal(visibleRows(nodes, new Set()).length, 3);
+  assert.deepEqual(nodeActions("ITEM", true, true), ["RESTORE"]);
+  assert.deepEqual(nodeActions("ITEM", false, true), []);
+  for (const kind of ["BLOCK", "CATEGORY"])
+    assert.ok(!nodeActions(kind, true).includes("ARCHIVE"));
+  nodes[0].archive.state = "ACTIVE";
+  assert.equal(visibleRows(nodes, new Set()).length, 4);
+});
+test("Cancelar una celda descarta únicamente su borrador, sin escribir ni alterar revisión/conflicto", () => {
+  const state = {
+    ...initialEditorState,
+    data: { revision: 7 },
+    conflict: true,
+    drafts: { i: "2+2", "quantity:i": "9", "note:i": "Nota" },
+  };
+  const result = editorReducer(state, { type: "CANCEL", draftKey: "i" });
+  assert.deepEqual(result.drafts, { "quantity:i": "9", "note:i": "Nota" });
+  assert.equal(result.data, state.data);
+  assert.equal(result.conflict, true);
+  assert.equal(state.drafts.i, "2+2");
+});
+
+test("Expresión extensa ofrece texto completo mediante details accesible, sin depender de title", () => {
+  const expression = "0 + ".repeat(50) + "0";
+  const html = render(ValueEditor, {
+    ...props,
+    kind: "amount",
+    name: "Prueba",
+    state: "CARGADO",
+    value: "0.00",
+    original: expression,
+  });
+  assert.match(html, /<details><summary>Ver expresión completa<\/summary>/);
+  assert.ok(html.includes(expression));
+  assert.doesNotMatch(html, /title=/);
 });

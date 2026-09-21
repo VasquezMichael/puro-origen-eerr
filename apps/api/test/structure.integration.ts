@@ -479,4 +479,147 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
         Number(stored!.structure!.nodes[3].quantity !== undefined),
     ).toBe(1);
   });
+  it('archivo real modifica solo metadatos, progreso y revisión; restauración conserva BSON y timestamps', async () => {
+    const initial = await service.initialize(id, 0, viewer);
+    const created = await service.createItem(
+      id,
+      {
+        expectedRevision: 1,
+        parentId: initial.structure!.nodes[0].nodeId,
+        name: 'Recuperable',
+      },
+      viewer,
+    );
+    const node = created.structure!.nodes[3];
+    await service.amount(
+      id,
+      node.nodeId,
+      { expectedRevision: 2, state: 'CARGADO', input: '1000+500' },
+      viewer,
+    );
+    await service.quantity(
+      id,
+      node.nodeId,
+      { expectedRevision: 3, state: 'CARGADO', input: '8' },
+      viewer,
+    );
+    await service.itemNote(
+      id,
+      node.nodeId,
+      { expectedRevision: 4, note: 'Conservar' },
+      viewer,
+    );
+    const before = await model.findById(id).lean();
+    const original = JSON.stringify(before!.structure!.nodes[3]);
+    const archived = await service.changeArchive(
+      id,
+      node.nodeId,
+      5,
+      false,
+      viewer,
+    );
+    expect(archived.progress.total).toBe(0);
+    const after = await model.findById(id).lean();
+    const { archive, ...retained } = after!.structure!.nodes[3];
+    expect(JSON.stringify(retained)).toBe(original);
+    expect(archive).toEqual({
+      state: 'ARCHIVED',
+      at: clock.now().toISOString(),
+      by: viewer.sub,
+    });
+    expect(after!.updatedAt).toEqual(before!.updatedAt);
+    expect(after!.createdAt).toEqual(before!.createdAt);
+    await expect(
+      service.changeArchive(id, node.nodeId, 5, true, viewer),
+    ).rejects.toMatchObject({ status: 409 });
+    const restored = await service.changeArchive(
+      id,
+      node.nodeId,
+      6,
+      true,
+      viewer,
+    );
+    expect(restored.progress).toMatchObject({ total: 1, loaded: 1 });
+    const final = await model.findById(id).lean();
+    expect(final!.structure!.nodes).toHaveLength(
+      before!.structure!.nodes.length,
+    );
+    const { archive: finalArchive, ...finalNode } = final!.structure!.nodes[3];
+    expect(finalArchive).toEqual({ ...archive, state: 'ACTIVE' });
+    expect(JSON.stringify(finalNode)).toBe(original);
+    expect(final!.updatedAt).toEqual(before!.updatedAt);
+  });
+  it.each(['archive', 'amount'])(
+    'CAS MongoDB: archivo contra %s sin pérdida ni doble revisión',
+    async (contender) => {
+      const initial = await service.initialize(id, 0, viewer);
+      const created = await service.createItem(
+        id,
+        {
+          expectedRevision: 1,
+          parentId: initial.structure!.nodes[0].nodeId,
+          name: 'Concurrente',
+        },
+        viewer,
+      );
+      const node = created.structure!.nodes[3];
+      let arrivals = 0;
+      let release!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const wait = async () => {
+        if (++arrivals === 2) release();
+        await ready;
+      };
+      const write = repository.write.bind(repository),
+        writeArchive = repository.writeArchive.bind(repository);
+      const a = vi
+        .spyOn(repository, 'write')
+        .mockImplementation(async (...args) => {
+          await wait();
+          return write(...args);
+        });
+      const b = vi
+        .spyOn(repository, 'writeArchive')
+        .mockImplementation(async (...args) => {
+          await wait();
+          return writeArchive(...args);
+        });
+      try {
+        const results = await Promise.allSettled([
+          service.changeArchive(id, node.nodeId, 2, false, viewer),
+          contender === 'archive'
+            ? service.changeArchive(id, node.nodeId, 2, false, viewer)
+            : service.amount(
+                id,
+                node.nodeId,
+                { expectedRevision: 2, state: 'CARGADO', input: '5+5' },
+                viewer,
+              ),
+        ]);
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        expect(
+          (
+            results.find(
+              (r) => r.status === 'rejected',
+            ) as PromiseRejectedResult
+          ).reason.getStatus(),
+        ).toBe(409);
+        const saved = (await model.findById(id).lean())!;
+        expect(saved.revision).toBe(3);
+        const item = saved.structure!.nodes[3];
+        expect(item.code).toBe(node.code);
+        if (item.archive?.state === 'ARCHIVED')
+          expect(item.amount!.state).toBe('SIN_CARGAR');
+        else {
+          expect(contender).toBe('amount');
+          expect(item.amount!.value!.toString()).toBe('10.00');
+        }
+      } finally {
+        a.mockRestore();
+        b.mockRestore();
+      }
+    },
+  );
 });

@@ -639,3 +639,54 @@
     font-size: 1.3rem;
   }
 }
+
+/* EP-04UX.1: valores persistidos primero; expresiones completas y sin recortes. */
+.result {
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.expression {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-align: right;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.readValue {
+  min-width: 0;
+}
+.readValue > button {
+  justify-self: end;
+}
+.archivedList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.archivedList > li {
+  border: 1px solid var(--stroke);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.archivedList h3 {
+  margin-top: 0;
+}
+
+.expression summary {
+  cursor: pointer;
+  min-height: 32px;
+  padding: 0.25rem 0;
+  color: var(--brand);
+  text-decoration: underline;
+}
+.expression summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}

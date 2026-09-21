@@ -4,7 +4,10 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { evaluateMoneyExpression } from "../../../packages/domain/dist/index.js";
+import {
+  evaluateMoneyExpression,
+  loadProgress,
+} from "../../../packages/domain/dist/index.js";
 const { chromium } = await import(
   pathToFileURL(process.env.PLAYWRIGHT_MODULE).href
 );
@@ -67,7 +70,7 @@ const base = () => ({
         position: 1,
         amount: {
           state: "CARGADO",
-          input: "0",
+          input: "0 + ".repeat(50) + "0",
           value: "0.00",
           currency: "ARS",
           scale: 2,
@@ -118,6 +121,20 @@ try {
     [390, 844],
   ]) {
     const context = await browser.newContext({ viewport: { width, height } });
+    await context.addInitScript(() => {
+      const listeners = new Set();
+      const add = window.addEventListener.bind(window),
+        remove = window.removeEventListener.bind(window);
+      window.addEventListener = (type, fn, ...options) => {
+        if (type === "beforeunload") listeners.add(fn);
+        return add(type, fn, ...options);
+      };
+      window.removeEventListener = (type, fn, ...options) => {
+        if (type === "beforeunload") listeners.delete(fn);
+        return remove(type, fn, ...options);
+      };
+      window.beforeUnloadCount = () => listeners.size;
+    });
     const page = await context.newPage();
     let row = base(),
       role = "EDITOR",
@@ -214,6 +231,14 @@ try {
                   scale: 2,
                 },
               });
+            else if (path.endsWith("/archive"))
+              node.archive = {
+                state: "ARCHIVED",
+                at: "2026-09-21T12:00:00Z",
+                by: "fixture-user",
+              };
+            else if (path.endsWith("/restore"))
+              node.archive = { ...node.archive, state: "ACTIVE" };
             else if (request.method() === "PATCH") node.name = input.name;
             else if (path.endsWith("/amount"))
               node.amount =
@@ -241,6 +266,7 @@ try {
             else if (path.endsWith("/note"))
               node.note = input.note.trim() || null;
             else throw Error(`Unexpected write ${path}`);
+            row.progress = loadProgress(row.structure.nodes);
             row.revision++;
             body = row;
           }
@@ -261,7 +287,8 @@ try {
           status = 404;
           body = { message: "EERR no accesible" };
         } else body = row;
-      } else {
+      } else if (path === "/eerr") body = [];
+      else {
         errors.push(`Unexpected API ${path}`);
         return route.abort();
       }
@@ -291,8 +318,9 @@ try {
       await page.waitForTimeout(80);
     };
     await page.goto(`${origin}/eerr/${id}`);
-    await amount().waitFor();
+    await rowLocator().waitFor();
     assert.equal(writes, 0);
+    assert.equal(await page.evaluate(() => window.beforeUnloadCount()), 0);
     assert.equal(
       await page.locator('tr[data-node-id="item"]').getAttribute("data-depth"),
       "3",
@@ -304,9 +332,30 @@ try {
     await page
       .getByRole("button", { name: "Expandir Ventas", exact: true })
       .click();
-    await amount().waitFor();
+    await rowLocator().waitFor();
     assert.equal(writes, 0);
+    assert.equal(await rowLocator().locator("input").count(), 0);
+    assert.match(await rowLocator().innerText(), /12,30 ARS/);
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
     assert.equal(await amount().inputValue(), "12.30");
+    assert.ok(await amount().evaluate((el) => el === document.activeElement));
+    await amount().fill("99");
+    await page.waitForFunction(() => window.beforeUnloadCount() === 1);
+    await amount().press("Escape");
+    await page.waitForFunction(() => window.beforeUnloadCount() === 0);
+    assert.equal(writes, 0);
+    assert.equal(await rowLocator().locator("input").count(), 0);
+    assert.equal(
+      await page.evaluate(() =>
+        document.activeElement.getAttribute("aria-label"),
+      ),
+      "Editar importe de Digitales",
+    );
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
     await amount().fill("1/0");
     assert.ok(
       await rowLocator()
@@ -322,6 +371,12 @@ try {
       .click();
     await page.mouse.click(1, 1);
     assert.ok(await dialog.isVisible());
+    await dialog
+      .getByRole("button", {
+        name: "Editar cantidad de Digitales",
+        exact: true,
+      })
+      .click();
     await dialog
       .getByRole("textbox", { name: "Cantidad · Digitales", exact: true })
       .fill("12");
@@ -358,8 +413,9 @@ try {
     await amount().press("Enter");
     await page.waitForFunction(
       () =>
-        document.querySelector('tr[data-node-id="item"] input').value ===
-          "(1000 + 500) / 3" &&
+        document
+          .querySelector('tr[data-node-id="item"]')
+          .textContent.includes("(1000 + 500) / 3") &&
         !document.querySelector(
           'tr[data-node-id="item"] button[aria-label="Guardar importe de Digitales"]',
         ),
@@ -541,7 +597,7 @@ try {
     await page.keyboard.press("End");
     assert.equal(
       await page.evaluate(() => document.activeElement.textContent),
-      "Volver cantidad a sin cargar",
+      "Archivar ítem",
     );
     await page.keyboard.press("Escape");
     assert.equal(
@@ -550,6 +606,14 @@ try {
       ),
       "Acciones de Digitales",
     );
+    const longExpression = page.locator('tr[data-node-id="zero"] details');
+    await longExpression
+      .getByText("Ver expresión completa", { exact: true })
+      .click();
+    assert.match(await longExpression.innerText(), /0 \+ 0/);
+    await longExpression
+      .getByText("Ver expresión completa", { exact: true })
+      .click();
     const geometry = async () =>
       page.evaluate(() => {
         const problems = [];
@@ -589,7 +653,7 @@ try {
       });
     assert.deepEqual(await geometry(), []);
     await page.screenshot({
-      path: join(tmpdir(), `ep04ux-${width}.png`),
+      path: join(tmpdir(), `ep04ux1-${width}.png`),
       fullPage: true,
     });
     await menu("Digitales", "Editar nota");
@@ -606,14 +670,16 @@ try {
       "none",
     );
     await page.screenshot({
-      path: join(tmpdir(), `ep04ux-modal-${width}.png`),
+      path: join(tmpdir(), `ep04ux1-modal-${width}.png`),
     });
     await close();
     await page
       .getByRole("button", { name: "Acciones de Digitales", exact: true })
       .click();
     assert.deepEqual(await geometry(), []);
-    await page.screenshot({ path: join(tmpdir(), `ep04ux-menu-${width}.png`) });
+    await page.screenshot({
+      path: join(tmpdir(), `ep04ux1-menu-${width}.png`),
+    });
     await page.keyboard.press("Escape");
     await page
       .getByRole("button", { name: "Nota general · con nota", exact: true })
@@ -629,6 +695,232 @@ try {
       .click();
     await waitSaved();
     await close();
+    await page.waitForFunction(() => window.beforeUnloadCount() === 0);
+    // No blur save; own navigation modal preserves the aggregate draft and restores focus.
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
+    assert.equal(await amount().inputValue(), "(1000 + 500) / 3");
+    await amount().fill("1000 + 500");
+    const nativePrompt = page.waitForEvent("dialog");
+    await page.evaluate(() => {
+      setTimeout(() => location.reload(), 0);
+    });
+    const warning = await nativePrompt;
+    assert.equal(warning.type(), "beforeunload");
+    await warning.dismiss();
+    assert.equal(await amount().inputValue(), "1000 + 500");
+    const noAutoWrite = writes;
+    await page
+      .getByRole("link", { name: "← Estados de resultados", exact: true })
+      .click();
+    await dialog
+      .getByRole("heading", { name: "Borradores sin guardar" })
+      .waitFor();
+    assert.equal(writes, noAutoWrite);
+    assert.deepEqual(await geometry(), []);
+    await page.screenshot({
+      path: join(tmpdir(), `ep04ux1-navigation-${width}.png`),
+    });
+    await dialog.getByRole("button", { name: "Continuar editando" }).click();
+    assert.equal(await amount().inputValue(), "1000 + 500");
+    assert.equal(await page.evaluate(() => window.beforeUnloadCount()), 1);
+    await amount().press("Enter");
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .waitFor();
+    await page.waitForFunction(() => window.beforeUnloadCount() === 0);
+    assert.match(await rowLocator().innerText(), /1.500,00 ARS/);
+    // Archive failure / conflict keep data and dirty cell, successful writes hide/recover exactly one item.
+    const retained = structuredClone(
+      row.structure.nodes.find((n) => n.nodeId === "item"),
+    );
+    const progressBefore = structuredClone(row.progress);
+    await menu("Digitales", "Archivar ítem");
+    assert.match(await dialog.innerText(), /Canales digitales/);
+    assert.match(await dialog.innerText(), /Sucursal de prueba.*09\/2026/);
+    assert.ok(
+      await dialog
+        .getByRole("heading")
+        .evaluate((el) => el === document.activeElement),
+    );
+    assert.deepEqual(await geometry(), []);
+    await page.screenshot({
+      path: join(tmpdir(), `ep04ux1-archive-${width}.png`),
+    });
+    fail = 500;
+    await dialog.getByRole("button", { name: "Confirmar archivo" }).click();
+    await dialog.getByRole("alert").waitFor();
+    assert.equal(
+      row.structure.nodes.find((n) => n.nodeId === "item").archive,
+      undefined,
+    );
+    fail = 409;
+    await dialog.getByRole("button", { name: "Confirmar archivo" }).click();
+    await dialog
+      .getByRole("button", { name: "Recargar conservando borradores" })
+      .click();
+    await page.waitForFunction(
+      () => !document.body.textContent.includes("Conflicto en Archivar"),
+    );
+    delay = true;
+    const archiveWrites = writes;
+    await dialog.getByRole("button", { name: "Confirmar archivo" }).click();
+    await dialog
+      .getByRole("button", { name: "Confirmar archivo" })
+      .evaluate((el) => el.click());
+    await page.keyboard.press("Escape");
+    assert.ok(await dialog.isVisible());
+    await dialog.waitFor({ state: "hidden" });
+    delay = false;
+    assert.equal(writes, archiveWrites + 1);
+    assert.equal(await rowLocator().count(), 0);
+    assert.equal(row.progress.total, progressBefore.total - 1);
+    assert.equal(
+      await page.evaluate(() => document.activeElement.id),
+      "eerr-main",
+    );
+    const archivedNode = row.structure.nodes.find((n) => n.nodeId === "item");
+    const { archive: metadata, ...rest } = archivedNode;
+    assert.deepEqual(rest, retained);
+    await page
+      .getByRole("button", { name: "Ver ítems archivados (1)" })
+      .click();
+    assert.equal(await dialog.locator("input,textarea").count(), 0);
+    assert.match(await dialog.innerText(), /1.500,00 ARS/);
+    assert.match(await dialog.innerText(), /Archivado/);
+    assert.deepEqual(await geometry(), []);
+    await page.screenshot({
+      path: join(tmpdir(), `ep04ux1-archived-${width}.png`),
+    });
+    await dialog
+      .getByRole("button", { name: "Consultar detalle de Digitales" })
+      .click();
+    assert.equal(await dialog.locator("input,textarea").count(), 0);
+    assert.equal(
+      await dialog.getByRole("button", { name: /Editar|Guardar/ }).count(),
+      0,
+    );
+    await close();
+    role = "READER";
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Ver ítems archivados (1)" })
+      .click();
+    assert.equal(
+      await dialog.getByRole("button", { name: /Restaurar/ }).count(),
+      0,
+    );
+    assert.match(await dialog.innerText(), /1.500,00 ARS/);
+    await close();
+    role = "EDITOR";
+    await page.reload();
+    await page
+      .getByRole("button", { name: "Ver ítems archivados (1)" })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Restaurar ítem Digitales" })
+      .click();
+    assert.ok(
+      await dialog
+        .getByRole("heading")
+        .evaluate((el) => el === document.activeElement),
+    );
+    assert.deepEqual(await geometry(), []);
+    await page.screenshot({
+      path: join(tmpdir(), `ep04ux1-restore-${width}.png`),
+    });
+    await dialog
+      .getByRole("button", { name: "Confirmar restauración" })
+      .click();
+    await dialog.waitFor({ state: "hidden" });
+    await rowLocator().waitFor();
+    assert.deepEqual(row.progress, progressBefore);
+    assert.equal(
+      row.structure.nodes.filter((n) => n.nodeId === "item").length,
+      1,
+    );
+    assert.deepEqual(
+      row.structure.nodes.find((n) => n.nodeId === "item"),
+      { ...retained, archive: { ...metadata, state: "ACTIVE" } },
+    );
+    // Another session archives an item while a local amount draft remains open.
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
+    await amount().fill("77");
+    row.structure.nodes.find((n) => n.nodeId === "item").archive = {
+      ...metadata,
+      state: "ARCHIVED",
+    };
+    row.progress = loadProgress(row.structure.nodes);
+    row.revision++;
+    await menu("Digitales", "Archivar ítem");
+    fail = 409;
+    await dialog.getByRole("button", { name: "Confirmar archivo" }).click();
+    await dialog
+      .getByRole("button", { name: "Recargar conservando borradores" })
+      .click();
+    await dialog.getByRole("heading", { name: "Detalle del ítem" }).waitFor();
+    assert.equal(await dialog.locator("input,textarea").count(), 0);
+    assert.equal(await page.evaluate(() => window.beforeUnloadCount()), 1);
+    await close();
+    await page
+      .getByRole("button", { name: "Ver ítems archivados (1)" })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Restaurar ítem Digitales" })
+      .click();
+    await dialog
+      .getByRole("button", { name: "Confirmar restauración" })
+      .click();
+    await dialog.waitFor({ state: "hidden" });
+    assert.equal(await amount().inputValue(), "77");
+    await amount().press("Escape");
+    await page.waitForFunction(() => window.beforeUnloadCount() === 0);
+    // Finishing the last save clears an open departure intent; a later draft must not reopen it.
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
+    await amount().fill("1500");
+    delay = true;
+    await rowLocator()
+      .getByRole("button", { name: "Guardar importe de Digitales" })
+      .click();
+    await page
+      .getByRole("link", { name: "← Estados de resultados", exact: true })
+      .click();
+    await dialog
+      .getByRole("heading", { name: "Borradores sin guardar" })
+      .waitFor();
+    assert.ok(
+      await dialog
+        .getByRole("button", { name: "Descartar y salir" })
+        .isDisabled(),
+    );
+    await dialog.waitFor({ state: "hidden" });
+    delay = false;
+    await page.waitForFunction(() => window.beforeUnloadCount() === 0);
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
+    await amount().fill("88");
+    await page.waitForFunction(() => window.beforeUnloadCount() === 1);
+    assert.equal(await dialog.count(), 0);
+    await amount().press("Escape");
+    // Explicit discard allows an internal navigation; no stale beforeunload listener remains.
+    await rowLocator()
+      .getByRole("button", { name: "Editar importe de Digitales", exact: true })
+      .click();
+    await amount().fill("5");
+    await page
+      .getByRole("link", { name: "← Estados de resultados", exact: true })
+      .click();
+    await dialog.getByRole("button", { name: "Descartar y salir" }).click();
+    await page.waitForURL(`${origin}/eerr`);
+    assert.equal(await page.evaluate(() => window.beforeUnloadCount()), 0);
+    await page.goto(`${origin}/eerr/${id}`);
+    await rowLocator().waitFor();
     role = "READER";
     await page.reload();
     await page.getByText("Solo lectura", { exact: true }).waitFor();
@@ -640,7 +932,7 @@ try {
     await page
       .getByRole("button", { name: "Ver detalle de Digitales" })
       .click();
-    assert.match(await dialog.innerText(), /500,00 ARS/);
+    assert.match(await dialog.innerText(), /1.500,00 ARS/);
     assert.match(await dialog.innerText(), /Borrador/);
     assert.equal(await dialog.locator("input,textarea").count(), 0);
     await close();

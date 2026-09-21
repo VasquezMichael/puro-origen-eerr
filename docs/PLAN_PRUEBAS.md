@@ -123,3 +123,45 @@ de cambios anulada, guardado habilitado con expresión inválida, guardado
 habilitado con conflicto, controles de edición para Lector, cierre habilitado
 durante escritura y recarga que elimina borradores. Las pruebas web se vuelven
 a ejecutar sobre los originales restaurados.
+
+## EP-04UX.1 — lectura, archivo recuperable y borradores
+
+- Dominio: legacy activo, archivo de cargados/pendientes fuera del progreso,
+  reinclusión al restaurar, metadata inválida rechazada, bloques no archivables,
+  publicación global conserva estado e identidad.
+- HTTP aislado: Administrador/Editor/Lector/ajeno sobre históricos inactivos;
+  archivo/restauración preservan valores, timestamps y otros EERR; GET sin escritura;
+  restricciones ITEM, UUID, revisión/campos extra, transiciones repetidas, padre
+  faltante; edición de archivados rechazada en nombre/importe/cantidad/nota;
+  conflictos de archivo/archivo, archivo/importe y restauración obsoleta.
+- Esquema Mongoose construido sin metadatos reflectivos ni conexión: tipos de
+  archive y serialización histórica/nueva. Smoke real de módulos compilados vigente.
+- Integración opcional con replica set efímero exclusivamente loopback: nueve casos,
+  incluidos actualización parcial BSON/timestamps y CAS con barrera entre escrituras.
+  No admite URI externa ni AppModule; requiere MONGOD_BINARY local.
+- Web unitario: jerarquía resultado/expresión, legacy sin expresión inventada,
+  cero/Sin cargar, input ausente al consultar, preview/errores, cantidad,
+  expresión larga desplegable, archivados fuera de grilla, permisos y CANCEL aislado.
+- Navegador Chromium real con todas las respuestas API interceptadas: cinco tamaños
+  1440×900, 1280×720, 1024×768, 768×1024 y 390×844. Verifica edición/foco, Enter/Escape,
+  cancelación sin escritura, ausencia de blur autosave, errores/409 y borradores,
+  categorías globales, notas, cantidad, permisos, archivo/restauración/listado,
+  doble envío, foco y geometría de overlays. Verifica modal de navegación interna,
+  continuar/descartar, beforeunload condicionado y retiro al limpiar. Capturas en TEMP.
+  Comando: `node apps/web/test/workspace.browser.mjs`, con PLAYWRIGHT_MODULE y
+  BROWSER_BINARY locales; web aislada en 127.0.0.1:3100. No arranca API ni usa Atlas.
+
+La validación visual con fixtures no sustituye la aceptación funcional manual del
+usuario ni la revisión en dispositivos/navegadores finales. El texto y la aparición
+de beforeunload dependen del navegador (incluido cierre forzado de móviles).
+No se modifican datos reales, el ítem real Digitales ni el administrador; sin bootstrap.
+
+Verificación del incremento: `npm run check` aprobó 359 pruebas (188 API Vitest,
+6 cargas reales de módulos compilados, 129 dominio y 36 web), además de nueve
+integraciones MongoDB efímeras y los cinco recorridos completos en Chromium.
+Se detectaron y restauraron ocho mutaciones manuales: incluir archivados en progreso,
+incluirlos en grilla, Cancelar borrando todos los borradores, inputs siempre visibles,
+omitir permiso de archivo, permitir editar archivados, quitar CAS del repositorio y
+alterar timestamps al archivar. Las fallas fueron aserciones de comportamiento,
+no errores de compilación. La recarga nativa con borrador también se verificó en
+navegador: muestra beforeunload y cancelar conserva la entrada.

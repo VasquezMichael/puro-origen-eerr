@@ -147,3 +147,29 @@ entre endpoints distintos. El bloqueo de envío por ref evita solicitudes dobles
 HTTP 409 identifica la operación, conserva todos los borradores, invalida el
 preview y bloquea nuevas escrituras hasta recargar/revisar. La recarga actualiza
 solo datos persistidos; no recarga la página. La API sigue siendo autoridad final.
+
+## EP-04UX.1: archivo local y lectura prioritaria
+
+El dominio define metadata opcional de archivo y el predicado `isArchived`, usado
+por el progreso y la grilla web. Los contratos mantienen StructureResponse y suman
+ItemArchiveRequest (expectedRevision). La API conserva autoridad de permisos,
+transiciones, validación de ITEM/padre y revisión. El repositorio usa un único
+findOneAndUpdate con CAS, arrayFilters por nodeId y kind, $set del archivo y
+loadStatus, e incremento de revisión. `timestamps: false` conserva los timestamps
+originales. No reemplaza el snapshot ni reconvierte importes durante archivo/restauración.
+La ausencia histórica de archive se interpreta activa sin escritura de lectura.
+
+La web separa estado de edición local del borrador agregado en editorReducer.
+CANCEL elimina solo una clave; SAVED elimina únicamente el campo confirmado.
+ValueEditor vuelve a lectura después de una respuesta exitosa; errores y 409
+conservan entrada y edición. El formato monetario opera sobre strings canónicos,
+sin Number ni cambio de parser/precisión. Expresiones largas usan details/summary.
+DraftNavigationGuard intercepta enlaces internos del mismo tab y mantiene un
+beforeunload condicionado a borradores. Modal y ActionMenu conservan top layer,
+foco y bloqueo durante envío; si el ítem iniciador desaparece, el foco vuelve al main.
+La vista de archivados es de consulta; restaurar es una confirmación separada.
+
+Archivo es local al EERR, no al catálogo ni a categorías globales. Futuras reglas de
+cálculo y clonación/importación deberán filtrar con isArchived; no se implementan
+esos módulos en EP-04UX.1. Identidad, padre, posición y valores se recuperan intactos.
+No se agregan dependencias, migraciones, variables de entorno ni conexiones en pruebas unitarias.

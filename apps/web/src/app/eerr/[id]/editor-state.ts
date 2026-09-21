@@ -9,7 +9,8 @@ export type EditorEvent =
   | { type: "RELOAD"; data: StructureResponse }
   | { type: "SAVED"; data: StructureResponse; draftKey?: string }
   | { type: "DRAFT"; draftKey: string; input: string }
-  | { type: "CONFLICT" };
+  | { type: "CONFLICT" }
+  | { type: "CANCEL"; draftKey: string };
 export const initialEditorState: EditorState = {
   data: null,
   drafts: {},
@@ -21,6 +22,11 @@ export function editorReducer(
   state: EditorState,
   event: EditorEvent,
 ): EditorState {
+  if (event.type === "CANCEL") {
+    const drafts = { ...state.drafts };
+    delete drafts[event.draftKey];
+    return { ...state, drafts };
+  }
   if (event.type === "DRAFT")
     return {
       ...state,

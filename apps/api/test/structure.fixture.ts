@@ -118,6 +118,25 @@ export class MemoryStructureRepository {
   async addConcept(concept: Concept) {
     this.state.concepts.push(copy(concept));
   }
+  async writeArchive(
+    id: string,
+    revision: number,
+    nodeId: string,
+    archive: NonNullable<EerrStructure['nodes'][number]['archive']>,
+    loadStatus: Row['loadStatus'],
+  ) {
+    const row = this.state.rows.find((r) => r._id === id);
+    const node = row?.structure?.nodes.find(
+      (n) => n.nodeId === nodeId && n.kind === 'ITEM',
+    );
+    if (!row || !node || (row.revision ?? 0) !== revision)
+      throw new ConflictException('Revisión conflictiva');
+    node.archive = copy(archive);
+    row.revision = revision + 1;
+    row.loadStatus = loadStatus;
+    this.writes++;
+    return copy(row);
+  }
   async writeNote(id: string, revision: number, note: string | null) {
     const row = this.state.rows.find((row) => row._id === id);
     if (!row || (row.revision ?? 0) !== revision)

@@ -7,6 +7,7 @@ import {
   ROOTS,
   emptyAmount,
   loadProgress,
+  isArchived,
   applyCategories,
 } from "../dist/index.js";
 const roots = () => initialNodes([], randomUUID);
@@ -132,4 +133,64 @@ test("categorías multinivel publican por código y preservan identidades, valor
   assert.equal(next[3].name, "Facturación");
   assert.equal(next[3].nodeId, old[3].nodeId);
   assert.deepEqual(next[5], a);
+});
+
+test("Archivo excluye cargados y pendientes; restauración y legacy recuperan progreso", () => {
+  const nodes = roots(),
+    a = item(nodes[0].nodeId),
+    b = { ...item(nodes[0].nodeId), position: 1, name: "Otra" };
+  a.amount = {
+    state: "CARGADO",
+    value: "0.00",
+    input: "0",
+    currency: "ARS",
+    scale: 2,
+  };
+  nodes.push(a, b);
+  assert.equal(isArchived(a), false);
+  assert.deepEqual(loadProgress(nodes), {
+    total: 2,
+    loaded: 1,
+    pending: 1,
+    status: "PARCIAL",
+  });
+  a.archive = b.archive = {
+    state: "ARCHIVED",
+    at: "2026-09-21T12:00:00Z",
+    by: "actor",
+  };
+  assert.doesNotThrow(() => assertStructure(nodes));
+  assert.deepEqual(loadProgress(nodes), {
+    total: 0,
+    loaded: 0,
+    pending: 0,
+    status: "SIN_CARGAR",
+  });
+  a.archive = { ...a.archive, state: "ACTIVE" };
+  assert.deepEqual(loadProgress(nodes), {
+    total: 1,
+    loaded: 1,
+    pending: 0,
+    status: "CARGADO",
+  });
+  const next = applyCategories(nodes, [], randomUUID);
+  assert.deepEqual(
+    next.find((n) => n.nodeId === b.nodeId),
+    b,
+  );
+});
+for (const archive of [
+  { state: "UNKNOWN", at: "2026-09-21", by: "actor" },
+  { state: "ARCHIVED", at: "no", by: "actor" },
+  { state: "ARCHIVED", at: "2026-09-21", by: "" },
+])
+  test(`Rechaza metadatos de archivo inválidos ${JSON.stringify(archive)}`, () => {
+    const nodes = roots();
+    nodes.push({ ...item(nodes[0].nodeId), archive });
+    assert.throws(() => assertStructure(nodes), /archivo/);
+  });
+test("Bloques y categorías no admiten estado de archivo", () => {
+  const nodes = roots();
+  nodes[0].archive = { state: "ARCHIVED", at: "2026-09-21", by: "actor" };
+  assert.throws(() => assertStructure(nodes), /archivo/);
 });
