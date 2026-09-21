@@ -1,16 +1,35 @@
 "use client";
-
-import Link from "next/link";
-import styles from "../layout.module.css";
-import { useEffect, useReducer, useRef, useState, type FormEvent } from "react";
-import { NOTE_LIMITS, type StructureNode } from "@puro-origen/domain";
+import {
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
+import {
+  NOTE_LIMITS,
+  cleanConceptName,
+  type StructureNode,
+} from "@puro-origen/domain";
 import type {
   CategoryPreviewResponse,
   StructureResponse,
 } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "../api";
+import { WorkspaceShell } from "../workspace-shell";
+import { Modal, ActionMenu } from "../overlays";
+import styles from "../workspace.module.css";
 import { editorReducer, initialEditorState } from "./editor-state";
-import { ValueEditor, NoteEditor } from "./field-editors";
+import { ValueEditor, NoteEditor, type FieldFeedback } from "./field-editors";
+import {
+  visibleRows,
+  nodeActions,
+  actionLabels,
+  mayEdit,
+  pendingDraftCount,
+  type NodeAction,
+} from "./workspace-model";
 
 type User = {
   isAdmin: boolean;
@@ -21,13 +40,7 @@ type Context = {
   branch: { name: string; active: boolean };
   eerr: { branchId: string; year: number; month: number };
 };
-type Action = {
-  kind: "ITEM" | "CATEGORY" | "RENAME_ITEM" | "RENAME_CATEGORY";
-  node: StructureNode;
-  name: string;
-  unit: string;
-};
-
+type Overlay = { kind: NodeAction | "GENERAL" | "PREPARE"; nodeId?: string };
 export function StructureWorkspace({ id }: { id: string }) {
   const [context, setContext] = useState<Context | null>(null);
   const [{ data, drafts, conflict }, dispatch] = useReducer(
@@ -38,10 +51,11 @@ export function StructureWorkspace({ id }: { id: string }) {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
-  const [prepare, setPrepare] = useState(false);
-  const [action, setAction] = useState<Action | null>(null);
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [preview, setPreview] = useState<CategoryPreviewResponse | null>(null);
-  const formHeading = useRef<HTMLHeadingElement>(null);
+  const [feedback, setFeedback] = useState<Record<string, FieldFeedback>>({});
+  const [conflictLabel, setConflictLabel] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -56,6 +70,7 @@ export function StructureWorkspace({ id }: { id: string }) {
       eerrApi<StructureResponse>(`/eerr/${id}/structure`, options),
     ])
       .then(([auth, eerr, branches, structure]) => {
+        if (controller.signal.aborted) return;
         const branch = branches.find((branch) => branch.id === eerr.branchId);
         if (!branch) throw new Error("Sucursal no accesible");
         setContext({ user: auth.user, eerr, branch });
@@ -66,25 +81,32 @@ export function StructureWorkspace({ id }: { id: string }) {
       });
     return () => controller.abort();
   }, [id, attempt]);
-  const canEdit =
-    !!context &&
-    (context.user.isAdmin ||
-      context.user.branchAccesses.some(
-        (access) =>
-          access.branchId === context.eerr.branchId && access.role === "EDITOR",
-      ));
+  const canEdit = !!context && mayEdit(context.user, context.eerr.branchId);
+  const nodes = data?.structure?.nodes ?? [];
+  const node = nodes.find((n) => n.nodeId === overlay?.nodeId);
+  const disabled = busy || conflict;
+  function draft(key: string, input: string) {
+    dispatch({ type: "DRAFT", draftKey: key, input });
+    setFeedback((previous) => {
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
+  }
   async function perform<T>(
     path: string,
     method: string,
     body: object | undefined,
+    key: string,
+    label: string,
     success: (result: T) => void,
-    failure?: (message: string) => void,
   ) {
-    if (sending.current) return;
+    if (sending.current || (method !== "GET" && (!canEdit || conflict))) return;
     sending.current = true;
     setBusy(true);
     setError("");
-    setStatus(method === "GET" ? "Recargando…" : "Guardando…");
+    setFeedback((f) => ({ ...f, [key]: { state: "saving" } }));
+    setStatus(`${method === "GET" ? "Recargando" : "Guardando"}: ${label}…`);
     try {
       const result = await eerrApi<T>(`/eerr/${id}/${path}`, {
         method,
@@ -95,18 +117,27 @@ export function StructureWorkspace({ id }: { id: string }) {
             }
           : {}),
       });
+      success(result);
+      setFeedback((f) => ({ ...f, [key]: { state: "saved" } }));
       setStatus(
         method === "GET"
-          ? "Estado actualizado. Los borradores se conservaron; revisalos antes de guardar."
-          : "Operación completada.",
+          ? "Datos actualizados. Revisá tus borradores antes de guardar."
+          : path === "categories/preview"
+            ? `Vista previa lista: ${label}. Falta confirmar la publicación.`
+            : `Guardado: ${label}.`,
       );
-      success(result);
-    } catch (error) {
-      setError((error as Error).message);
-      failure?.((error as Error).message);
-      setStatus("No se pudo completar la operación.");
-      if (error instanceof EerrApiError && error.status === 409) {
+    } catch (cause) {
+      const message = (cause as Error).message;
+      const isConflict = cause instanceof EerrApiError && cause.status === 409;
+      setFeedback((f) => ({
+        ...f,
+        [key]: { state: isConflict ? "conflict" : "error", message },
+      }));
+      setError(`${label}: ${message}`);
+      setStatus(`No se pudo guardar: ${label}. Borrador conservado.`);
+      if (isConflict) {
         dispatch({ type: "CONFLICT" });
+        setConflictLabel(label);
         setPreview(null);
       }
     } finally {
@@ -114,53 +145,42 @@ export function StructureWorkspace({ id }: { id: string }) {
       setBusy(false);
     }
   }
-  function open(kind: Action["kind"], node: StructureNode) {
-    setPreview(null);
-    setAction({
-      kind,
-      node,
-      name: kind.startsWith("RENAME") ? node.name : "",
-      unit: "",
-    });
-    requestAnimationFrame(() => formHeading.current?.focus());
+  function reload() {
+    void perform<StructureResponse>(
+      "structure",
+      "GET",
+      undefined,
+      "reload",
+      "EERR",
+      (result) => {
+        dispatch({ type: "RELOAD", data: result });
+        setPreview(null);
+        setFeedback({});
+        setConflictLabel("");
+      },
+    );
   }
-  function submitAction(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!action || !data || conflict) return;
-    const expectedRevision = data.revision;
-    if (action.kind === "CATEGORY" || action.kind === "RENAME_CATEGORY") {
-      void perform<CategoryPreviewResponse>(
-        "categories/preview",
-        "POST",
-        {
-          expectedRevision,
-          name: action.name,
-          ...(action.kind === "CATEGORY"
-            ? { operation: "CREATE", parentCode: action.node.code }
-            : { operation: "RENAME", code: action.node.code }),
-        },
-        setPreview,
-      );
-    } else {
-      void perform<StructureResponse>(
-        action.kind === "ITEM" ? "items" : `items/${action.node.nodeId}`,
-        action.kind === "ITEM" ? "POST" : "PATCH",
-        {
-          expectedRevision,
-          name: action.name,
-          ...(action.kind === "ITEM"
-            ? {
-                parentId: action.node.nodeId,
-                ...(action.unit ? { unit: action.unit } : {}),
-              }
-            : {}),
-        },
-        (result) => {
-          dispatch({ type: "SAVED", data: result });
-          setAction(null);
-        },
-      );
+  function open(kind: Overlay["kind"], nodeId?: string) {
+    setError("");
+    setPreview(null);
+    setOverlay({ kind, nodeId });
+  }
+  function close() {
+    if (!sending.current) {
+      setOverlay(null);
+      setPreview(null);
     }
+  }
+  function saveField(key: string, path: string, body: object, label: string) {
+    if (!data) return;
+    void perform<StructureResponse>(
+      path,
+      "PUT",
+      { ...body, expectedRevision: data.revision },
+      key,
+      label,
+      (result) => dispatch({ type: "SAVED", data: result, draftKey: key }),
+    );
   }
   function fieldProps(key: string) {
     return {
@@ -168,413 +188,685 @@ export function StructureWorkspace({ id }: { id: string }) {
       busy,
       conflict,
       draft: drafts[key],
-      onDraft: (input: string) =>
-        dispatch({ type: "DRAFT", draftKey: key, input }),
+      feedback: feedback[key],
+      onDraft: (input: string) => draft(key, input),
     };
   }
-  function saveField(
-    key: string,
-    path: string,
-    body: object,
-    failure: (message: string) => void,
-  ) {
-    if (!data || conflict) return;
-    void perform<StructureResponse>(
-      path,
-      "PUT",
-      { expectedRevision: data.revision, ...body },
-      (result) => {
-        dispatch({ type: "SAVED", data: result, draftKey: key });
-      },
-      failure,
+  function valueEditor(item: StructureNode, kind: "amount" | "quantity") {
+    const key = kind === "amount" ? item.nodeId : `quantity:${item.nodeId}`;
+    const cell = kind === "amount" ? item.amount : item.quantity;
+    return (
+      <ValueEditor
+        kind={kind}
+        name={item.name}
+        state={cell?.state ?? "SIN_CARGAR"}
+        value={cell?.value ?? null}
+        original={kind === "amount" ? item.amount?.input : undefined}
+        {...fieldProps(key)}
+        onSave={(body) =>
+          saveField(
+            key,
+            `items/${item.nodeId}/${kind}`,
+            body,
+            `${kind === "amount" ? "Importe" : "Cantidad"} · ${item.name}`,
+          )
+        }
+      />
     );
   }
-  const disabled = busy || conflict;
-  function renderNodes(parentId: string | null): React.ReactNode {
-    return data?.structure?.nodes
-      .filter((node) => node.parentId === parentId)
-      .sort((a, b) => a.position - b.position)
-      .map((node) => {
-        if (node.kind === "ITEM")
-          return (
-            <li className="eerr-item" key={node.nodeId}>
-              <div className={styles.itemHeading}>
-                <div>
-                  <strong>{node.name}</strong>
-                  {node.unit && <span className="help"> · {node.unit}</span>}
-                </div>
-                {canEdit && (
-                  <button
-                    className="text-button"
-                    disabled={disabled}
-                    onClick={() => open("RENAME_ITEM", node)}
-                  >
-                    Renombrar ítem
-                  </button>
-                )}
-              </div>
-              <ValueEditor
-                kind="amount"
-                name={node.name}
-                state={node.amount?.state ?? "SIN_CARGAR"}
-                value={node.amount?.value ?? null}
-                original={node.amount?.input}
-                {...fieldProps(node.nodeId)}
-                onSave={(body, failure) =>
-                  saveField(
-                    node.nodeId,
-                    `items/${node.nodeId}/amount`,
-                    body,
-                    failure,
-                  )
-                }
-              />
-              <ValueEditor
-                kind="quantity"
-                name={node.name}
-                state={node.quantity?.state ?? "SIN_CARGAR"}
-                value={node.quantity?.value ?? null}
-                {...fieldProps(`quantity:${node.nodeId}`)}
-                onSave={(body, failure) =>
-                  saveField(
-                    `quantity:${node.nodeId}`,
-                    `items/${node.nodeId}/quantity`,
-                    body,
-                    failure,
-                  )
-                }
-              />
-              <NoteEditor
-                title={`Nota del ítem · ${node.name}`}
-                saved={node.note ?? null}
-                limit={NOTE_LIMITS.item}
-                {...fieldProps(`note:${node.nodeId}`)}
-                onSave={(body, failure) =>
-                  saveField(
-                    `note:${node.nodeId}`,
-                    `items/${node.nodeId}/note`,
-                    body,
-                    failure,
-                  )
-                }
-              />
-            </li>
-          );
-        return (
-          <li
-            key={node.nodeId}
-            className={node.kind === "BLOCK" ? "eerr-block" : "eerr-category"}
-          >
-            <details open>
-              <summary>
-                {node.name}
-                {node.kind === "CATEGORY" && (
-                  <span className="help"> · Global del período</span>
-                )}
-              </summary>
-              {canEdit && (
-                <div className={styles.actions}>
-                  <button
-                    className="text-button"
-                    disabled={disabled}
-                    onClick={() => open("ITEM", node)}
-                  >
-                    Agregar ítem
-                  </button>
-                  <button
-                    className="text-button"
-                    disabled={disabled}
-                    onClick={() => open("CATEGORY", node)}
-                  >
-                    Agregar categoría global
-                  </button>
-                  {node.kind === "CATEGORY" && (
-                    <button
-                      className="text-button"
-                      disabled={disabled}
-                      onClick={() => open("RENAME_CATEGORY", node)}
-                    >
-                      Renombrar categoría global
-                    </button>
-                  )}
-                </div>
-              )}
-              <ul className="eerr-tree">{renderNodes(node.nodeId)}</ul>
-            </details>
-          </li>
-        );
-      });
-  }
-  return (
-    <main className="branches-shell">
-      <header className="branches-header">
-        <Link className="brand-home" href="/">
-          Puro de Origen <small>Estados de resultados</small>
-        </Link>
-        <Link className="text-button" href="/eerr">
-          Volver a períodos
-        </Link>
-      </header>
-      <div className="branches-title">
-        <div>
-          <p className="eyebrow">Estructura y carga manual</p>
-          <h1>
-            {context
-              ? `${context.branch.name} · ${String(context.eerr.month).padStart(2, "0")}/${context.eerr.year}`
-              : "Estado de resultados"}
-          </h1>
-          <p className="intro">
-            Importes en pesos argentinos. Usá punto o coma decimal, sin
-            separadores de miles.
-          </p>
-        </div>
-      </div>
-      {context && !context.branch.active && (
-        <p className="notice">
-          Sucursal inactiva: la corrección de este histórico está permitida para
-          quienes tienen acceso de edición.
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      <p role="status" aria-live="polite">
-        {status}
-      </p>
-      {!data || !context ? (
-        <>
-          <p>Comprobando sesión y EERR…</p>
-          {error && (
-            <button
-              className="text-button"
-              onClick={() => {
-                setError("");
-                setAttempt(attempt + 1);
-              }}
-            >
-              Reintentar
-            </button>
-          )}
-        </>
-      ) : (
-        <>
-          <div className="branches-toolbar">
-            <span>
-              {data.progress.loaded} de {data.progress.total} ítems cargados ·{" "}
-              {data.progress.pending} pendientes
-            </span>
-            <button
-              className="text-button"
-              disabled={busy}
-              onClick={() =>
-                void perform<StructureResponse>(
-                  "structure",
-                  "GET",
-                  undefined,
-                  (result) => {
-                    dispatch({ type: "RELOAD", data: result });
-                    setPreview(null);
-                  },
-                )
+  const actionKey =
+    node && overlay
+      ? overlay.kind === "RENAME_ITEM" || overlay.kind === "DETAIL"
+        ? `name:${node.nodeId}`
+        : `action:${overlay.kind}:${node.nodeId}`
+      : "";
+  const actionName =
+    drafts[actionKey] ??
+    (overlay?.kind.startsWith("RENAME") || overlay?.kind === "DETAIL"
+      ? (node?.name ?? "")
+      : "");
+  function saveName(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!data || !node || !overlay || disabled) return;
+    try {
+      cleanConceptName(actionName);
+    } catch (cause) {
+      setFeedback((f) => ({
+        ...f,
+        [actionKey]: { state: "error", message: (cause as Error).message },
+      }));
+      return;
+    }
+    if (overlay.kind.includes("CATEGORY")) {
+      void perform<CategoryPreviewResponse>(
+        "categories/preview",
+        "POST",
+        {
+          expectedRevision: data.revision,
+          name: actionName,
+          ...(overlay.kind === "CATEGORY"
+            ? { operation: "CREATE", parentCode: node.code }
+            : { operation: "RENAME", code: node.code }),
+        },
+        actionKey,
+        `Categoría · ${actionName}`,
+        setPreview,
+      );
+    } else {
+      const creating = overlay.kind === "ITEM";
+      void perform<StructureResponse>(
+        creating ? "items" : `items/${node.nodeId}`,
+        creating ? "POST" : "PATCH",
+        {
+          expectedRevision: data.revision,
+          name: actionName,
+          ...(creating
+            ? {
+                parentId: node.nodeId,
+                ...(drafts[`${actionKey}:unit`]
+                  ? { unit: drafts[`${actionKey}:unit`] }
+                  : {}),
               }
-            >
-              Recargar conservando borradores
-            </button>
-          </div>
-          {conflict && (
-            <p className="notice">
-              Otro cambio impidió guardar. Tus borradores siguen visibles.
-              Recargá el estado y revisá los valores antes de volver a guardar.
+            : {}),
+        },
+        actionKey,
+        `Ítem · ${actionName}`,
+        (result) => {
+          dispatch({ type: "SAVED", data: result, draftKey: actionKey });
+          if (creating)
+            dispatch({
+              type: "SAVED",
+              data: result,
+              draftKey: `${actionKey}:unit`,
+            });
+          if (overlay.kind !== "DETAIL") setOverlay(null);
+        },
+      );
+    }
+  }
+  function nameForm() {
+    return (
+      <form className={styles.form} onSubmit={saveName}>
+        <label>
+          Nombre
+          <input
+            required
+            maxLength={120}
+            value={actionName}
+            disabled={busy || !!preview}
+            aria-invalid={!!feedback[actionKey]?.message}
+            aria-describedby="name-feedback"
+            onChange={(event) => draft(actionKey, event.target.value)}
+          />
+        </label>
+        {overlay?.kind === "ITEM" && (
+          <label>
+            Unidad (opcional)
+            <input
+              maxLength={40}
+              value={drafts[`${actionKey}:unit`] ?? ""}
+              disabled={busy}
+              onChange={(event) =>
+                draft(`${actionKey}:unit`, event.target.value)
+              }
+            />
+          </label>
+        )}
+        <div id="name-feedback">
+          {feedback[actionKey]?.message && (
+            <p role="alert" className={styles.fieldError}>
+              {feedback[actionKey].message}
             </p>
           )}
-          {!canEdit && <p className="notice">Acceso de lectura.</p>}
-          <NoteEditor
-            title="Nota general del EERR"
-            saved={data.note ?? null}
-            limit={NOTE_LIMITS.period}
-            {...fieldProps("period-note")}
-            onSave={(body, failure) =>
-              saveField("period-note", "note", body, failure)
-            }
-          />
+        </div>
+        <button
+          className={styles.primary}
+          disabled={disabled || !!preview || !actionName.trim()}
+        >
+          {overlay?.kind.includes("CATEGORY")
+            ? "Revisar alcance global"
+            : overlay?.kind === "ITEM"
+              ? "Crear ítem"
+              : "Guardar nombre"}
+        </button>
+      </form>
+    );
+  }
+  const conflictNotice = conflict && (
+    <div className={styles.conflict} role="alert">
+      <strong>Conflicto en {conflictLabel}.</strong>
+      <p>
+        Otra edición cambió el EERR. Conservamos todos tus borradores; recargá y
+        revisá antes de guardar.
+      </p>
+      <button disabled={busy} onClick={reload}>
+        Recargar conservando borradores
+      </button>
+    </div>
+  );
+  const period = context
+    ? `${String(context.eerr.month).padStart(2, "0")}/${context.eerr.year}`
+    : "";
+  const pending = pendingDraftCount(data, drafts);
+  return (
+    <WorkspaceShell
+      role={
+        context
+          ? context.user.isAdmin
+            ? "Administrador"
+            : canEdit
+              ? "Editor"
+              : "Lector"
+          : "Comprobando sesión"
+      }
+      isAdmin={context?.user.isAdmin}
+      status={
+        status ||
+        (pending
+          ? `${pending} borradores conservados`
+          : "Sin cambios pendientes")
+      }
+    >
+      {!data || !context ? (
+        <section>
+          <h1>Estado de resultados</h1>
+          {error ? (
+            <>
+              <p role="alert">{error}</p>
+              <button
+                onClick={() => {
+                  setError("");
+                  setAttempt(attempt + 1);
+                }}
+              >
+                Reintentar
+              </button>
+            </>
+          ) : (
+            <p>Comprobando sesión y EERR…</p>
+          )}
+        </section>
+      ) : (
+        <>
+          <header className={styles.heading}>
+            <div>
+              <p className={styles.eyebrow}>Espacio de carga · {period}</p>
+              <h1>{context.branch.name}</h1>
+              <div className={styles.meta}>
+                <span className={styles.badge}>
+                  {
+                    {
+                      SIN_CARGAR: "Sin cargar",
+                      PARCIAL: "Carga parcial",
+                      CARGADO: "Cargado",
+                    }[data.progress.status]
+                  }
+                </span>
+                <span>Pesos argentinos · ARS</span>
+                {!context.branch.active && (
+                  <span>Histórico · sucursal inactiva</span>
+                )}
+                {!canEdit && <span>Solo lectura</span>}
+              </div>
+            </div>
+          </header>
+          <div className={styles.toolbar}>
+            <div className={styles.progress}>
+              <strong>
+                {data.progress.loaded} / {data.progress.total}
+              </strong>
+              <span>
+                importes cargados · {data.progress.pending} pendientes
+              </span>
+              <progress
+                aria-label="Progreso de importes"
+                value={data.progress.loaded}
+                max={data.progress.total || 1}
+              />
+            </div>
+            <div className={styles.actions}>
+              <button onClick={() => open("GENERAL")}>
+                {canEdit ? "Nota general" : "Ver nota general"}
+                {data.note ? " · con nota" : ""}
+              </button>
+              {canEdit && data.structure && (
+                <ActionMenu
+                  name="estructura"
+                  disabled={disabled}
+                  actions={[
+                    {
+                      label: "Agregar categoría global",
+                      run: () =>
+                        open(
+                          "CATEGORY",
+                          nodes.find((n) => n.kind === "BLOCK")?.nodeId,
+                        ),
+                    },
+                    {
+                      label: "Agregar ítem",
+                      run: () =>
+                        open(
+                          "ITEM",
+                          nodes.find((n) => n.kind === "BLOCK")?.nodeId,
+                        ),
+                    },
+                  ]}
+                />
+              )}
+              {!conflict && (
+                <button disabled={busy} onClick={reload}>
+                  Actualizar
+                </button>
+              )}
+            </div>
+          </div>
+          {!overlay && conflictNotice}
+          {error && !conflict && !overlay && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
+          {pending > 0 && (
+            <p className={styles.draftNotice}>
+              {pending}{" "}
+              {pending === 1 ? "borrador conservado" : "borradores conservados"}{" "}
+              en este EERR. Guardá cada campo explícitamente.
+            </p>
+          )}
           {!data.structure ? (
-            <section className="branch-feedback">
+            <section className={styles.empty}>
               <h2>Estructura sin preparar</h2>
               <p>
-                Este EERR aún no tiene estructura ni importes. Prepararlo
-                incorpora los tres bloques y las categorías globales vigentes
-                del período.
+                Prepará los bloques y las categorías globales del período para
+                comenzar.
               </p>
-              {canEdit &&
-                (prepare ? (
-                  <div>
-                    <p>¿Confirmás preparar únicamente este EERR?</p>
-                    <button
-                      className="primary-button"
-                      disabled={disabled}
-                      onClick={() =>
-                        void perform<StructureResponse>(
-                          "structure/initialize",
-                          "POST",
-                          { expectedRevision: data.revision },
-                          (result) => {
-                            dispatch({ type: "SAVED", data: result });
-                            setPrepare(false);
-                          },
-                        )
-                      }
-                    >
-                      Confirmar preparación
-                    </button>
-                    <button
-                      className="text-button"
-                      disabled={busy}
-                      onClick={() => setPrepare(false)}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    className="primary-button"
-                    disabled={disabled}
-                    onClick={() => setPrepare(true)}
-                  >
-                    Preparar estructura
-                  </button>
-                ))}
+              {canEdit && (
+                <button
+                  className={styles.primary}
+                  disabled={disabled}
+                  onClick={() => open("PREPARE")}
+                >
+                  Preparar estructura
+                </button>
+              )}
             </section>
           ) : (
             <>
-              {action && (
-                <form
-                  className="branch-form"
-                  onSubmit={submitAction}
-                  aria-busy={busy}
-                >
-                  <h2 ref={formHeading} tabIndex={-1}>
-                    {action.kind.startsWith("RENAME") ? "Renombrar" : "Agregar"}{" "}
-                    {action.kind.includes("CATEGORY")
-                      ? "categoría global"
-                      : "ítem"}{" "}
-                    · {action.node.name}
-                  </h2>
-                  <fieldset disabled={busy || preview !== null}>
-                    <label>
-                      Nombre
-                      <input
-                        required
-                        maxLength={120}
-                        value={action.name}
-                        onChange={(event) =>
-                          setAction({ ...action, name: event.target.value })
+              <div className={styles.gridIntro}>
+                <h2>Estructura y valores</h2>
+                <span>
+                  {canEdit
+                    ? "Enter guarda el campo editado · punto o coma decimal, sin miles"
+                    : "Valores guardados del período"}
+                </span>
+              </div>
+              <table className={styles.grid} aria-label="Estructura del EERR">
+                <thead>
+                  <tr>
+                    <th scope="col">Estructura</th>
+                    <th scope="col">Importe / expresión</th>
+                    <th scope="col" className={styles.quantityColumn}>
+                      Cantidad
+                    </th>
+                    <th scope="col" className={styles.noteColumn}>
+                      Nota
+                    </th>
+                    <th scope="col">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows(nodes, collapsed).map(
+                    ({ node: item, depth }) => (
+                      <tr
+                        key={item.nodeId}
+                        data-node-id={item.nodeId}
+                        data-depth={depth}
+                        className={
+                          item.kind === "BLOCK"
+                            ? styles.blockRow
+                            : item.kind === "CATEGORY"
+                              ? styles.categoryRow
+                              : styles.itemRow
                         }
-                      />
-                    </label>
-                    {action.kind === "ITEM" && (
-                      <>
-                        <label>
-                          Unidad (opcional)
-                          <input
-                            maxLength={40}
-                            value={action.unit}
-                            onChange={(event) =>
-                              setAction({ ...action, unit: event.target.value })
-                            }
-                          />
-                        </label>
-                      </>
+                      >
+                        <th scope="row">
+                          <div
+                            className={styles.nodeName}
+                            style={{ "--depth": depth } as CSSProperties}
+                          >
+                            {item.kind !== "ITEM" ? (
+                              <button
+                                className={styles.fold}
+                                aria-expanded={!collapsed.has(item.nodeId)}
+                                aria-label={`${collapsed.has(item.nodeId) ? "Expandir" : "Contraer"} ${item.name}`}
+                                onClick={() =>
+                                  setCollapsed((previous) => {
+                                    const next = new Set(previous);
+                                    if (next.has(item.nodeId))
+                                      next.delete(item.nodeId);
+                                    else next.add(item.nodeId);
+                                    return next;
+                                  })
+                                }
+                              >
+                                <span aria-hidden="true">
+                                  {collapsed.has(item.nodeId) ? "▸" : "▾"}
+                                </span>
+                                <span>{item.name}</span>
+                              </button>
+                            ) : (
+                              <>
+                                <span>{item.name}</span>
+                                {item.unit && <small>{item.unit}</small>}
+                              </>
+                            )}
+                            {item.kind === "BLOCK" && (
+                              <small>Bloque protegido</small>
+                            )}
+                            {item.kind === "CATEGORY" && (
+                              <small>Global del período</small>
+                            )}
+                          </div>
+                        </th>
+                        <td>
+                          {item.kind === "ITEM" && valueEditor(item, "amount")}
+                        </td>
+                        <td className={styles.quantityColumn}>
+                          {item.kind === "ITEM" &&
+                            valueEditor(item, "quantity")}
+                        </td>
+                        <td className={styles.noteColumn}>
+                          {item.kind === "ITEM" && (
+                            <button
+                              className={styles.noteButton}
+                              onClick={() => open("NOTE", item.nodeId)}
+                              aria-label={`${canEdit ? "Editar" : "Ver"} nota de ${item.name}`}
+                            >
+                              {drafts[`note:${item.nodeId}`] !== undefined
+                                ? "Borrador"
+                                : item.note
+                                  ? "Con nota"
+                                  : "Sin nota"}
+                            </button>
+                          )}
+                        </td>
+                        <td>
+                          <div className={styles.rowActions}>
+                            {item.kind === "ITEM" && (
+                              <button
+                                onClick={() => open("DETAIL", item.nodeId)}
+                                aria-label={`${canEdit ? "Editar" : "Ver"} detalle de ${item.name}`}
+                              >
+                                {canEdit ? "Detalle" : "Ver detalle"}
+                              </button>
+                            )}
+                            {canEdit && (
+                              <ActionMenu
+                                name={item.name}
+                                disabled={disabled}
+                                actions={nodeActions(item.kind, canEdit).map(
+                                  (kind) => ({
+                                    label: actionLabels[kind],
+                                    run: () => open(kind, item.nodeId),
+                                  }),
+                                )}
+                              />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </>
+          )}
+          {overlay && (
+            <Modal
+              title={
+                preview
+                  ? "Confirmar publicación global"
+                  : overlay.kind === "GENERAL"
+                    ? "Nota general del EERR"
+                    : overlay.kind === "PREPARE"
+                      ? "Preparar estructura"
+                      : overlay.kind === "DETAIL"
+                        ? canEdit
+                          ? "Detalle del ítem"
+                          : "Consultar ítem"
+                        : overlay.kind === "NOTE" && !canEdit
+                          ? "Nota del ítem"
+                          : actionLabels[overlay.kind]
+              }
+              context={`${context.branch.name} · ${period}${node ? ` · ${node.name}` : ""}`}
+              busy={busy}
+              onClose={close}
+            >
+              {conflictNotice}
+              {error && !conflict && (
+                <p role="alert" className={styles.error}>
+                  {error}
+                </p>
+              )}
+              {overlay.kind === "GENERAL" && (
+                <NoteEditor
+                  title="Nota general"
+                  saved={data.note ?? null}
+                  limit={NOTE_LIMITS.period}
+                  {...fieldProps("period-note")}
+                  onSave={(body) =>
+                    saveField("period-note", "note", body, "Nota general")
+                  }
+                />
+              )}
+              {overlay.kind === "PREPARE" && (
+                <>
+                  <p>
+                    Esta acción incorpora los bloques y categorías vigentes
+                    únicamente en este EERR, sin cargar importes.
+                  </p>
+                  <button
+                    className={styles.primary}
+                    disabled={disabled}
+                    onClick={() =>
+                      void perform<StructureResponse>(
+                        "structure/initialize",
+                        "POST",
+                        { expectedRevision: data.revision },
+                        "prepare",
+                        "Preparar estructura",
+                        (result) => {
+                          dispatch({ type: "SAVED", data: result });
+                          setOverlay(null);
+                        },
+                      )
+                    }
+                  >
+                    Confirmar preparación
+                  </button>
+                </>
+              )}
+              {node && (
+                <>
+                  {(overlay.kind === "ITEM" || overlay.kind === "CATEGORY") &&
+                    !preview && (
+                      <label className={styles.parentSelector}>
+                        Ubicación
+                        <select
+                          value={node.nodeId}
+                          disabled={busy}
+                          onChange={(event) =>
+                            setOverlay({
+                              ...overlay,
+                              nodeId: event.target.value,
+                            })
+                          }
+                        >
+                          {nodes
+                            .filter((n) => n.kind !== "ITEM")
+                            .map((n) => (
+                              <option key={n.nodeId} value={n.nodeId}>
+                                {n.name}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
                     )}
-                  </fieldset>
-                  {action.kind.includes("CATEGORY") && (
-                    <p className="notice">
-                      Esta categoría se aplica a todas las sucursales del mismo
-                      año y mes. La vista previa indica el alcance antes de
-                      confirmar.
+                  {([
+                    "ITEM",
+                    "CATEGORY",
+                    "RENAME_ITEM",
+                    "RENAME_CATEGORY",
+                  ].includes(overlay.kind) ||
+                    (overlay.kind === "DETAIL" && canEdit)) &&
+                    !preview &&
+                    nameForm()}
+                  {overlay.kind.includes("CATEGORY") && !preview && (
+                    <p className={styles.notice}>
+                      El cambio es global para todas las sucursales del mismo
+                      año y mes. Revisá el alcance antes de confirmar.
                     </p>
                   )}
-                  {preview ? (
-                    <section
-                      className="branch-feedback"
-                      aria-label="Vista previa global"
-                    >
-                      <h3>Confirmación del cambio global</h3>
+                  {preview && (
+                    <section aria-label="Vista previa global">
+                      <h3>{preview.name}</h3>
                       <p>
-                        {preview.operation === "CREATE" ? "Crear" : "Renombrar"}
-                        : <strong>{preview.name}</strong> · Padre:{" "}
-                        {preview.parent.name}
+                        Ubicación: {preview.parent.name} · {preview.month}/
+                        {preview.year}
                       </p>
                       <p>
-                        {preview.affected} EERR afectados: {preview.initialized}{" "}
-                        preparados se actualizarán y {preview.uninitialized}{" "}
-                        recibirán la categoría cuando se preparen.
+                        <strong>{preview.affected} EERR afectados</strong>:{" "}
+                        {preview.initialized} preparados y{" "}
+                        {preview.uninitialized} sin preparar.
                       </p>
                       <p>{preview.warning}</p>
-                      <p className="help">
-                        Esta vista previa vence en cinco minutos. Cualquier
-                        cambio concurrente requiere revisarla nuevamente.
+                      <p>
+                        La vista previa vence en cinco minutos. Un cambio
+                        concurrente requiere volver a revisarla.
+                      </p>
+                      <div className={styles.actions}>
+                        <button
+                          className={styles.primary}
+                          disabled={disabled}
+                          onClick={() =>
+                            void perform<StructureResponse>(
+                              "categories/confirm",
+                              "POST",
+                              {
+                                expectedRevision: data.revision,
+                                previewId: preview.previewId,
+                                confirm: true,
+                              },
+                              actionKey,
+                              `Categoría · ${preview.name}`,
+                              (result) => {
+                                dispatch({
+                                  type: "SAVED",
+                                  data: result,
+                                  draftKey: actionKey,
+                                });
+                                setPreview(null);
+                                setOverlay(null);
+                              },
+                            )
+                          }
+                        >
+                          Confirmar cambio global
+                        </button>
+                        <button
+                          disabled={busy}
+                          onClick={() => setPreview(null)}
+                        >
+                          Volver a editar
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                  {overlay.kind === "DETAIL" && (
+                    <div className={styles.detailFields}>
+                      <p>
+                        Cada campo se guarda por separado. Los demás borradores
+                        permanecen intactos.
+                      </p>
+                      <section>
+                        <h3>Importe o expresión</h3>
+                        {valueEditor(node, "amount")}
+                      </section>
+                      <section>
+                        <h3>Cantidad independiente</h3>
+                        {valueEditor(node, "quantity")}
+                      </section>
+                    </div>
+                  )}
+                  {(overlay.kind === "DETAIL" || overlay.kind === "NOTE") && (
+                    <NoteEditor
+                      title="Nota del ítem"
+                      saved={node.note ?? null}
+                      limit={NOTE_LIMITS.item}
+                      {...fieldProps(`note:${node.nodeId}`)}
+                      onSave={(body) =>
+                        saveField(
+                          `note:${node.nodeId}`,
+                          `items/${node.nodeId}/note`,
+                          body,
+                          `Nota · ${node.name}`,
+                        )
+                      }
+                    />
+                  )}
+                  {(overlay.kind.startsWith("ZERO_") ||
+                    overlay.kind.startsWith("CLEAR_")) && (
+                    <>
+                      <p>
+                        {overlay.kind.startsWith("ZERO_")
+                          ? "Se guardará un cero explícito."
+                          : "El campo quedará SIN CARGAR, sin valor."}{" "}
+                        Esta acción reemplaza el valor y el borrador de este
+                        campo; los demás se conservan.
                       </p>
                       <button
-                        className="primary-button"
-                        type="button"
+                        className={styles.primary}
                         disabled={disabled}
-                        onClick={() =>
+                        onClick={() => {
+                          const kind = overlay.kind.endsWith("AMOUNT")
+                            ? "amount"
+                            : "quantity";
+                          const key =
+                            kind === "amount"
+                              ? node.nodeId
+                              : `quantity:${node.nodeId}`;
                           void perform<StructureResponse>(
-                            "categories/confirm",
-                            "POST",
+                            `items/${node.nodeId}/${kind}`,
+                            "PUT",
                             {
                               expectedRevision: data.revision,
-                              previewId: preview.previewId,
-                              confirm: true,
+                              ...(overlay.kind.startsWith("ZERO_")
+                                ? { state: "CARGADO", input: "0" }
+                                : { state: "SIN_CARGAR" }),
                             },
+                            key,
+                            `${kind === "amount" ? "Importe" : "Cantidad"} · ${node.name}`,
                             (result) => {
-                              dispatch({ type: "SAVED", data: result });
-                              setPreview(null);
-                              setAction(null);
+                              dispatch({
+                                type: "SAVED",
+                                data: result,
+                                draftKey: key,
+                              });
+                              setOverlay(null);
                             },
-                          )
-                        }
+                          );
+                        }}
                       >
-                        Confirmar cambio global
+                        Confirmar cambio
                       </button>
-                      <button
-                        className="text-button"
-                        type="button"
-                        disabled={busy}
-                        onClick={() => setPreview(null)}
-                      >
-                        Volver a editar
-                      </button>
-                    </section>
-                  ) : (
-                    <button className="primary-button" disabled={disabled}>
-                      {action.kind.includes("CATEGORY")
-                        ? "Revisar alcance global"
-                        : "Guardar ítem"}
-                    </button>
+                    </>
                   )}
-                  <button
-                    type="button"
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() => {
-                      setAction(null);
-                      setPreview(null);
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                </form>
+                </>
               )}
-              <ul className="eerr-tree" aria-label="Estructura del EERR">
-                {renderNodes(null)}
-              </ul>
-            </>
+            </Modal>
           )}
         </>
       )}
-    </main>
+    </WorkspaceShell>
   );
 }

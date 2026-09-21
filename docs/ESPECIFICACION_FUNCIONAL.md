@@ -136,3 +136,25 @@ cantidad/sin nota. Los importes antiguos no se recalculan, y el valor guardado s
 muestra aun sin expresión histórica. No se modifican datos reales de Calle 59.
 EP-04B2: movimientos y reordenamiento. EP-04C: clonación/importación/completar cero.
 Límites y gramática exactos en DECISIONES.md; contratos en API_EERR.md.
+
+
+## Espacio de carga implementado EP-04UX
+
+La carga mensual se realiza en una grilla jerárquica compacta. Bloques y
+categorías pueden contraerse sin modificar datos. Importes y cantidades se
+editan en la fila, con preview y guardado explícito; Enter guarda solo cambios
+válidos. Menús compactos reúnen las acciones secundarias realmente disponibles.
+
+Crear y renombrar se realiza en modales. La publicación de categorías conserva
+su preview y confirmación. Detalle reúne nombre, expresión, cantidad y nota;
+nota general tiene su propio modal. El detalle guarda cada campo por separado.
+Cero y SIN_CARGAR se confirman y siguen siendo distintos.
+
+En tablet, cantidad y nota se consultan/editan desde Detalle si no caben en la
+grilla. Lector accede a la misma información sin controles de modificación.
+Modales y menús admiten teclado y foco visible; cerrar un modal conserva los
+borradores mientras se permanezca en el EERR. Conflictos ofrecen recarga de
+datos sin perder los borradores de otros campos o formularios.
+
+El rediseño no altera datos al consultar ni agrega escrituras automáticas.
+No modifica contratos, reglas financieras, identificadores ni permisos.
