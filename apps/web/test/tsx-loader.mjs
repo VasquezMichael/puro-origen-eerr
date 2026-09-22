@@ -4,6 +4,7 @@ import ts from "typescript";
 // Transform only local UI source. Real React rendering; CSS has no behavior in SSR.
 registerHooks({
   resolve(specifier, context, next) {
+    if (specifier === "next/navigation") return next("next/navigation.js", context);
     if (specifier === "next/link") return next("next/link.js", context);
     if (specifier.startsWith(".") && context.parentURL) {
       const url = new URL(specifier, context.parentURL);

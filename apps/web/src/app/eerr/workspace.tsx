@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { WorkspaceShell } from './workspace-shell';
+import { useSession } from '../session-context';
+import shellStyles from './workspace.module.css';
 import styles from './layout.module.css';
 import { eerrApi as api } from './api';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -16,23 +19,22 @@ const dateName = (value: string) => new Intl.DateTimeFormat('es-AR', { dateStyle
 const canCreate = (user: User, branch: Branch) => branch.active && (user.isAdmin || user.branchAccesses.some((access) => access.branchId === branch.id && access.role === 'EDITOR'));
 
 export function EerrWorkspace() {
-  const [session, setSession] = useState<{ user: User; branches: Branch[] } | null>(null);
+  const { user } = useSession();
+  const [branches, setBranches] = useState<Branch[] | null>(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     const options = { signal: controller.signal };
-    Promise.all([api<{ user: User }>('/auth/me', options), api<Branch[]>('/branches', options)])
-      .then(([auth, branches]) => setSession({ user: auth.user, branches }))
+    api<Branch[]>('/branches', options).then(setBranches)
       .catch((error: Error) => { if (!controller.signal.aborted) setError(error.message); });
     return () => controller.abort();
   }, [attempt]);
-  return <main className="branches-shell">
-    <header className="branches-header"><Link className="brand-home" href="/">Puro de Origen <small>Estados de resultados</small></Link><Link className="text-button" href="/">Volver al inicio</Link></header>
+  return <WorkspaceShell section="eerr" title="Estados de resultados"><div className={shellStyles.moduleContent}>
     <div className="branches-title"><div><p className="eyebrow">Contexto de trabajo</p><h1>Estados de resultados</h1><p className="intro">Elegí una sucursal o un período para consultar sus EERR.</p></div></div>
     {error ? <div className="branch-feedback"><p className="error" role="alert">{error}</p><button className="text-button" onClick={() => { setError(''); setAttempt(attempt + 1); }}>Reintentar</button></div>
-      : session ? <ContextBrowser user={session.user} branches={session.branches} /> : <p role="status">Comprobando sesión y sucursales…</p>}
-  </main>;
+      : branches ? <ContextBrowser user={user} branches={branches} /> : <p role="status">Comprobando sesión y sucursales…</p>}
+  </div></WorkspaceShell>;
 }
 
 function ContextBrowser({ user, branches }: { user: User; branches: Branch[] }) {

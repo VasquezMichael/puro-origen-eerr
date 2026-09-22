@@ -9,12 +9,14 @@ export function Modal({
   busy,
   onClose,
   children,
+  footer = "Los borradores se conservan al cerrar, mientras permanezcas en este EERR.",
 }: {
   title: string;
   context: string;
   busy: boolean;
   onClose: () => void;
   children: ReactNode;
+  footer?: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -62,10 +64,7 @@ export function Modal({
         </button>
       </header>
       <div className={styles.modalBody}>{children}</div>
-      <footer className={styles.modalFooter}>
-        Los borradores se conservan al cerrar, mientras permanezcas en este
-        EERR.
-      </footer>
+      {footer && <footer className={styles.modalFooter}>{footer}</footer>}
     </dialog>
   );
 }

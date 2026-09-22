@@ -289,3 +289,19 @@ Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
   continuar editando o descartar y salir. Recarga/cierre/salida externa usan
   beforeunload solo mientras hay cambios; el navegador controla su advertencia.
   Sin borradores no hay bloqueo. No se utiliza almacenamiento local, de sesión ni DB.
+
+## EP-04UX.2: inicio y navegación unificados
+
+- Dashboard es el inicio autenticado. Los modos Análisis/Editor y su pregunta de
+  selección se retiran; no se sustituyen por otro selector de modo.
+- Administrador global, Editor y Lector por sucursal se conservan intactos. Los
+  permisos dependen de las asignaciones y la API, nunca de una preferencia visual.
+- Menú principal: Dashboard, Estados de resultados y Sucursales exclusivamente
+  para Administrador. Una URL directa de administración conserva su autorización.
+- Dashboard incluye saludo y accesos reales, con un estado informativo de la
+  futura vista financiera. Indicadores, análisis y EP-05/EP-06 quedan diferidos.
+- Selector por sucursal/período, históricos, creación, estructura y administración
+  usan el mismo shell sin cambiar reglas, datos ni rutas.
+- Salir por menú o cerrar sesión con borradores exige continuar o descartar. Un
+  cierre fallido no descarta cambios. Recarga y cierre nativo usan beforeunload;
+  no se persisten borradores entre sesiones. Atrás/Adelante no agrega historial.

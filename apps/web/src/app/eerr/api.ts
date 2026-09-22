@@ -1,3 +1,4 @@
+import { notifySessionExpired } from "../session-context";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 export class EerrApiError extends Error {
   constructor(
@@ -25,6 +26,7 @@ export async function eerrApi<T>(
       0,
     );
   }
+  if (response.status === 401) notifySessionExpired();
   const body = await response.json();
   if (!response.ok)
     throw new EerrApiError(

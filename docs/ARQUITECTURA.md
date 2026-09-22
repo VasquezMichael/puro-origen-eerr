@@ -173,3 +173,34 @@ Archivo es local al EERR, no al catálogo ni a categorías globales. Futuras reg
 cálculo y clonación/importación deberán filtrar con isArchived; no se implementan
 esos módulos en EP-04UX.1. Identidad, padre, posición y valores se recuperan intactos.
 No se agregan dependencias, migraciones, variables de entorno ni conexiones en pruebas unitarias.
+
+## EP-04UX.2: sesión y navegación compartidas
+
+El layout raíz compone SessionProvider, que comprueba `/auth/me` antes de montar
+las páginas autenticadas. LoginFrame conserva la composición de acceso; una sesión
+inválida o con contraseña temporal no monta el shell. La sesión se vuelve a
+comprobar al cambiar de ruta y los 401 retiran la vista autenticada. La API sigue
+siendo autoridad: no se cambia autenticación, cookies, contratos ni permisos.
+
+WorkspaceShell se reutiliza por composición en Dashboard, selector/contextos EERR,
+administración de sucursales y estructura/carga. Cada pantalla tiene un único
+shell; no se migran rutas ni se anidan layouts visuales. Acepta sección activa,
+título/breadcrumb, acciones y estado. SessionContext comparte usuario, cierre de
+sesión y errores; session-model centraliza destinos y etiquetas de rol.
+
+La barra lateral usa los tokens existentes y se transforma en menú desplegable en
+anchos de hasta 800 px. El botón expone aria-expanded/aria-controls; Escape cierra
+y devuelve el foco. La navegación queda en el flujo, sin superponerse al contenido.
+
+DraftNavigationGuard comparte confirmación para enlaces y la solicitud cancelable
+de logout. Solo ejecuta el POST de cierre después de descartar; un fallo conserva
+el borrador. Mantiene un único beforeunload mientras hay cambios. En navegadores
+con Navigation API cancela los recorridos internos de Atrás/Adelante antes de
+perder estado y los retoma con traverseTo; no inserta entradas artificiales.
+La API estándar está disponible en versiones actuales de los navegadores;
+versiones antiguas sin ella conservan guardas de enlaces/logout/beforeunload, pero
+no la confirmación de recorridos SPA. No hay almacenamiento persistente de borradores.
+
+Dashboard solo presenta saludo, accesos autorizados y el aviso de indicadores
+futuros. No consulta métricas ni escribe al montar. Las rutas permanecen `/`,
+`/eerr`, `/eerr/[id]` y `/admin/sucursales`; no existían rutas de modos que redirigir.

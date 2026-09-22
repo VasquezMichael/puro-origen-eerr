@@ -1,6 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { Modal } from '../../eerr/overlays';
+import { WorkspaceShell } from '../../eerr/workspace-shell';
+import shellStyles from '../../eerr/workspace.module.css';
+import { notifySessionExpired } from '../../session-context';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 
 type Branch = {
@@ -11,6 +15,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export function BranchesAdmin() {
   const [access, setAccess] = useState<'loading' | 'allowed' | 'denied' | 'error'>('loading');
+  const [confirmation, setConfirmation] = useState<Branch | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -28,6 +33,7 @@ export function BranchesAdmin() {
     } catch {
       throw new Error('No pudimos conectarnos al servidor. Intentá nuevamente.');
     }
+    if (response.status === 401) notifySessionExpired();
     if (response.status === 401 || response.status === 403) {
       setAccess('denied');
       throw new Error('La sesión venció o no tenés permisos de administrador.');
@@ -44,11 +50,13 @@ export function BranchesAdmin() {
     async function load() {
       try {
         const response = await fetch(`${API_URL}/auth/me`, { credentials: 'include', cache: 'no-store', signal: abort.signal });
+        if (response.status === 401) notifySessionExpired();
         if (response.status === 401 || response.status === 403) { setAccess('denied'); return; }
         if (!response.ok) throw new Error('No pudimos comprobar la sesión.');
         const { user } = await response.json();
         if (!user.isAdmin) { setAccess('denied'); return; }
         const list = await fetch(`${API_URL}/branches`, { credentials: 'include', cache: 'no-store', signal: abort.signal });
+        if (list.status === 401) notifySessionExpired();
         if (list.status === 401 || list.status === 403) { setAccess('denied'); return; }
         if (!list.ok) throw new Error('No pudimos cargar las sucursales.');
         setBranches(await list.json());
@@ -94,7 +102,6 @@ export function BranchesAdmin() {
 
   async function changeStatus(branch: Branch) {
     if (busy) return;
-    if (!window.confirm(`${branch.active ? '¿Desactivar' : '¿Reactivar'} la sucursal “${branch.name}”? ${branch.active ? 'Se conservarán su información y el acceso histórico.' : 'Volverá a figurar como activa.'}`)) return;
     setBusy(true); setError(''); setSuccess('');
     try {
       const updated: Branch = await api(`/branches/${branch.id}/status`, {
@@ -102,18 +109,15 @@ export function BranchesAdmin() {
       });
       setBranches((current) => current.map((item) => item.id === updated.id ? updated : item));
       setSuccess(updated.active ? 'Sucursal reactivada.' : 'Sucursal desactivada. Su información se conserva.');
+      setConfirmation(null);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'No pudimos cambiar el estado.'); }
     finally { setBusy(false); }
   }
 
   return (
-    <main className="branches-shell">
-      <header className="branches-header">
-        <Link href="/" className="brand-home"><span className="brand-mark">PO</span><span>Puro de Origen<small>Gestión EERR</small></span></Link>
-        <Link href="/" className="text-button">Volver al inicio</Link>
-      </header>
+    <WorkspaceShell section="branches" title="Sucursales"><div className={shellStyles.moduleContent}>
       {access === 'loading' && <p role="status" className="session-status">Comprobando sesión y cargando sucursales...</p>}
-      {access === 'denied' && <section className="branch-feedback"><h1>Acceso denegado</h1><p>Esta sección requiere una sesión de Administrador.</p><Link href="/" className="text-button">Ir al inicio de sesión</Link></section>}
+      {access === 'denied' && <section className="branch-feedback"><h1>Acceso denegado</h1><p>Esta sección requiere una sesión de Administrador.</p><Link href="/" className="text-button">Volver al Dashboard</Link></section>}
       {access === 'error' && <section className="branch-feedback"><p role="alert" className="error">{error}</p><button className="text-button" onClick={() => window.location.reload()}>Reintentar</button></section>}
       {access === 'allowed' && <>
         <div className="branches-title"><div><p className="eyebrow">Administración</p><h1>Sucursales</h1><p className="intro">Gestioná sus datos y su disponibilidad desde un único lugar.</p></div>
@@ -138,10 +142,15 @@ export function BranchesAdmin() {
             <p className="branch-code">Código interno<code>{branch.code}</code></p>
             <p className="branch-date">Inicio: <time dateTime={branch.startDate}>{new Date(branch.startDate).toLocaleDateString('es-AR', { timeZone: 'UTC' })}</time></p>
             {!branch.active && <p className="help">Conserva su información y el acceso histórico.</p>}
-            <div className="branch-actions"><button className="text-button" disabled={busy || loading} onClick={() => openForm(branch)} aria-label={`Editar ${branch.name}`}>Editar</button><button className="text-button" disabled={busy || loading} onClick={() => changeStatus(branch)} aria-label={`${branch.active ? 'Desactivar' : 'Reactivar'} ${branch.name}`}>{branch.active ? 'Desactivar' : 'Reactivar'}</button></div>
+            <div className="branch-actions"><button className="text-button" disabled={busy || loading} onClick={() => openForm(branch)} aria-label={`Editar ${branch.name}`}>Editar</button><button className="text-button" disabled={busy || loading} onClick={() => { setError(''); setConfirmation(branch); }} aria-label={`${branch.active ? 'Desactivar' : 'Reactivar'} ${branch.name}`}>{branch.active ? 'Desactivar' : 'Reactivar'}</button></div>
           </li>)}
         </ul>
       </>}
-    </main>
+    {confirmation && <Modal title={confirmation.active ? "Desactivar sucursal" : "Reactivar sucursal"} context={confirmation.name} busy={busy} onClose={() => setConfirmation(null)} footer={null}>
+      <p>{confirmation.active ? "Se conservarán su información y el acceso histórico." : "Volverá a figurar como activa."}</p>
+      {error && <p role="alert" className={shellStyles.error}>{error}</p>}
+      <div className={shellStyles.actions}><button disabled={busy} className={shellStyles.primary} onClick={() => void changeStatus(confirmation)}>Confirmar cambio de estado</button><button disabled={busy} onClick={() => setConfirmation(null)}>Cancelar</button></div>
+    </Modal>}
+    </div></WorkspaceShell>
   );
 }
