@@ -12,7 +12,7 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 
 - Autenticación mediante login.
 - Wizard inicial.
-- Elección entre Modo Editor y Modo Análisis.
+- Inicio autenticado en Dashboard, sin elección de modo de trabajo.
 - Perspectiva por sucursal: seleccionar sucursal y consultar sus períodos.
 - Perspectiva por período: seleccionar período y consultar sus sucursales.
 - Roles confirmados: Lector y Editor.
@@ -187,3 +187,24 @@ editando o descartar y salir. La recarga, cierre y salida externa usan la protec
 nativa del navegador solo mientras hay cambios. No hay guardado automático ni
 persistencia de borradores entre sesiones. Guardar/cancelar un campo no elimina
 borradores de otros campos; cerrar un modal tampoco los descarta.
+
+## EP-04UX.2: experiencia autenticada
+
+El acceso válido abre Dashboard con saludo, enlaces a Estados de resultados y,
+solo para Administrador, Sucursales. Los indicadores financieros se incorporarán
+en una etapa posterior: esta base no muestra importes, porcentajes ni gráficos
+ficticios. La selección de modos queda retirada; los roles permanecen vigentes.
+
+Todas las pantallas autenticadas comparten navegación, ubicación, rol y cierre de
+sesión. La opción actual usa aria-current. Login y contraseña temporal conservan
+su composición independiente. En móvil/tablet compacto el menú dispone de control
+visible, Escape y retorno del foco; no requiere hover.
+
+El flujo EERR conserva ambas perspectivas, históricos, creación y apertura de
+estructura. Administración conserva altas, edición, fecha de inicio y cambios
+reversibles de estado con confirmación contextual. Editor/Lector no ven enlaces
+administrativos ni obtienen acceso por URL directa.
+
+Los borradores del workspace se conservan al continuar editando. Descartar permite
+ir al destino elegido o cerrar sesión; ante un error de logout se mantienen.
+No hay autoguardado ni escrituras por abrir Dashboard o montar el shell.

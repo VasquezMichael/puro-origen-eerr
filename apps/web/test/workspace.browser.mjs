@@ -938,6 +938,7 @@ try {
     await close();
     admin = true;
     await page.reload();
+    if (width <= 800) await page.getByRole("button", { name: "Abrir menú", exact: true }).click();
     await page.getByRole("link", { name: "Sucursales", exact: true }).waitFor();
     row.structure = null;
     await page.reload();

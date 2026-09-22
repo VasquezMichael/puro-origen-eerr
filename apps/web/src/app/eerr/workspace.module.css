@@ -565,6 +565,7 @@
 @media (max-width: 800px) {
   .shell {
     grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
   .sidebar {
     padding: 0.75rem 1rem;
@@ -689,4 +690,123 @@
 .expression summary:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+
+/* Shared authenticated navigation and page composition. */
+.brandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.navigationToggle {
+  display: none;
+}
+.breadcrumbs,
+.headerActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.headerActions {
+  margin-left: auto;
+}
+.moduleContent {
+  min-width: 0;
+}
+.moduleContent :global(.branches-title) {
+  margin: 0 0 1.5rem;
+  flex-wrap: wrap;
+}
+.moduleContent :global(.branch-actions) {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.moduleContent :global(.branch-card),
+.moduleContent :global(.branch-form),
+.moduleContent :global(.branch-feedback),
+.moduleContent :global(.branch-empty) {
+  border-radius: var(--radius);
+  border-color: var(--stroke);
+}
+.moduleContent :global(.primary-button) {
+  padding: 0.6rem 1rem;
+  background: var(--brand);
+  color: white;
+}
+.moduleContent :global(.branch-card-heading) {
+  flex-wrap: wrap;
+}
+.moduleContent :global(.branch-form-fields) {
+  min-width: 0;
+}
+.dashboardIntro {
+  color: var(--text-muted);
+  max-width: 52rem;
+  margin: 1rem 0 2rem;
+}
+.quickAccess {
+  margin: 2rem 0;
+}
+.quickAccess h2 {
+  font-size: 1.2rem;
+  font-family: inherit;
+  margin-bottom: 1rem;
+}
+.quickLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-weight: 600;
+}
+.quickLink:hover {
+  border-color: var(--brand);
+}
+.dashboardEmpty {
+  max-width: 60rem;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-left: 3px solid #c99545;
+  border-radius: var(--radius);
+}
+.dashboardEmpty h2 {
+  font-size: clamp(1.4rem, 2vw, 1.9rem);
+}
+.dashboardEmpty p:last-child {
+  color: var(--text-muted);
+  max-width: 45rem;
+  margin-top: 1rem;
+}
+@media (max-width: 800px) {
+  .shell .navigationToggle {
+    display: inline-flex;
+    flex-shrink: 0;
+    background: transparent;
+    color: #f6f2e6;
+    border-color: #9daa9c;
+  }
+  .shell .navigationToggle:hover:not(:disabled) {
+    background: #285543;
+    color: #f6f2e6;
+  }
+  .sidebar nav {
+    display: none;
+  }
+  .sidebar[data-menu-open="true"] nav {
+    display: flex;
+  }
+  .headerActions {
+    gap: 0.5rem;
+  }
+  .moduleContent :global(.branch-grid),
+  .moduleContent :global(.branch-form-fields) {
+    grid-template-columns: 1fr;
+  }
 }

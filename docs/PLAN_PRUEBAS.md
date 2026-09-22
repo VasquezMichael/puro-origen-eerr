@@ -165,3 +165,37 @@ omitir permiso de archivo, permitir editar archivados, quitar CAS del repositori
 alterar timestamps al archivar. Las fallas fueron aserciones de comportamiento,
 no errores de compilación. La recarga nativa con borrador también se verificó en
 navegador: muestra beforeunload y cancelar conserva la entrada.
+
+## EP-04UX.2: navegación, sesión y Dashboard
+
+- Unitarias `navigation.test.mjs`: roles global/por sucursal/mixtos, destinos
+  autorizados, un único shell, aria-current, menú accesible, saludo y accesos,
+  ausencia de modos/métricas ficticias, login y contraseña temporal sin shell.
+- Chromium `navigation.browser.mjs`: los cinco tamaños 1440×900, 1280×720,
+  1024×768, 768×1024 y 390×844. Sesión válida/inválida en todas las rutas,
+  login/logout, Dashboard sin escrituras, ambas perspectivas/contexto EERR,
+  workspace único, roles Editor/Lector, URL administrativa protegida, altas,
+  edición/fecha, error de duplicado y desactivación/reactivación simuladas.
+- Borradores: tres destinos laterales, continuar conservando texto, descartar,
+  un beforeunload, Atrás/Adelante sin entradas artificiales, logout confirmado
+  y fallo de logout con conservación. Menú responsive, Escape y retorno del foco.
+- Se repite `workspace.browser.mjs` para preservar toda la regresión de carga,
+  conflictos, archivo/restauración, modales, permisos y geometría de EP-04UX.1.
+- Ambos scripts requieren PLAYWRIGHT_MODULE y BROWSER_BINARY locales y una web
+  aislada en 127.0.0.1:3100. Interceptan todas las solicitudes de API con fixtures;
+  ninguna inicia Nest, utiliza .env, bootstrap o MongoDB. Capturas `ep04ux2-*`
+  quedan en TEMP. No forman parte del CI unitario sin navegador instalado.
+
+La revisión en Chromium con fixtures no reemplaza la aceptación del usuario con
+sus dispositivos finales. La confirmación de recorridos SPA requiere Navigation
+API; el aviso nativo de salida depende del navegador. No se modifica la zona
+horaria global del proceso de pruebas ni se usan datos financieros de producción.
+
+Mutaciones manuales detectadas por aserciones y restauradas: mostrar navegación
+administrativa a todos, alterar Editor por Lector, retirar aria-current, exponer
+el acceso rápido administrativo y reintroducir la tarjeta/texto Modo Editor.
+
+Resultado local EP-04UX.2: `npm run check` aprobó 368 pruebas (188 API,
+6 cargas de módulos compilados, 129 dominio y 45 web; nueve unitarias nuevas),
+tipos, lint y compilación de API/web. Los dos recorridos Chromium aprobaron
+los cinco tamaños; no se ejecutó integración MongoDB en este incremento visual.

@@ -76,14 +76,6 @@ input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(46,93,77,.1
 .password-form { display: grid; gap: 1rem; margin-top: 1.5rem; }
 .user-row { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
 .text-button { padding: .5rem 0; color: var(--green); background: none; border: 0; font-weight: 700; cursor: pointer; }
-.mode-copy { margin-top: 3rem; }
-.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.4rem; }
-.mode-card { min-height: 12rem; padding: 1.3rem; display: flex; flex-direction: column; align-items: start; gap: .8rem; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 1rem; text-align: left; cursor: pointer; }
-.mode-card:not(:disabled):hover { border-color: var(--green); transform: translateY(-2px); box-shadow: 0 12px 28px rgba(25,52,44,.1); }
-.mode-card:disabled { opacity: .52; cursor: not-allowed; }
-.mode-icon { width: 2.3rem; height: 2.3rem; display: grid; place-items: center; color: #fff; background: var(--green); border-radius: .5rem; font-weight: 800; }
-.mode-card strong { font-size: 1.05rem; }
-.mode-card small { color: var(--muted); line-height: 1.5; }
 
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; }
@@ -93,9 +85,6 @@ input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(46,93,77,.1
   .content-panel { padding: 3rem 1.25rem; }
 }
 
-@media (max-width: 430px) {
-  .mode-grid { grid-template-columns: 1fr; }
-}
 
 .admin-branches-link { display: flex; justify-content: space-between; margin-top: 1.4rem; padding: 1rem; border: 1px solid var(--line); border-radius: .65rem; color: var(--green); font-weight: 700; text-decoration: none; }
 select { width: 100%; padding: .9rem 1rem; font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: .65rem; }
