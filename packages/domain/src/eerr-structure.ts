@@ -138,10 +138,10 @@ export function assertStructure(nodes: StructureNode[]): void {
     }
     const key = `${node.parentId}:${conceptNameKey(node.name)}`;
     const position = `${node.parentId}:${node.position}`;
-    if (siblings.has(key) || positions.has(position))
+    if (siblings.has(key) || (!isArchived(node) && positions.has(position)))
       throw new Error("Nombre o posición duplicado entre hermanos");
     siblings.add(key);
-    positions.add(position);
+    if (!isArchived(node)) positions.add(position);
     let cursor: StructureNode | undefined = node;
     const path = new Set<string>();
     while (cursor) {
@@ -189,7 +189,21 @@ export function applyCategories(
   uuid: () => string,
 ): StructureNode[] {
   const result = structuredClone(nodes);
-  for (const category of categories) {
+  const pending = [...categories];
+  const ordered: CategoryConcept[] = [];
+  const available = new Set<string>(ROOTS.map((root) => root.code));
+  while (pending.length) {
+    const ready = pending
+      .filter((c) => available.has(c.parentCode))
+      .sort((a, b) => a.position - b.position || (a.code < b.code ? -1 : 1));
+    if (!ready.length) throw new Error("Padre global inválido o ciclo");
+    for (const category of ready) {
+      ordered.push(category);
+      available.add(category.code);
+      pending.splice(pending.indexOf(category), 1);
+    }
+  }
+  for (const category of ordered) {
     const existing = result.find((node) => node.code === category.code);
     const parent = result.find((node) => node.code === category.parentCode);
     if (!parent || parent.kind === "ITEM")

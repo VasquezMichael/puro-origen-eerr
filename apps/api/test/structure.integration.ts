@@ -622,4 +622,238 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       }
     },
   );
+  async function twoItems() {
+    let current = await service.initialize(id, 0, viewer);
+    const root = current.structure!.nodes[0];
+    for (const name of ['A', 'B'])
+      current = await service.createItem(
+        id,
+        { expectedRevision: current.revision, parentId: root.nodeId, name },
+        viewer,
+      );
+    return {
+      root,
+      current,
+      items: current.structure!.nodes.filter((n) => n.kind === 'ITEM'),
+    };
+  }
+  it('EP-04B2 mueve con CAS sin reescribir BSON; no-op y restauración reinsertan correctamente', async () => {
+    const { root, items } = await twoItems();
+    await service.amount(
+      id,
+      items[0].nodeId,
+      { expectedRevision: 3, state: 'CARGADO', input: '10+20' },
+      viewer,
+    );
+    const before = await model.findById(id).lean();
+    await service.moveItem(
+      id,
+      items[1].nodeId,
+      { expectedRevision: 4, parentId: root.nodeId, position: 0 },
+      viewer,
+    );
+    const moved = await model.findById(id).lean();
+    for (const original of before!.structure!.nodes) {
+      const node = moved!.structure!.nodes.find(
+        (n) => n.nodeId === original.nodeId,
+      )!;
+      expect({ ...node, position: original.position }).toEqual(original);
+    }
+    const noOpBefore = JSON.stringify(moved);
+    await service.moveItem(
+      id,
+      items[1].nodeId,
+      { expectedRevision: 5, parentId: root.nodeId, position: 0 },
+      viewer,
+    );
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(noOpBefore);
+    await service.changeArchive(id, items[1].nodeId, 5, false, viewer);
+    const archived = await model.findById(id).lean();
+    expect(
+      archived!.structure!.nodes.find((n) => n.nodeId === items[0].nodeId)!
+        .position,
+    ).toBe(0);
+    await service.changeArchive(id, items[1].nodeId, 6, true, viewer);
+    const restored = await model.findById(id).lean();
+    expect(
+      restored!
+        .structure!.nodes.filter((n) => n.kind === 'ITEM')
+        .map((n) => n.position)
+        .sort(),
+    ).toEqual([0, 1]);
+    expect(
+      restored!.structure!.nodes.find((n) => n.nodeId === items[0].nodeId)!
+        .amount,
+    ).toEqual(
+      before!.structure!.nodes.find((n) => n.nodeId === items[0].nodeId)!
+        .amount,
+    );
+  });
+  it.each(['move', 'rename', 'archive'])(
+    'EP-04B2 CAS real con barrera: mover contra %s',
+    async (contender) => {
+      const { root, items } = await twoItems();
+      let arrivals = 0;
+      let release!: () => void;
+      const barrier = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const wait = async () => {
+        if (++arrivals === 2) release();
+        await barrier;
+      };
+      const originals = {
+        writeOrder: repository.writeOrder.bind(repository),
+        write: repository.write.bind(repository),
+        writeArchive: repository.writeArchive.bind(repository),
+      };
+      const mocks: { mockRestore(): void }[] = [
+        vi
+          .spyOn(repository, 'writeOrder')
+          .mockImplementation(async (...args) => {
+            await wait();
+            return originals.writeOrder(...args);
+          }),
+      ];
+      if (contender === 'rename')
+        mocks.push(
+          vi.spyOn(repository, 'write').mockImplementation(async (...args) => {
+            await wait();
+            return originals.write(...args);
+          }),
+        );
+      if (contender === 'archive')
+        mocks.push(
+          vi
+            .spyOn(repository, 'writeArchive')
+            .mockImplementation(async (...args) => {
+              await wait();
+              return originals.writeArchive(...args);
+            }),
+        );
+      try {
+        const results = await Promise.allSettled([
+          service.moveItem(
+            id,
+            items[1].nodeId,
+            { expectedRevision: 3, parentId: root.nodeId, position: 0 },
+            viewer,
+          ),
+          contender === 'move'
+            ? service.moveItem(
+                id,
+                items[0].nodeId,
+                { expectedRevision: 3, parentId: root.nodeId, position: 1 },
+                viewer,
+              )
+            : contender === 'rename'
+              ? service.renameItem(
+                  id,
+                  items[0].nodeId,
+                  { expectedRevision: 3, name: 'Otro' },
+                  viewer,
+                )
+              : service.changeArchive(id, items[0].nodeId, 3, false, viewer),
+        ]);
+        expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+        expect(
+          (
+            results.find(
+              (r) => r.status === 'rejected',
+            ) as PromiseRejectedResult
+          ).reason.getStatus(),
+        ).toBe(409);
+        expect((await model.findById(id).lean())!.revision).toBe(4);
+      } finally {
+        mocks.forEach((mock) => mock.mockRestore());
+      }
+    },
+  );
+  it('EP-04B2 publicación global revierte plantilla y todos los snapshots ante fallo real', async () => {
+    await service.initialize(id, 0, viewer);
+    const other = await model.create({
+      branchId: 'abcdefabcdefabcdefabcdef',
+      year: 2026,
+      month: 9,
+      createdBy: viewer.sub,
+    });
+    await service.initialize(other._id, 0, viewer);
+    for (const name of ['Categoría A', 'Categoría B']) {
+      const current = await service.get(id, viewer);
+      const preview = await service.preview(
+        id,
+        {
+          expectedRevision: current.revision,
+          operation: 'CREATE',
+          parentCode: ROOTS[0].code,
+          name,
+        },
+        viewer,
+      );
+      await service.confirm(
+        id,
+        {
+          expectedRevision: current.revision,
+          previewId: preview.previewId,
+          confirm: true,
+        },
+        viewer,
+      );
+    }
+    const current = await service.get(id, viewer),
+      category = current.structure!.nodes.filter(
+        (n) => n.kind === 'CATEGORY',
+      )[1];
+    const preview = await service.previewMove(
+      id,
+      {
+        expectedRevision: current.revision,
+        nodeId: category.nodeId,
+        parentId: current.structure!.nodes[0].nodeId,
+        position: 0,
+      },
+      viewer,
+    );
+    const before = JSON.stringify(await model.find().sort({ _id: 1 }).lean()),
+      template = JSON.stringify(await repository.template('2026-9'));
+    const write = repository.writeOrder.bind(repository);
+    let calls = 0;
+    const spy = vi
+      .spyOn(repository, 'writeOrder')
+      .mockImplementation(async (...args) => {
+        if (++calls === 2) throw new Error('Rollback de movimiento simulado');
+        return write(...args);
+      });
+    try {
+      await expect(
+        service.confirm(
+          id,
+          {
+            expectedRevision: current.revision,
+            previewId: preview.previewId,
+            confirm: true,
+          },
+          viewer,
+          'MOVE',
+        ),
+      ).rejects.toThrow('Rollback');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(JSON.stringify(await model.find().sort({ _id: 1 }).lean())).toBe(
+      before,
+    );
+    expect(JSON.stringify(await repository.template('2026-9'))).toBe(template);
+    const result = await service.confirm(
+      id,
+      {
+        expectedRevision: current.revision,
+        previewId: preview.previewId,
+        confirm: true,
+      },
+      viewer,
+      'MOVE',
+    );
+    expect(result.revision).toBe(current.revision + 1);
+  });
 });

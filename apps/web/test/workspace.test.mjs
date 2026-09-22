@@ -56,7 +56,7 @@ for (const kind of ["BLOCK", "CATEGORY", "ITEM"])
     assert.deepEqual(nodeActions(kind, false), []);
     const actions = nodeActions(kind, true);
     assert.ok(actions.length);
-    assert.ok(!actions.some((a) => /MOVE|DELETE|CLONE/.test(a)));
+    assert.ok(!actions.some((a) => /DELETE|CLONE/.test(a)));
     if (kind === "BLOCK") assert.ok(!actions.includes("RENAME_CATEGORY"));
     if (kind === "CATEGORY") assert.ok(actions.includes("RENAME_CATEGORY"));
     if (kind === "ITEM") assert.ok(actions.includes("ZERO_QUANTITY"));

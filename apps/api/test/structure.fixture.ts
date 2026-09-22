@@ -1,7 +1,11 @@
 import { ConflictException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { mongo, Types } from 'mongoose';
-import { loadProgress, type EerrStructure } from '@puro-origen/domain';
+import {
+  loadProgress,
+  type EerrStructure,
+  type StructureNode,
+} from '@puro-origen/domain';
 import {
   storedStructure,
   type Concept,
@@ -115,6 +119,23 @@ export class MemoryStructureRepository {
     if (!initialize) row.updatedAt = new Date('2026-09-15T13:00:00Z');
     return copy(row);
   }
+  async writeOrder(id: string, revision: number, nodes: StructureNode[]) {
+    this.writes++;
+    if (this.failWrite && this.writes === this.failWrite)
+      throw new Error('Fallo simulado durante transacción');
+    const row = this.state.rows.find((row) => row._id === id);
+    if (!row?.structure || (row.revision ?? 0) !== revision)
+      throw new ConflictException('Revisión conflictiva');
+    for (const node of row.structure.nodes) {
+      const next = nodes.find((next) => next.nodeId === node.nodeId)!;
+      node.parentId = next.parentId;
+      node.position = next.position;
+    }
+    row.structure.structureVersion++;
+    row.revision = revision + 1;
+    row.updatedAt = new Date('2026-09-15T13:00:00Z');
+    return copy(row);
+  }
   async addConcept(concept: Concept) {
     this.state.concepts.push(copy(concept));
   }
@@ -124,6 +145,7 @@ export class MemoryStructureRepository {
     nodeId: string,
     archive: NonNullable<EerrStructure['nodes'][number]['archive']>,
     loadStatus: Row['loadStatus'],
+    nodes?: StructureNode[],
   ) {
     const row = this.state.rows.find((r) => r._id === id);
     const node = row?.structure?.nodes.find(
@@ -132,6 +154,11 @@ export class MemoryStructureRepository {
     if (!row || !node || (row.revision ?? 0) !== revision)
       throw new ConflictException('Revisión conflictiva');
     node.archive = copy(archive);
+    if (nodes)
+      for (const stored of row.structure!.nodes)
+        stored.position = nodes.find(
+          (n) => n.nodeId === stored.nodeId,
+        )!.position;
     row.revision = revision + 1;
     row.loadStatus = loadStatus;
     this.writes++;

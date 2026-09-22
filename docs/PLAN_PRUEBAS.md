@@ -199,3 +199,29 @@ Resultado local EP-04UX.2: `npm run check` aprobó 368 pruebas (188 API,
 6 cargas de módulos compilados, 129 dominio y 45 web; nueve unitarias nuevas),
 tipos, lint y compilación de API/web. Los dos recorridos Chromium aprobaron
 los cinco tamaños; no se ejecutó integración MongoDB en este incremento visual.
+
+## EP-04B2
+
+Pruebas de dominio: orden estable, normalización activa, no-op con posiciones históricas,
+raíces protegidas, ciclos, profundidad de subárbol, categorías con ítems intercalados,
+conservación de datos, restauración acotada y padre ausente. HTTP: DTO estricto, permisos,
+CAS, alcance local/global, preview sin cambios, revisiones ajenas, incoherencia y rollback.
+MongoDB efímero exclusivamente loopback: BSON preservado, CAS real concurrente entre
+movimiento/renombre/archivo, rollback multi-EERR y restauración sin posiciones duplicadas.
+No usa AppModule, .env, Atlas ni bootstrap.
+
+Interfaz: acciones por posición/rol, destinos filtrados, preview separado, selección
+preservada ante 409 y recarga, borradores relacionados/ajenos y destinos desaparecidos.
+Smoke de navegador con API interceptada en 1440×900, 1280×720, 1024×768, 768×1024 y
+390×844; se verifica movimiento, preview, confirmación, error, foco, Escape y desbordes.
+Los scripts opcionales usan PLAYWRIGHT_MODULE y BROWSER_BINARY y servidor web aislado
+en 127.0.0.1:3100. No iniciar API ni usar datos reales. Las suites previas de workspace
+y navegación conservan cobertura de carga, notas, archivo, Dashboard y shell.
+
+Validación ejecutada de EP-04B2: los tres smoke de navegador (movement, workspace y
+navigation) pasaron en los cinco tamaños y se inspeccionaron capturas reales. Siete
+mutaciones fueron detectadas y revertidas: permitir cruce de bloques, escribir no-op
+en dominio y API, incluir archivados en hermanos activos, perder lugares de categorías,
+restaurar siempre al final y omitir revisiones globales. Capturas y logs sintéticos
+permanecen en el directorio temporal local; no contienen datos reales. La validación
+con usuarios y dispositivos físicos permanece como comprobación manual posterior.

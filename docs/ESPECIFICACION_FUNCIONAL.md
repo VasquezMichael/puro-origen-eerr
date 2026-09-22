@@ -208,3 +208,28 @@ administrativos ni obtienen acceso por URL directa.
 Los borradores del workspace se conservan al continuar editando. Descartar permite
 ir al destino elegido o cerrar sesión; ante un error de logout se mantienen.
 No hay autoguardado ni escrituras por abrir Dashboard o montar el shell.
+
+## EP-04B2: mover y ordenar
+
+Los menús de categorías e ítems ofrecen Mover, Subir y Bajar según permisos y posición.
+El primero no ofrece Subir; el último no ofrece Bajar. El modal presenta bloque,
+padre actual, destinos válidos y posición. Categorías se ordenan entre categorías,
+conservando el orden relativo de ítems locales; ítems entre hermanos activos.
+Mover una categoría conserva todo su subárbol. INGRESOS, COSTOS y GASTOS GENERALES
+permanecen protegidos y en su orden fijo. No se permiten movimientos entre bloques.
+
+Categorías requieren revisar el alcance global del período y confirmar por separado;
+el preview muestra ubicación anterior/nueva, período, bloque y EERR afectados. Ítems
+se guardan solo en el EERR abierto. Ninguna operación cambia importes, expresiones,
+cantidades, notas, códigos o identidad. No-op mantiene timestamps y revisiones.
+
+Borradores incompatibles deben guardarse o cancelarse desde sus controles, o se puede
+continuar editándolos. Los ajenos se preservan. Error 409 mantiene selección y exige
+recargar; para categorías se debe generar un nuevo preview. No hay guardado al abrir
+menús, elegir destino o generar preview. Se mantienen teclado, Escape, foco restaurado,
+controles táctiles y navegación protegida por DraftNavigationGuard.
+
+Archivados no se mueven ni cuentan en el orden activo. Restaurar recupera su padre e
+inserta en su posición previa, acotada al rango actual, desplazando hermanos activos.
+Si falta el padre se rechaza; nunca se elige otro automáticamente. Los permisos y
+alcance histórico existentes se mantienen; no se modifican otros períodos.

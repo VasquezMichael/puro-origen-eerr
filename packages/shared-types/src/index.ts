@@ -32,3 +32,27 @@ export type QuantityRequest = { expectedRevision: number } & (
 );
 export type NoteRequest = { expectedRevision: number; note: string };
 export type ItemArchiveRequest = { expectedRevision: number };
+
+export type ItemMoveRequest = {
+  expectedRevision: number;
+  parentId: string;
+  position: number;
+};
+
+export type CategoryMoveRequest = ItemMoveRequest & { nodeId: string };
+export type CategoryMovePreviewResponse = {
+  previewId: string;
+  name: string;
+  year: number;
+  month: number;
+  expiresAt: string;
+  from: { name: string; code: string; position: number };
+  to: { name: string; code: string; position: number };
+  block: { name: string; code: string };
+  affected: number;
+  initialized: number;
+  uninitialized: number;
+  accessibleEerrs: string[];
+  warning: string;
+  noOp: boolean;
+};

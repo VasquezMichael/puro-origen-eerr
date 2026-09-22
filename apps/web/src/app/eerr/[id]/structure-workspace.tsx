@@ -15,9 +15,11 @@ import {
 } from "@puro-origen/domain";
 import type {
   CategoryPreviewResponse,
+  CategoryMovePreviewResponse,
   StructureResponse,
 } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "../api";
+import { MovementForm, type MovementSelection } from "./movement-form";
 import { DraftNavigationGuard } from "./draft-navigation-guard";
 import { WorkspaceShell } from "../workspace-shell";
 import { Modal, ActionMenu } from "../overlays";
@@ -26,7 +28,9 @@ import { editorReducer, initialEditorState } from "./editor-state";
 import { ValueEditor, NoteEditor, type FieldFeedback } from "./field-editors";
 import {
   visibleRows,
-  nodeActions,
+  availableActions,
+  movementRank,
+  incompatibleMovementDrafts,
   actionLabels,
   mayEdit,
   pendingDraftCount,
@@ -58,6 +62,8 @@ export function StructureWorkspace({ id }: { id: string }) {
   const sending = useRef(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [preview, setPreview] = useState<CategoryPreviewResponse | null>(null);
+  const [movePreview, setMovePreview] =
+    useState<CategoryMovePreviewResponse | null>(null);
   const [feedback, setFeedback] = useState<Record<string, FieldFeedback>>({});
   const [conflictLabel, setConflictLabel] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -128,7 +134,7 @@ export function StructureWorkspace({ id }: { id: string }) {
       setStatus(
         method === "GET"
           ? "Datos actualizados. Revisá tus borradores antes de guardar."
-          : path === "categories/preview"
+          : path.endsWith("/preview")
             ? `Vista previa lista: ${label}. Falta confirmar la publicación.`
             : `Guardado: ${label}.`,
       );
@@ -146,6 +152,7 @@ export function StructureWorkspace({ id }: { id: string }) {
         dispatch({ type: "CONFLICT" });
         setConflictLabel(label);
         setPreview(null);
+        setMovePreview(null);
       }
       return false;
     } finally {
@@ -163,6 +170,7 @@ export function StructureWorkspace({ id }: { id: string }) {
       (result) => {
         dispatch({ type: "RELOAD", data: result });
         setPreview(null);
+        setMovePreview(null);
         setFeedback({});
         setConflictLabel("");
         setOverlay((current) => {
@@ -183,12 +191,26 @@ export function StructureWorkspace({ id }: { id: string }) {
   function open(kind: Overlay["kind"], nodeId?: string) {
     setError("");
     setPreview(null);
+    setMovePreview(null);
+    if (nodeId && (kind === "UP" || kind === "DOWN")) {
+      const selected = nodes.find((n) => n.nodeId === nodeId)!;
+      draft(
+        `move:${nodeId}`,
+        JSON.stringify({
+          parentId: selected.parentId,
+          position:
+            movementRank(nodes, selected).index + (kind === "UP" ? -1 : 1),
+        }),
+      );
+      kind = selected.kind === "CATEGORY" ? "MOVE_CATEGORY" : "MOVE_ITEM";
+    }
     setOverlay({ kind, nodeId });
   }
   function close() {
     if (!sending.current) {
       setOverlay(null);
       setPreview(null);
+      setMovePreview(null);
     }
   }
   function saveField(key: string, path: string, body: object, label: string) {
@@ -242,6 +264,43 @@ export function StructureWorkspace({ id }: { id: string }) {
         }
       />
     );
+  }
+  const moveKey = node ? `move:${node.nodeId}` : "";
+  const moveSelection: MovementSelection =
+    node && drafts[moveKey]
+      ? JSON.parse(drafts[moveKey])
+      : {
+          parentId: node?.parentId ?? "",
+          position: node ? movementRank(nodes, node).index : 0,
+        };
+  function movementSaved(result: StructureResponse) {
+    dispatch({ type: "SAVED", data: result, draftKey: moveKey });
+    setOverlay(null);
+    setMovePreview(null);
+    setCollapsed(new Set());
+  }
+  function submitMovement() {
+    if (!node || !data || incompatibleMovementDrafts(data, drafts, node.nodeId))
+      return;
+    const body = { ...moveSelection, expectedRevision: data.revision };
+    if (node.kind === "CATEGORY")
+      void perform<CategoryMovePreviewResponse>(
+        "categories/move/preview",
+        "POST",
+        { ...body, nodeId: node.nodeId },
+        moveKey,
+        `Movimiento · ${node.name}`,
+        setMovePreview,
+      );
+    else
+      void perform<StructureResponse>(
+        `items/${node.nodeId}/move`,
+        "PATCH",
+        body,
+        moveKey,
+        `Movimiento · ${node.name}`,
+        movementSaved,
+      );
   }
   const actionKey =
     node && overlay
@@ -644,12 +703,14 @@ export function StructureWorkspace({ id }: { id: string }) {
                               <ActionMenu
                                 name={item.name}
                                 disabled={disabled}
-                                actions={nodeActions(item.kind, canEdit).map(
-                                  (kind) => ({
-                                    label: actionLabels[kind],
-                                    run: () => open(kind, item.nodeId),
-                                  }),
-                                )}
+                                actions={availableActions(
+                                  nodes,
+                                  item,
+                                  canEdit,
+                                ).map((kind) => ({
+                                  label: actionLabels[kind],
+                                  run: () => open(kind, item.nodeId),
+                                }))}
                               />
                             )}
                           </div>
@@ -664,7 +725,7 @@ export function StructureWorkspace({ id }: { id: string }) {
           {overlay && (
             <Modal
               title={
-                preview
+                preview || movePreview
                   ? "Confirmar publicación global"
                   : overlay.kind === "ARCHIVED"
                     ? "Ítems archivados"
@@ -770,6 +831,43 @@ export function StructureWorkspace({ id }: { id: string }) {
               )}
               {node && (
                 <>
+                  {(overlay.kind === "MOVE_ITEM" ||
+                    overlay.kind === "MOVE_CATEGORY") && (
+                    <MovementForm
+                      nodes={nodes}
+                      node={node}
+                      selection={moveSelection}
+                      onChange={(value) => {
+                        draft(moveKey, JSON.stringify(value));
+                        setMovePreview(null);
+                      }}
+                      preview={movePreview}
+                      busy={busy}
+                      disabled={disabled}
+                      incompatible={
+                        incompatibleMovementDrafts(data, drafts, node.nodeId) >
+                        0
+                      }
+                      onSubmit={submitMovement}
+                      onBack={() => setMovePreview(null)}
+                      onClose={close}
+                      onConfirm={() => {
+                        if (movePreview)
+                          void perform<StructureResponse>(
+                            "categories/move/confirm",
+                            "POST",
+                            {
+                              expectedRevision: data.revision,
+                              previewId: movePreview.previewId,
+                              confirm: true,
+                            },
+                            moveKey,
+                            `Movimiento global · ${node.name}`,
+                            movementSaved,
+                          );
+                      }}
+                    />
+                  )}
                   {isArchived(node) && overlay.kind === "DETAIL" && (
                     <p className={styles.notice}>
                       Archivado · solo consulta. Ubicación:{" "}
@@ -788,7 +886,7 @@ export function StructureWorkspace({ id }: { id: string }) {
                       <p>
                         {overlay.kind === "ARCHIVE"
                           ? "El ítem dejará la carga activa y el progreso. No se eliminarán sus datos; podrás restaurarlo en este EERR."
-                          : "El ítem volverá a su ubicación y posición originales, con todos sus valores conservados, y participará nuevamente del progreso."}
+                          : "El ítem volverá a su padre y se insertará en la posición archivada, ajustada al rango actual. Los hermanos activos se desplazarán cuando corresponda; todos sus valores se conservan."}
                       </p>
                       <div className={styles.actions}>
                         <button
@@ -898,6 +996,7 @@ export function StructureWorkspace({ id }: { id: string }) {
                                   draftKey: actionKey,
                                 });
                                 setPreview(null);
+                                setMovePreview(null);
                                 setOverlay(null);
                               },
                             )

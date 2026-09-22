@@ -810,3 +810,7 @@
     grid-template-columns: 1fr;
   }
 }
+
+.movementId {
+  overflow-wrap: anywhere;
+}

@@ -305,3 +305,30 @@ Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
 - Salir por menú o cerrar sesión con borradores exige continuar o descartar. Un
   cierre fallido no descarta cambios. Recarga y cierre nativo usan beforeunload;
   no se persisten borradores entre sesiones. Atrás/Adelante no agrega historial.
+
+## EP-04B2: orden global y local confirmado
+
+La decisión confirmada es ordenar categorías **entre categorías**, conservando el
+orden relativo de los ítems locales. En el mismo padre se intercambian los lugares
+ocupados por categorías; los ítems mantienen su orden relativo. Al cambiar de padre,
+la categoría se inserta antes de la categoría del rango elegido, o después de la
+última; si no hay categorías se agrega al final. Luego se normalizan los hermanos
+activos. El rango global no depende de cuántos ítems tenga cada sucursal.
+
+Los ítems usan posición entre todos los hermanos activos y continúan admitiéndose
+bajo bloques, como en el modelo previo. Todo movimiento conserva el bloque original,
+identidad y datos; las categorías transportan el subárbol. Se prohíben ciclos,
+autoparentesco, padres ITEM/inexistentes y superar la profundidad máxima existente.
+
+Categorías afectan únicamente el mismo año/mes y requieren preview y confirmación
+transaccional. Ítems afectan solo su EERR. Se mantienen permisos: Administrador y
+Editor asignado; Lector consulta; ajenos reciben 404; históricos inactivos editables.
+El preview enumera identificadores accesibles y cuenta los ajenos sin revelarlos.
+
+Un no-op no altera snapshots, timestamps, revisiones ni versión de plantilla. El
+preview sigue siendo metadata temporal consumible, sin cambios de dominio. Archivados
+no participan del orden activo y retienen padre/posición. Restaurar inserta en el
+índice preservado limitado al tamaño actual, desplazando activos; padre ausente
+produce error. Esta regla actualiza el comportamiento de restauración de EP-04UX.1.
+No hay migración ni normalización durante GET. Se difieren drag-and-drop, movimientos
+entre bloques, archivo de categorías, eliminación, auditoría y cálculos derivados.

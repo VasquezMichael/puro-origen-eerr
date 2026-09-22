@@ -1014,4 +1014,417 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
       }
     },
   );
+  const moveItem = (
+    nodeId: string,
+    parentId: string,
+    position: number,
+    expectedRevision: number,
+    extra = {},
+  ) =>
+    api()
+      .patch(`/eerr/${id}/items/${nodeId}/move`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ parentId, position, expectedRevision, ...extra });
+  async function movingItems() {
+    await init();
+    await createItem('Uno');
+    const result = (await createItem('Dos')).body;
+    return {
+      root: result.structure.nodes[0],
+      items: result.structure.nodes.filter(
+        (n: { kind: string }) => n.kind === 'ITEM',
+      ),
+      revision: result.revision,
+    };
+  }
+  it('mover ítem es local, preserva campos y no-op no escribe timestamps ni revisión', async () => {
+    const other = store.seed(fixtureOtherBranch),
+      old = store.seed(fixtureBranch, 8);
+    const { root, items, revision } = await movingItems();
+    await amount(items[1].nodeId, revision, 'CARGADO', '5+5');
+    const before = (await read()).body,
+      foreign = JSON.stringify([other, old]);
+    const moved = await moveItem(
+      items[1].nodeId,
+      root.nodeId,
+      0,
+      before.revision,
+    );
+    expect(moved.status).toBe(200);
+    expect(moved.body.revision).toBe(before.revision + 1);
+    const original = before.structure.nodes.find(
+      (n: { nodeId: string }) => n.nodeId === items[1].nodeId,
+    );
+    expect(
+      moved.body.structure.nodes.find(
+        (n: { nodeId: string }) => n.nodeId === items[1].nodeId,
+      ),
+    ).toEqual({ ...original, position: 0 });
+    expect(JSON.stringify([other, old])).toBe(foreign);
+    const state = JSON.stringify(store.state),
+      writes = store.writes;
+    expect(
+      (await moveItem(items[1].nodeId, root.nodeId, 0, moved.body.revision))
+        .status,
+    ).toBe(200);
+    expect(JSON.stringify(store.state)).toBe(state);
+    expect(store.writes).toBe(writes);
+    expect(
+      (await moveItem(items[0].nodeId, root.nodeId, 1, moved.body.revision))
+        .status,
+    ).toBe(200);
+    expect(JSON.stringify(store.state)).toBe(state);
+    expect(store.writes).toBe(writes);
+  });
+  it.each(['EDITOR', 'READER', 'ALIEN', 'ADMIN'])(
+    'permiso de movimiento %s sobre histórico inactivo',
+    async (role) => {
+      const { root, items, revision } = await movingItems();
+      viewer.isAdmin = role === 'ADMIN';
+      viewer.branchAccesses =
+        role === 'ALIEN'
+          ? []
+          : [
+              {
+                branchId: fixtureBranch,
+                role: role === 'READER' ? BranchRole.READER : BranchRole.EDITOR,
+              },
+            ];
+      const result = await moveItem(items[1].nodeId, root.nodeId, 0, revision);
+      expect(result.status).toBe(
+        role === 'READER' ? 403 : role === 'ALIEN' ? 404 : 200,
+      );
+    },
+  );
+  it.each([
+    'fraction',
+    'negative',
+    'string',
+    'extra',
+    'parent',
+    'revision',
+    'uuid',
+  ])('DTO de movimiento rechaza %s sin escritura', async (kind) => {
+    const { root, items, revision } = await movingItems(),
+      before = JSON.stringify(store.state);
+    const body: Record<string, unknown> = {
+      parentId: root.nodeId,
+      position: 0,
+      expectedRevision: revision,
+    };
+    if (kind === 'fraction') body.position = 0.5;
+    if (kind === 'negative') body.position = -1;
+    if (kind === 'string') body.position = '0';
+    if (kind === 'extra') body.amount = { value: '99.00' };
+    if (kind === 'parent') body.parentId = 'bad';
+    if (kind === 'revision') body.expectedRevision = null;
+    const result = await api()
+      .patch(
+        `/eerr/${id}/items/${kind === 'uuid' ? 'bad' : items[1].nodeId}/move`,
+      )
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send(body);
+    expect(result.status).toBe(400);
+    expect(JSON.stringify(store.state)).toBe(before);
+  });
+  it.each(['move', 'rename', 'archive'])(
+    'CAS: movimiento concurrente contra %s tiene un ganador',
+    async (contender) => {
+      const { root, items, revision } = await movingItems();
+      const results = await Promise.all([
+        moveItem(items[1].nodeId, root.nodeId, 0, revision),
+        contender === 'move'
+          ? moveItem(items[0].nodeId, root.nodeId, 1, revision)
+          : contender === 'archive'
+            ? archive(items[1].nodeId, revision)
+            : api()
+                .patch(`/eerr/${id}/items/${items[1].nodeId}`)
+                .set('Cookie', `${SESSION_COOKIE}=offline`)
+                .send({ expectedRevision: revision, name: 'Renombrado' }),
+      ]);
+      expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+      expect((await read()).body.revision).toBe(revision + 1);
+    },
+  );
+  it('movimiento obsoleto no altera hermanos; archivado y cruce de bloque rechazados', async () => {
+    const { root, items, revision } = await movingItems();
+    const before = JSON.stringify(store.state);
+    expect(
+      (await moveItem(items[1].nodeId, root.nodeId, 0, revision - 1)).status,
+    ).toBe(409);
+    const otherRoot = (await read()).body.structure.nodes[1];
+    expect(
+      (await moveItem(items[1].nodeId, otherRoot.nodeId, 0, revision)).status,
+    ).toBe(400);
+    expect(JSON.stringify(store.state)).toBe(before);
+    await archive(items[1].nodeId, revision);
+    const archived = JSON.stringify(store.state);
+    expect(
+      (await moveItem(items[1].nodeId, root.nodeId, 0, revision + 1)).status,
+    ).toBe(400);
+    expect(JSON.stringify(store.state)).toBe(archived);
+  });
+
+  async function globalMoveFixture() {
+    await init();
+    const other = store.seed(fixtureOtherBranch);
+    await api()
+      .post(`/eerr/${other._id}/structure/initialize`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 0 });
+    for (const name of ['Categoría A', 'Categoría B']) {
+      const preview = await category(name);
+      await confirm(preview.body.previewId, (await read()).body.revision);
+    }
+    const current = (await read()).body;
+    return {
+      other,
+      categories: current.structure.nodes.filter(
+        (n: { kind: string }) => n.kind === 'CATEGORY',
+      ),
+      root: current.structure.nodes[0],
+    };
+  }
+  const movePreview = async (
+    nodeId: string,
+    parentId: string,
+    position: number,
+  ) =>
+    send('categories/move/preview', {
+      nodeId,
+      parentId,
+      position,
+      expectedRevision: (await read()).body.revision,
+    });
+  const moveConfirm = async (previewId: string) =>
+    send('categories/move/confirm', {
+      previewId,
+      confirm: true,
+      expectedRevision: (await read()).body.revision,
+    });
+  it('categoría global: preview sin cambios, publicación atómica e histórico intacto', async () => {
+    const { categories, root, other } = await globalMoveFixture();
+    const historical = store.seed(fixtureBranch, 8);
+    await send('items', {
+      expectedRevision: (await read()).body.revision,
+      parentId: categories[0].nodeId,
+      name: 'Local',
+    });
+    const beforeRows = JSON.stringify(store.state.rows),
+      beforeTemplate = JSON.stringify(store.state.templates);
+    const preview = await movePreview(categories[1].nodeId, root.nodeId, 0);
+    expect(preview.status).toBe(201);
+    expect(preview.body.affected).toBe(2);
+    expect(preview.body.accessibleEerrs).toContain(other._id);
+    expect(JSON.stringify(store.state.rows)).toBe(beforeRows);
+    expect(JSON.stringify(store.state.templates)).toBe(beforeTemplate);
+    const published = await moveConfirm(preview.body.previewId);
+    expect(published.status).toBe(201);
+    for (const row of store.state.rows.filter((r) => r.month === 9))
+      expect(
+        row
+          .structure!.nodes.filter((n) => n.kind === 'CATEGORY')
+          .sort((a, b) => a.position - b.position)
+          .map((n) => n.code),
+      ).toEqual([categories[1].code, categories[0].code]);
+    expect(historical.structure).toBeUndefined();
+    expect(historical.revision).toBeUndefined();
+    expect(
+      published.body.structure.nodes.find(
+        (n: { name: string }) => n.name === 'Local',
+      ).parentId,
+    ).toBe(categories[0].nodeId);
+  });
+  it('mover categoría global a otra y volver a raíz conserva las instancias de cada EERR', async () => {
+    const { categories, root } = await globalMoveFixture();
+    const before = store.state.rows.map((r) =>
+      r.structure!.nodes.map((n) => [n.nodeId, n.code]),
+    );
+    const preview = await movePreview(
+      categories[0].nodeId,
+      categories[1].nodeId,
+      0,
+    );
+    expect(preview.status).toBe(201);
+    expect((await moveConfirm(preview.body.previewId)).status).toBe(201);
+    const back = await movePreview(categories[0].nodeId, root.nodeId, 0);
+    expect(back.status).toBe(201);
+    expect((await moveConfirm(back.body.previewId)).status).toBe(201);
+    expect(
+      store.state.rows.map((r) =>
+        r.structure!.nodes.map((n) => [n.nodeId, n.code]),
+      ),
+    ).toEqual(before);
+    const fresh = store.seed('111111111111111111111111');
+    expect(
+      (
+        await api()
+          .post(`/eerr/${fresh._id}/structure/initialize`)
+          .set('Cookie', `${SESSION_COOKIE}=offline`)
+          .send({ expectedRevision: 0 })
+      ).status,
+    ).toBe(201);
+  });
+  it.each(['revision', 'rollback', 'missing'])(
+    'movimiento global aborta todo por %s',
+    async (cause) => {
+      const { categories, root, other } = await globalMoveFixture();
+      const preview = await movePreview(categories[1].nodeId, root.nodeId, 0);
+      if (cause === 'revision')
+        store.state.rows.find((r) => r._id === other._id)!.revision!++;
+      if (cause === 'missing')
+        store.state.rows.find((r) => r._id === other._id)!.structure!.nodes =
+          store.state.rows
+            .find((r) => r._id === other._id)!
+            .structure!.nodes.filter((n) => n.code !== categories[0].code);
+      const beforeRows = JSON.stringify(store.state.rows),
+        beforeTemplate = JSON.stringify(store.state.templates);
+      if (cause === 'rollback') store.failWrite = store.writes + 2;
+      const result = await moveConfirm(preview.body.previewId);
+      expect(result.status).toBe(cause === 'rollback' ? 500 : 409);
+      expect(JSON.stringify(store.state.rows)).toBe(beforeRows);
+      expect(JSON.stringify(store.state.templates)).toBe(beforeTemplate);
+    },
+  );
+  it('Editor publica sin revelar EERR ajenos y Lector no genera preview', async () => {
+    const { categories, root, other } = await globalMoveFixture();
+    viewer.isAdmin = false;
+    viewer.branchAccesses = [
+      { branchId: fixtureBranch, role: BranchRole.EDITOR },
+    ];
+    const preview = await movePreview(categories[1].nodeId, root.nodeId, 0);
+    expect(preview.status).toBe(201);
+    expect(preview.body.accessibleEerrs).toEqual([id]);
+    expect(JSON.stringify(preview.body)).not.toContain(other._id);
+    expect((await moveConfirm(preview.body.previewId)).status).toBe(201);
+    viewer.branchAccesses[0].role = BranchRole.READER;
+    expect(
+      (await movePreview(categories[0].nodeId, root.nodeId, 0)).status,
+    ).toBe(403);
+  });
+  it('categoría en igual ubicación no modifica snapshots, plantilla ni timestamps', async () => {
+    const { categories, root } = await globalMoveFixture();
+    const preview = await movePreview(categories[0].nodeId, root.nodeId, 0);
+    expect(preview.body.noOp).toBe(true);
+    const before = JSON.stringify(store.state.rows),
+      template = JSON.stringify(store.state.templates),
+      writes = store.writes;
+    expect((await moveConfirm(preview.body.previewId)).status).toBe(201);
+    expect(JSON.stringify(store.state.rows)).toBe(before);
+    expect(store.writes).toBe(writes);
+    expect(JSON.stringify(store.state.templates)).toBe(template);
+  });
+
+  it('orden global conserva ítems locales intercalados distintos en cada EERR', async () => {
+    const { categories, root } = await globalMoveFixture();
+    for (const [index, row] of store.state.rows.entries()) {
+      const localRoot = row.structure!.nodes.find((n) => n.code === root.code)!;
+      const localA = row.structure!.nodes.find(
+        (n) => n.code === categories[0].code,
+      )!;
+      const localB = row.structure!.nodes.find(
+        (n) => n.code === categories[1].code,
+      )!;
+      localA.position = 0;
+      localB.position = index + 2;
+      for (let j = 0; j <= index; j++)
+        row.structure!.nodes.push({
+          nodeId: randomUUID(),
+          code: randomUUID(),
+          kind: 'ITEM',
+          name: `Local ${j}`,
+          parentId: localRoot.nodeId,
+          position: j + 1,
+          amount: {
+            state: 'SIN_CARGAR',
+            value: null,
+            input: null,
+            currency: 'ARS',
+            scale: 2,
+          },
+        });
+    }
+    const original = store.state.rows.map((r) =>
+      r.structure!.nodes.filter((n) => n.kind === 'ITEM'),
+    );
+    const preview = await movePreview(categories[1].nodeId, root.nodeId, 0);
+    expect(preview.status).toBe(201);
+    expect((await moveConfirm(preview.body.previewId)).status).toBe(201);
+    for (const [index, row] of store.state.rows.entries()) {
+      expect(row.structure!.nodes.filter((n) => n.kind === 'ITEM')).toEqual(
+        original[index],
+      );
+      expect(
+        row
+          .structure!.nodes.filter((n) => n.kind === 'CATEGORY')
+          .sort((a, b) => a.position - b.position)
+          .map((n) => n.code),
+      ).toEqual([categories[1].code, categories[0].code]);
+    }
+  });
+  it.each([
+    'self',
+    'descendant',
+    'block',
+    'item',
+    'missing',
+    'position',
+    'extra',
+  ])('preview global inválido %s no escribe', async (cause) => {
+    const { categories, root } = await globalMoveFixture();
+    await send('items', {
+      parentId: root.nodeId,
+      name: 'Local',
+      expectedRevision: (await read()).body.revision,
+    });
+    if (cause === 'descendant') {
+      const nested = await movePreview(
+        categories[1].nodeId,
+        categories[0].nodeId,
+        0,
+      );
+      expect((await moveConfirm(nested.body.previewId)).status).toBe(201);
+    }
+    const current = (await read()).body;
+    const parentId =
+      cause === 'self'
+        ? categories[0].nodeId
+        : cause === 'descendant'
+          ? categories[1].nodeId
+          : cause === 'block'
+            ? current.structure.nodes[1].nodeId
+            : cause === 'item'
+              ? current.structure.nodes.find(
+                  (n: { kind: string }) => n.kind === 'ITEM',
+                ).nodeId
+              : cause === 'missing'
+                ? randomUUID()
+                : root.nodeId;
+    const before = JSON.stringify(store.state);
+    const response = await send('categories/move/preview', {
+      nodeId: categories[0].nodeId,
+      parentId,
+      position: cause === 'position' ? 999 : 0,
+      expectedRevision: current.revision,
+      ...(cause === 'extra' ? { code: randomUUID() } : {}),
+    });
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(store.state)).toBe(before);
+  });
+  it('confirmaciones globales concurrentes no reutilizan la revisión del preview', async () => {
+    const { categories, root } = await globalMoveFixture();
+    const first = await movePreview(categories[1].nodeId, root.nodeId, 0),
+      second = await movePreview(categories[0].nodeId, categories[1].nodeId, 0);
+    const revision = (await read()).body.revision;
+    const results = await Promise.all(
+      [first, second].map((p) =>
+        send('categories/move/confirm', {
+          previewId: p.body.previewId,
+          expectedRevision: revision,
+          confirm: true,
+        }),
+      ),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+  });
 });
