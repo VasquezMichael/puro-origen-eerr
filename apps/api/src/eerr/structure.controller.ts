@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import {
+  MoveItemDto,
+  MoveCategoryDto,
   AmountDto,
   QuantityDto,
   ItemNoteDto,
@@ -55,6 +57,22 @@ export class StructureController {
   ) {
     return this.structures.confirm(id, input, req.user!);
   }
+  @Post('categories/move/preview')
+  previewMove(
+    @Param('id', uuid) id: string,
+    @Body() input: MoveCategoryDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.structures.previewMove(id, input, req.user!);
+  }
+  @Post('categories/move/confirm')
+  confirmMove(
+    @Param('id', uuid) id: string,
+    @Body() input: CategoryConfirmDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.structures.confirm(id, input, req.user!, 'MOVE');
+  }
   @Post('items')
   createItem(
     @Param('id', uuid) id: string,
@@ -71,6 +89,15 @@ export class StructureController {
     @Req() req: AuthenticatedRequest,
   ) {
     return this.structures.renameItem(id, nodeId, input, req.user!);
+  }
+  @Patch('items/:nodeId/move')
+  moveItem(
+    @Param('id', uuid) id: string,
+    @Param('nodeId', uuid) nodeId: string,
+    @Body() input: MoveItemDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.structures.moveItem(id, nodeId, input, req.user!);
   }
   @Patch('items/:nodeId/archive')
   archive(

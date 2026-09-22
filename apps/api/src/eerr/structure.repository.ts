@@ -9,6 +9,7 @@ import {
   loadProgress,
   STRUCTURE_LIMITS,
   type EerrStructure,
+  type StructureNode,
 } from '@puro-origen/domain';
 import { Eerr, type EerrDocument } from './schemas/eerr.schema.js';
 import {
@@ -149,6 +150,35 @@ export class StructureRepository {
       );
     return row;
   }
+  /** Indexed updates are safe under the document CAS; financial BSON is never rewritten. */
+  async writeOrder(
+    id: string,
+    revision: number,
+    nodes: StructureNode[],
+    session?: ClientSession,
+  ) {
+    const fields: Record<string, string | number | null> = {};
+    nodes.forEach((node, index) => {
+      fields[`structure.nodes.${index}.parentId`] = node.parentId;
+      fields[`structure.nodes.${index}.position`] = node.position;
+    });
+    const row = await this.eerrs
+      .findOneAndUpdate(
+        { _id: id, ...revisionFilter(revision) },
+        {
+          $set: fields,
+          $inc: { revision: 1, 'structure.structureVersion': 1 },
+        },
+        { returnDocument: 'after', runValidators: true, session },
+      )
+      .lean()
+      .exec();
+    if (!row)
+      throw new ConflictException(
+        'El EERR cambió. Conservá tu selección y recargá antes de mover',
+      );
+    return row;
+  }
   async addConcept(concept: Concept, session: ClientSession) {
     await this.concepts().create([concept], { session });
   }
@@ -158,7 +188,21 @@ export class StructureRepository {
     nodeId: string,
     archive: NonNullable<EerrStructure['nodes'][number]['archive']>,
     loadStatus: ReturnType<typeof loadProgress>['status'],
+    nodes?: StructureNode[],
   ) {
+    const index = nodes?.findIndex(
+      (node) => node.nodeId === nodeId && node.kind === 'ITEM',
+    );
+    if (index === -1)
+      throw new ConflictException('El ítem cambió; recargá antes de guardar');
+    const archivePath =
+      index === undefined
+        ? 'structure.nodes.$[item].archive'
+        : `structure.nodes.${index}.archive`;
+    const positions: Record<string, number> = {};
+    nodes?.forEach((node, index) => {
+      positions[`structure.nodes.${index}.position`] = node.position;
+    });
     const row = await this.eerrs
       .findOneAndUpdate(
         {
@@ -167,11 +211,15 @@ export class StructureRepository {
           'structure.nodes': { $elemMatch: { nodeId, kind: 'ITEM' } },
         },
         {
-          $set: { 'structure.nodes.$[item].archive': archive, loadStatus },
+          $set: { [archivePath]: archive, loadStatus, ...positions },
           $inc: { revision: 1 },
         },
         {
-          arrayFilters: [{ 'item.nodeId': nodeId, 'item.kind': 'ITEM' }],
+          ...(nodes
+            ? {}
+            : {
+                arrayFilters: [{ 'item.nodeId': nodeId, 'item.kind': 'ITEM' }],
+              }),
           returnDocument: 'after',
           runValidators: true,
           timestamps: false,

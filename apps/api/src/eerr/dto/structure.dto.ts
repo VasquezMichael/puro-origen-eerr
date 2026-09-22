@@ -67,3 +67,12 @@ export class CategoryConfirmDto extends RevisionDto {
   @IsUUID('4') previewId!: string;
   @Equals(true) confirm!: true;
 }
+
+export class MoveItemDto extends RevisionDto {
+  @IsUUID('4') parentId!: string;
+  @IsInt() @Min(0) @Max(999) position!: number;
+}
+
+export class MoveCategoryDto extends MoveItemDto {
+  @IsUUID('4') nodeId!: string;
+}

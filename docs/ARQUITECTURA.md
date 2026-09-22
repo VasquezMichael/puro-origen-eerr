@@ -204,3 +204,23 @@ no la confirmación de recorridos SPA. No hay almacenamiento persistente de borr
 Dashboard solo presenta saludo, accesos autorizados y el aviso de indicadores
 futuros. No consulta métricas ni escribe al montar. Las rutas permanecen `/`,
 `/eerr`, `/eerr/[id]` y `/admin/sucursales`; no existían rutas de modos que redirigir.
+
+## EP-04B2: movimientos y orden
+
+`packages/domain/src/eerr-order.ts` centraliza orden por posición y código, hermanos
+activos, raíz financiera, movimiento, destinos válidos y restauración. API y web
+consumen estas reglas puras. GET no normaliza ni escribe; el orden físico del array
+no representa el orden visual. Las escrituras normalizan los hermanos activos de
+origen y destino a índices contiguos desde cero.
+
+El repositorio aplica cambios indexados exclusivamente a parentId y position bajo
+CAS documental; conserva BSON financiero, identidad, archivo y creación. El servicio
+local exige expectedRevision. Categorías usan plantilla por año/mes, preview opaco
+con vencimiento de cinco minutos, revisión de todos los EERR y transacción snapshot.
+El bloqueo de plantilla coordina publicación e inicialización. Un fallo revierte
+plantilla, revisiones y snapshots completos. No se reparan categorías incoherentes.
+Los EERR sin estructura heredan la plantilla al inicializarse.
+
+MovementForm reutiliza Modal y ActionMenu. No hay drag-and-drop. Los borradores del
+nodo/subárbol o estructurales bloquean el movimiento; los ajenos se conservan. Un 409
+invalida el preview, mantiene selección y requiere recarga y nueva revisión explícita.

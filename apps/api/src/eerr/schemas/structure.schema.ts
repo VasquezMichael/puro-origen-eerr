@@ -118,7 +118,8 @@ export type GlobalPreview = {
   year: number;
   month: number;
   expiresAt: Date;
-  operation: 'CREATE' | 'RENAME';
+  operation: 'CREATE' | 'RENAME' | 'MOVE';
+  position?: number;
   name: string;
   parentCode: string;
   code: string;
@@ -133,10 +134,11 @@ export const PreviewSchema = new Schema<GlobalPreview>(
     year: { type: Number, required: true },
     month: { type: Number, required: true },
     expiresAt: { type: Date, required: true, expires: 0 },
-    operation: { type: String, enum: ['CREATE', 'RENAME'], required: true },
+    operation: { type: String, enum: ['CREATE', 'RENAME', 'MOVE'], required: true },
     name: { type: String, required: true },
     parentCode: { type: String, required: true },
     code: { type: String, required: true },
+    position: { type: Number, default: undefined },
     templateVersion: { type: Number, required: true },
     revisions: {
       type: [

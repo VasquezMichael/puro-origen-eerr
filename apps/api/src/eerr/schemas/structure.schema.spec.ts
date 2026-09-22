@@ -20,6 +20,8 @@ describe('esquemas EP-04A sin metadatos, entorno ni MongoDB', () => {
         storedStructure,
         publicStructure,
       } = await import('./structure.schema.js');
+      expect(PreviewSchema.path('position').instance).toBe('Number');
+      expect(PreviewSchema.path('operation').options.enum).toContain('MOVE');
       expect(EerrSchema.path('revision').instance).toBe('Number');
       expect(EerrSchema.path('note').instance).toBe('String');
       expect(StructureSchema.path('initializedAt').instance).toBe('Date');

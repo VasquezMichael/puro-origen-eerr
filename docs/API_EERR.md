@@ -268,3 +268,34 @@ nodos ni cambian padre, posición, código, cantidad, expresión o notas. Compar
 con todas las escrituras anteriores; conflictos no reintentan ni sobrescriben.
 No hay cambios en catálogo global, otros EERR o períodos. Se conservan las restricciones
 de unicidad del árbol, incluidos archivados. Publicar categorías preserva su estado.
+
+## Movimientos EP-04B2
+
+Prefijo `/eerr/:id`:
+
+| Método y ruta | Cuerpo estricto | Respuesta |
+| --- | --- | --- |
+| PATCH /items/:nodeId/move | `{ expectedRevision, parentId, position }` | StructureResponse |
+| POST /categories/move/preview | `{ expectedRevision, nodeId, parentId, position }` | CategoryMovePreviewResponse |
+| POST /categories/move/confirm | `{ expectedRevision, previewId, confirm: true }` | StructureResponse |
+
+UUID v4 para identificadores; posición entera 0..999, validada además contra hermanos
+reales tras retirar el origen. Categorías: índice entre categorías; ítems: índice
+entre hermanos activos. La UI presenta posiciones desde 1. Se rechazan campos extra,
+identidades/códigos/bloques/valores financieros enviados como reemplazo del snapshot.
+
+Preview incluye previewId, name, year/month, expiresAt, from/to (code/name/position),
+block, affected/initialized/uninitialized, accessibleEerrs, warning y noOp. Solo revela
+IDs de EERR accesibles; ajenos aparecen en conteos. No modifica estructura. Confirmación
+verifica actor, origen, operación, vencimiento, revisión de plantilla y todos los EERR.
+Preview de MOVE no sirve en confirmación de crear/renombrar, ni viceversa.
+
+400: destino, tipo, ciclo, profundidad o posición inválidos; 401: sin sesión; 403:
+Lector; 404: EERR inexistente/ajeno; 409: revisión/preview obsoleto o snapshots globales
+incoherentes. Se conserva el régimen de permisos anterior. La publicación es todo o
+nada y solo del período seleccionado. Un no-op no cambia el EERR ni la plantilla.
+
+Archivo normaliza posiciones activas; restauración inserta y desplaza hermanos activos
+sin reescribir BSON financiero. Esto reemplaza únicamente la conservación absoluta de
+posiciones descrita en EP-04UX.1: el archivado conserva su posición de recuperación;
+los activos deben mantener posiciones únicas. Nombre/código siguen siendo únicos.

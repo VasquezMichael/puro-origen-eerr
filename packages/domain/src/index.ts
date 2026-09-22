@@ -4,3 +4,4 @@ export * from './money.js';
 export * from './eerr-structure.js';
 export * from './money-expression.js';
 export * from './eerr-fields.js';
+export * from './eerr-order.js';
