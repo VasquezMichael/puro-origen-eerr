@@ -1,3 +1,5 @@
+import { CompletePendingService } from '../src/eerr/complete-pending.service.js';
+import { completePendingPlan } from '@puro-origen/domain';
 import { ImportService } from '../src/eerr/import/import.service.js';
 import { ImportToken } from '../src/eerr/import/import-token.js';
 import { readCsv, csvEscape } from '../src/eerr/import/csv.js';
@@ -39,6 +41,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
   let service: StructureService;
   let clones: CloneService;
   let imports: ImportService;
+  let completePending: CompletePendingService;
   let id: string;
   const viewer = {
     sub: '222222222222222222222222',
@@ -141,6 +144,18 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       clock,
     );
     imports = new ImportService(
+      repository,
+      new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
+      branches,
+      clock,
+      new ImportToken(
+        new ConfigService({
+          JWT_SECRET: 'test-only-not-real-secret-0000000000000000',
+        }),
+        clock,
+      ),
+    );
+    completePending = new CompletePendingService(
       repository,
       new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
       branches,
@@ -1290,5 +1305,233 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       imports.confirm(id, file, 'inventado', viewer),
     ).rejects.toMatchObject({ status: 409 });
     expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+  });
+  async function pendingFixture() {
+    let current = await service.initialize(id, 0, viewer);
+    for (let index = 0; index < 5; index++)
+      current = await service.createItem(
+        id,
+        {
+          expectedRevision: current.revision,
+          parentId: current.structure!.nodes[0].nodeId,
+          name: `Pendiente ${index}`,
+        },
+        viewer,
+      );
+    const items = current.structure!.nodes.filter((n) => n.kind === 'ITEM');
+    for (const [index, input] of [
+      [0, '5+5'],
+      [1, '0'],
+    ] as const)
+      current = await service.amount(
+        id,
+        items[index].nodeId,
+        { expectedRevision: current.revision, state: 'CARGADO', input },
+        viewer,
+      );
+    current = await service.quantity(
+      id,
+      items[2].nodeId,
+      { expectedRevision: current.revision, state: 'CARGADO', input: '17' },
+      viewer,
+    );
+    current = await service.quantity(
+      id,
+      items[3].nodeId,
+      { expectedRevision: current.revision, state: 'SIN_CARGAR' },
+      viewer,
+    );
+    current = await service.itemNote(
+      id,
+      items[2].nodeId,
+      { expectedRevision: current.revision, note: 'Conservar nota' },
+      viewer,
+    );
+    current = await service.periodNote(
+      id,
+      { expectedRevision: current.revision, note: 'Conservar general' },
+      viewer,
+    );
+    current = await service.changeArchive(
+      id,
+      items[4].nodeId,
+      current.revision,
+      false,
+      viewer,
+    );
+    return { current, items };
+  }
+  it('EP-04C3 lote Decimal128 preserva todo excepto importes pendientes, progreso, revision y updatedAt', async () => {
+    const { current, items } = await pendingFixture(),
+      before = await model.findById(id).lean(),
+      p = await completePending.preview(id, viewer);
+    expect(await model.findById(id).lean()).toEqual(before);
+    expect(p.affected.map((n) => n.nodeId)).toEqual([
+      items[2].nodeId,
+      items[3].nodeId,
+    ]);
+    const r = await completePending.confirm(id, p.previewToken!, viewer),
+      after = await model.findById(id).lean();
+    expect(r.affectedItems).toBe(2);
+    expect(r.result.progress).toEqual({
+      total: 4,
+      loaded: 4,
+      pending: 0,
+      status: 'CARGADO',
+    });
+    const expected = before!;
+    for (const n of expected.structure!.nodes.filter((n) =>
+      p.affected.some((a) => a.nodeId === n.nodeId),
+    )) {
+      const actual = after!.structure!.nodes.find(
+        (a) => a.nodeId === n.nodeId,
+      )!;
+      expect(actual.amount!.value!._bsontype).toBe('Decimal128');
+      expect(actual.amount!.value!.toString()).toBe('0.00');
+      expect(actual.amount!.input).toBeNull();
+      expect(actual.amount!.state).toBe('CARGADO');
+      n.amount = actual.amount;
+    }
+    expected.revision = current.revision + 1;
+    expected.updatedAt = clock.now();
+    expected.loadStatus = after!.loadStatus;
+    expect(after).toEqual(expected);
+    expect(after).not.toHaveProperty('closedAt');
+    expect(after).not.toHaveProperty('updatedBy');
+  });
+  it('EP-04C3 rollback después de escribir revierte todo', async () => {
+    await pendingFixture();
+    const p = await completePending.preview(id, viewer),
+      before = await model.findById(id).lean(),
+      original = repository.writeImport.bind(repository),
+      spy = vi
+        .spyOn(repository, 'writeImport')
+        .mockImplementation(async (...args) => {
+          await original(...args);
+          throw Error('Fallo después de completar');
+        });
+    try {
+      await expect(
+        completePending.confirm(id, p.previewToken!, viewer),
+      ).rejects.toThrow('Fallo después de completar');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await model.findById(id).lean()).toEqual(before);
+  });
+  it('EP-04C3 concurrencia y doble envío no duplican revisión ni timestamps', async () => {
+    const { current } = await pendingFixture(),
+      p = await completePending.preview(id, viewer);
+    const r = await Promise.allSettled([
+      completePending.confirm(id, p.previewToken!, viewer),
+      completePending.confirm(id, p.previewToken!, viewer),
+    ]);
+    expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1);
+    expect(
+      (
+        r.find((x) => x.status === 'rejected') as PromiseRejectedResult
+      ).reason.getStatus(),
+    ).toBe(409);
+    const before = await model.findById(id).lean();
+    expect(before!.revision).toBe(current.revision + 1);
+    await expect(
+      completePending.confirm(id, p.previewToken!, viewer),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await model.findById(id).lean()).toEqual(before);
+  });
+  it.each(['amount', 'move', 'archive'])(
+    'EP-04C3 cambio %s después del preview rechaza lote completo',
+    async (kind) => {
+      const { current, items } = await pendingFixture(),
+        p = await completePending.preview(id, viewer);
+      if (kind === 'amount')
+        await service.amount(
+          id,
+          items[2].nodeId,
+          { expectedRevision: current.revision, state: 'CARGADO', input: '99' },
+          viewer,
+        );
+      if (kind === 'move')
+        await service.moveItem(
+          id,
+          items[2].nodeId,
+          {
+            expectedRevision: current.revision,
+            parentId: items[2].parentId!,
+            position: 0,
+          },
+          viewer,
+        );
+      if (kind === 'archive')
+        await service.changeArchive(
+          id,
+          items[2].nodeId,
+          current.revision,
+          false,
+          viewer,
+        );
+      const before = await model.findById(id).lean();
+      await expect(
+        completePending.confirm(id, p.previewToken!, viewer),
+      ).rejects.toMatchObject({ status: 409 });
+      expect(await model.findById(id).lean()).toEqual(before);
+    },
+  );
+  it('EP-04C3 CAS real rechaza revisión obsoleta en transacción nueva', async () => {
+    const { current, items } = await pendingFixture(),
+      plan = completePendingPlan(current.structure!);
+    await service.amount(
+      id,
+      items[2].nodeId,
+      { expectedRevision: current.revision, state: 'CARGADO', input: '12' },
+      viewer,
+    );
+    const before = await model.findById(id).lean();
+    await expect(
+      repository.transaction((session) =>
+        repository.writeImport(
+          id,
+          current.revision,
+          current.structure!,
+          plan.changes,
+          clock.now(),
+          session,
+        ),
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await model.findById(id).lean()).toEqual(before);
+  });
+  it('EP-04C3 no-op sin escrituras ni revisión; permite editar, expresión y volver a SIN_CARGAR', async () => {
+    const { items } = await pendingFixture(),
+      p = await completePending.preview(id, viewer);
+    let r = (await completePending.confirm(id, p.previewToken!, viewer)).result;
+    const before = await model.findById(id).lean(),
+      noop = await completePending.preview(id, viewer);
+    expect(noop.previewToken).toBeNull();
+    expect(noop.affected).toEqual([]);
+    await expect(
+      completePending.confirm(id, 'inventado', viewer),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(await model.findById(id).lean()).toEqual(before);
+    r = await service.amount(
+      id,
+      items[2].nodeId,
+      { expectedRevision: r.revision, state: 'CARGADO', input: '10+20' },
+      viewer,
+    );
+    expect(
+      r.structure!.nodes.find((n) => n.nodeId === items[2].nodeId)!.amount!
+        .value,
+    ).toBe('30.00');
+    r = await service.amount(
+      id,
+      items[2].nodeId,
+      { expectedRevision: r.revision, state: 'SIN_CARGAR' },
+      viewer,
+    );
+    expect(r.progress.pending).toBe(1);
+    expect((await completePending.preview(id, viewer)).affected).toHaveLength(
+      1,
+    );
   });
 });

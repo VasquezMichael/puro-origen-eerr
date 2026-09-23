@@ -286,3 +286,24 @@ usa celdas de entrada texto; números nativos se convierten a decimal sin depend
 del locale. Se rechazan fórmulas aun con caché, macros, enlaces externos y partes
 no admitidas. Un libro con objetos, gráficos u otros componentes adicionales debe
 volcarse sobre la plantilla; no es un importador de planillas arbitrarias.
+
+## EP-04C3: completar pendientes
+
+`domain/eerr-complete-pending` valida la estructura y construye un plan puro, en
+orden visual, de importes activos SIN_CARGAR. Reutiliza loadProgress/activeSiblings,
+sin parser monetario ni expresiones artificiales. Contratos CompletePending* en
+shared-types; CompletePendingService/Controller en EerrModule, sin dependencias nuevas.
+
+Reutiliza ImportToken con discriminante exclusivo complete-pending, verificación
+de tipo y expiración (cinco minutos). Un token de importación no autoriza esta
+operación. Firma actor/EERR/revisión/huella del snapshot/digest del plan. No persiste
+preview. Confirmar relee bajo transacción snapshot y recalcula todo; la lista del
+cliente no se acepta. Reutiliza writeImport como escritor indexado de valores,
+pasándole exclusivamente importes. Conserva BSON del resto del documento, aplica
+Decimal128 y CAS una vez. No hay bucles de escrituras individuales ni fallback parcial.
+
+CompletePendingFlow se abre desde el menú general, reutiliza Modal y estilos
+locales; CompletePendingSummary presenta conteos, progreso y lista desplazable.
+El workspace mantiene borradores y alimenta DraftNavigationGuard con el modal y
+el estado de envío. El éxito actualiza el reducer por RELOAD; no cierra el período.
+El no-op y los conflictos no llaman al escritor ni cambian timestamps.

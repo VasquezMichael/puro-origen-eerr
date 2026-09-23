@@ -396,3 +396,25 @@ entre bloques, archivo de categorías, eliminación, auditoría y cálculos deri
 - Admin y Editor asignado importan, incluso históricos inactivos; Lector solo
   descarga. No se revelan EERR ajenos. No se importan notas, estructura, actores,
   fechas, archivados ni cálculos derivados. Sin reemplazo estructural ni EP-04C3.
+
+## EP-04C3: completar importes pendientes con cero
+
+- Acción explícita sobre todos los ITEM activos cuyo amount.state es SIN_CARGAR
+  en un EERR existente e inicializado. Sin selección parcial ni nuevas restricciones
+  de calendario; históricos inactivos siguen editables por Admin/Editor asignado.
+- Cada importe pasa a CARGADO, Decimal128 0.00 ARS, escala 2 e input null. No se
+  inventa la expresión "0". Importes/expresiones ya cargados, cantidades (incluidas
+  ausentes/SIN_CARGAR), notas, archivados, estructura y creación quedan intactos.
+- loadStatus y progreso reflejan carga monetaria, nunca cierre. El período sigue
+  editable: cada cero admite edición/expresión o volver individualmente a SIN_CARGAR.
+  Cierre, reapertura y bloqueo permanecen diferidos a EP-07.
+- Preview sin escrituras con contexto, pendientes, rutas y progreso antes/después.
+  Sin pendientes: sin token, escritura, revisión ni timestamps. Confirmación vuelve
+  a calcular el conjunto y verifica actor, operación, huella, revisión y vencimiento.
+- Lote atómico mediante transacción y CAS, una revisión y updatedAt del reloj de
+  servidor. El modelo vigente no tiene updatedBy en ediciones monetarias: no se
+  introduce auditoría nueva ni se reemplazan createdBy/initializedBy. El actor
+  autenticado autoriza la operación y queda ligado al preview.
+- Borradores obligan a volver a guardarlos o descartarlos desde sus controles antes
+  del preview; no se descartan automáticamente. 409 conserva modal y resumen, exige
+  preview actualizado. Lector no obtiene acción ni permiso de preview/confirmación.

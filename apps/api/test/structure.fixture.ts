@@ -113,19 +113,39 @@ export class MemoryStructureRepository {
     structure: EerrStructure,
     changes: ImportChange[],
     now: Date,
-    session?: unknown,
+    _session?: unknown,
   ) {
+    this.writes++;
+    if (this.failWrite && this.writes === this.failWrite)
+      throw new Error('Fallo simulado durante transacción');
+    const row = this.state.rows.find((r) => r._id === id);
+    if (!row?.structure || (row.revision ?? 0) !== revision)
+      throw new ConflictException('Revisión conflictiva');
     const updated = structuredClone(structure);
     for (const change of changes) {
-      const node = updated.nodes.find(
+      const node = row.structure.nodes.find(
         (n) => n.code === change.code && n.nodeId === change.nodeId,
       )!;
-      if (change.amount) node.amount = change.amount;
-      if (change.quantity) node.quantity = change.quantity;
+      const publicNode = updated.nodes.find((n) => n.nodeId === change.nodeId)!;
+      if (change.amount) {
+        node.amount = {
+          ...change.amount,
+          value:
+            change.amount.value === null
+              ? null
+              : Types.Decimal128.fromString(change.amount.value),
+        };
+        publicNode.amount = change.amount;
+      }
+      if (change.quantity) {
+        node.quantity = change.quantity;
+        publicNode.quantity = change.quantity;
+      }
     }
-    const row = await this.write(id, revision, updated, session);
-    this.state.rows.find((r) => r._id === id)!.updatedAt = now;
-    return { ...row, updatedAt: now };
+    row.revision = revision + 1;
+    row.updatedAt = now;
+    row.loadStatus = loadProgress(updated.nodes).status as Row['loadStatus'];
+    return copy(row);
   }
   async template(key: string) {
     return copy(

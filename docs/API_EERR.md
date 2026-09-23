@@ -364,3 +364,28 @@ por fila se devuelven en el preview sin token; nunca se aplica el subconjunto v�
 Confirmación revalida acceso, hash del archivo, identidad, operaciones y revisión
 dentro de transacción. Un ganador por CAS; reintento tras éxito devuelve 409.
 No-op no produce token ni escritura. Notas y estructura permanecen intactas.
+
+## EP-04C3 — completar importes pendientes
+
+Prefijo `/eerr/:id/amounts/complete-pending`, UUID v4 y sesión existente:
+
+| Método y ruta | Cuerpo estricto | Resultado |
+| --- | --- | --- |
+| POST /preview | `{}` | CompletePendingPreviewResponse |
+| POST /confirm | `{ previewToken }` | CompletePendingConfirmResponse |
+
+Preview devuelve destination (id/branchId/branchName/year/month), revision, before/after
+(total/loaded/pending/status), affected (nodeId/code/name/block/path), previewToken
+nullable y expiresAt. No escribe. Confirmar devuelve result (StructureResponse) y
+affectedItems. Token hasta 4096 caracteres, ligado a actor/operación/EERR/revisión/
+huella/plan durante cinco minutos. No admite nodeIds, valores ni selección del cliente.
+
+Admin y Editor asignado, incluidos históricos inactivos; Lector 403, ajeno/inexistente
+404, sesión inválida 401. EERR sin estructura/DTO inválido: 400; revisión, token o
+contenido cambiado: 409. Sin transacciones se conserva el 503 del repositorio.
+
+Cada importe pendiente activo pasa a CARGADO, input null, value "0.00" (Decimal128),
+currency ARS, scale 2. No cambia cantidades ni notas. Solo avanzan revision, updatedAt
+y el estado de carga calculado; no existe transición de cierre. No-op no emite token
+ni escribe. La confirmación revalida y recalcula dentro de transacción/CAS; un solo
+envío puede aplicar y todos los demás son conflictos sin escrituras parciales.
