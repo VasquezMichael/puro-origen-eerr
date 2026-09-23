@@ -8,10 +8,10 @@ export class EerrApiError extends Error {
     super(message);
   }
 }
-export async function eerrApi<T>(
+async function eerrRequest(
   path: string,
   options: RequestInit = {},
-): Promise<T> {
+): Promise<Response> {
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
@@ -27,8 +27,8 @@ export async function eerrApi<T>(
     );
   }
   if (response.status === 401) notifySessionExpired();
-  const body = await response.json();
-  if (!response.ok)
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
     throw new EerrApiError(
       response.status === 401
         ? "Tu sesión venció. Volvé al inicio para ingresar."
@@ -37,5 +37,16 @@ export async function eerrApi<T>(
           : (body.message ?? "No se pudo completar la operación"),
       response.status,
     );
-  return body as T;
+  }
+  return response;
+}
+
+export async function eerrApi<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T> {
+  return (await eerrRequest(path, options)).json() as Promise<T>;
+}
+export async function eerrDownload(path: string): Promise<Blob> {
+  return (await eerrRequest(path)).blob();
 }

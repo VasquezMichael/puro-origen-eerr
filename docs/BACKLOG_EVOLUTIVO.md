@@ -24,6 +24,13 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
 - Automatizar integración MongoDB local aislada en un job específico si se adopta
   esa infraestructura; el CI actual continúa sin MongoDB ni secretos.
 
+- EP-04C2: aceptar manualmente CSV/XLSX en Excel o LibreOffice de escritorio y
+  probar en dispositivos físicos. Chromium con fixtures y reapertura automatizada
+  ya se verifican; no reemplazan la aceptación operativa.
+- EP-04C2: auditoría de producción sin vulnerabilidades; quedan cinco avisos
+  preexistentes de desarrollo en el árbol de @nestjs/mau. Revisar en mantenimiento
+  separado, junto con las dependencias transitivas deprecadas del soporte XLSX.
+
 Cualquier mejora futura debe agregarse a este backlog. Los requisitos funcionales
 confirmados están en ESPECIFICACION_FUNCIONAL.md y las decisiones pendientes en
 DECISIONES.md; no convertir propuestas en requisitos sin validación.

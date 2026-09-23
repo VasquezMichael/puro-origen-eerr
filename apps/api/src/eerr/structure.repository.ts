@@ -4,11 +4,17 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import type { Connection, Model, ClientSession } from 'mongoose';
+import {
+  Types,
+  type Connection,
+  type Model,
+  type ClientSession,
+} from 'mongoose';
 import {
   loadProgress,
   STRUCTURE_LIMITS,
   type EerrStructure,
+  type ImportChange,
   type StructureNode,
 } from '@puro-origen/domain';
 import {
@@ -148,6 +154,59 @@ export class StructureRepository {
       throw new ConflictException(
         'El destino cambió; no se sobrescribió ningún dato',
       );
+    return row;
+  }
+  /** Apply only imported fields; preserve BSON and notes outside the accepted operations. */
+  async writeImport(
+    id: string,
+    revision: number,
+    structure: EerrStructure,
+    changes: ImportChange[],
+    now: Date,
+    session: ClientSession,
+  ) {
+    const fields: Record<string, unknown> = { updatedAt: now };
+    const nodes = structuredClone(structure.nodes);
+    for (const change of changes) {
+      const index = nodes.findIndex(
+        (n) =>
+          n.nodeId === change.nodeId &&
+          n.code === change.code &&
+          n.kind === 'ITEM',
+      );
+      if (index < 0 || nodes[index].archive?.state === 'ARCHIVED')
+        throw new ConflictException('El ítem cambió');
+      if (change.amount) {
+        nodes[index].amount = change.amount;
+        fields[`structure.nodes.${index}.amount`] = {
+          ...change.amount,
+          value:
+            change.amount.value === null
+              ? null
+              : Types.Decimal128.fromString(change.amount.value),
+        };
+      }
+      if (change.quantity) {
+        nodes[index].quantity = change.quantity;
+        fields[`structure.nodes.${index}.quantity`] = change.quantity;
+      }
+    }
+    fields.loadStatus = loadProgress(nodes).status;
+    const row = await this.eerrs
+      .findOneAndUpdate(
+        { _id: id, ...revisionFilter(revision) },
+        { $set: fields, $inc: { revision: 1 } },
+        {
+          returnDocument: 'after',
+          runValidators: true,
+          timestamps: false,
+          session,
+        },
+      )
+      .lean()
+      .exec();
+    if (!row)
+      throw new ConflictException('El EERR cambió; no se importaron datos');
     return row;
   }
   async template(key: string, session?: ClientSession) {

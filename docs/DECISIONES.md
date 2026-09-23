@@ -373,3 +373,26 @@ entre bloques, archivo de categorías, eliminación, auditoría y cálculos deri
 - Crear EERR sigue siendo una operación separada y redirige a elegir base o clonación.
   Inicialización base conserva su contrato idempotente. Se difieren reemplazo, selección
   parcial, notas/archivados, importación, cierre, auditoría completa y cálculos derivados.
+
+## EP-04C2 — importación controlada de valores
+
+- CSV UTF-8 con BOM y punto y coma, y XLSX con hojas Instrucciones/Carga. Solo
+  importes/expresiones y cantidades de ITEM activos de un EERR inicializado.
+- Columnas: eerr_id, revision_estructura, codigo_item, item, ruta,
+  importe_o_expresion, cantidad. Código estable identifica; nombre/ruta informan.
+- Vacío conserva; 0 carga cero; SIN_CARGAR (trim, sin distinción de mayúsculas)
+  limpia el campo. Importe y cantidad independientes. Se reutilizan el parser
+  racional, rangos, ARS y ROUND_HALF_UP existentes; nunca eval ni fórmulas Excel.
+- revision_estructura es un sello firmado de identidad estructural, no una revisión
+  editable por el usuario. Incluye códigos, relaciones, posiciones y archivo;
+  excluye nombre de ítem y valores/notas. Renombrar ítem conserva compatibilidad;
+  altas, movimiento y archivo requieren nueva plantilla. La versión numérica
+  existente por sí sola no distingue estos cambios; se conserva sin redefinirla.
+- Preview sin escrituras, errores por fila y valores antes/después. Cualquier error
+  bloquea toda confirmación. No-op no genera token ni actualiza timestamps.
+- Confirmación ligada a actor, EERR, bytes del archivo, operaciones, identidad y
+  revisión; vence en cinco minutos. Revalida bajo transacción y CAS. Conflictos
+  preservan archivo/resumen en web, exigen nuevo preview y nunca aplican parcialmente.
+- Admin y Editor asignado importan, incluso históricos inactivos; Lector solo
+  descarga. No se revelan EERR ajenos. No se importan notas, estructura, actores,
+  fechas, archivados ni cálculos derivados. Sin reemplazo estructural ni EP-04C3.

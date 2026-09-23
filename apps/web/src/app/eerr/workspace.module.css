@@ -839,3 +839,37 @@
   list-style: disc;
   padding-left: 1.25rem;
 }
+
+.importSummary {
+  display: grid;
+  gap: 1rem;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.importSummary h3,
+.importSummary h4 {
+  font-weight: 700;
+}
+.importSummary ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.importRows {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.importRow {
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+.importFile {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.importFile input {
+  max-width: 100%;
+  min-width: 0;
+}

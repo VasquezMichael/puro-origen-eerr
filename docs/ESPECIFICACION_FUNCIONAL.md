@@ -261,3 +261,26 @@ y requiere preview nuevo; permite actualizar destino. Éxito abre la grilla y mu
 origen/modo temporalmente. Las acciones admiten teclado, foco, Escape y tablet. No hay
 sobrescritura ni creación de períodos dentro de la confirmación. Permisos y corrección
 de históricos inactivos mantienen sus reglas anteriores.
+
+## Entrega EP-04C2: importar valores existentes
+
+En un EERR inicializado, “Importar archivo” permite descargar CSV/XLSX, elegir
+archivo, revisar errores/advertencias y valores actuales/nuevos, y confirmar.
+La plantilla contiene todos los ítems activos, códigos estables e identificación
+del EERR/estructura; las entradas editables se descargan vacías. No se admiten
+.xls/.xlsm, fórmulas nativas ni mapeos por nombre. En XLSX, Instrucciones describe
+el contexto y Carga distingue columnas informativas de las dos editables.
+
+Editar solo importe_o_expresion y cantidad: vacío no modifica, cero es explícito y
+SIN_CARGAR limpia valor/expresión. Cantidad es entero no negativo sin expresiones;
+importe admite las expresiones exactas existentes escritas como texto sin =.
+Los metadatos deben coincidir en todas las filas. No crea ni mueve categorías/ítems,
+no modifica notas ni reimporta archivados. Una sola fila inválida impide todo cambio.
+
+Cambios de valores anteriores al preview aparecen como valores actuales. Cambios
+posteriores invalidan la confirmación completa. Un 409 conserva archivo y resumen;
+se debe generar otro preview (o descargar plantilla nueva si cambió la estructura).
+No se admite confirmación duplicada, aplicación parcial ni sobreescritura automática.
+Los borradores manuales bloquean iniciar importación. Escape/cierre con archivo
+pendiente pide confirmación; navegación protegida por el guard existente. Lector
+solo descarga; Admin/Editor autorizado puede importar históricos inactivos.

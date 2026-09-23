@@ -269,3 +269,40 @@ Cierre local: npm run check aprobó 510 pruebas (265 API, 9 cargas ESM, 174 domi
 62 web), con 79 casos nuevos; además 21 integraciones MongoDB locales (7 nuevas).
 Tipos, lint y builds aprobados; git diff --check y revisión de secretos sin hallazgos.
 No se usaron .env real, Atlas ni bootstrap y no se agregaron dependencias.
+
+## EP-04C2 — importación CSV/XLSX
+
+Pruebas nuevas de dominio: semántica vacío/cero/SIN_CARGAR, parser monetario exacto,
+cantidad, rangos, códigos, duplicados, archivo, identidad y límites. API aislada:
+descarga/reapertura, CSV escapado/BOM/UTF-8, XLSX texto/número, fórmulas/cache, macros,
+DTD, coordenadas esparsas, ZIP expandido, metadatos, multipart, permisos, preview,
+concurrencia, token/actor/archivo/expiración y preservación de notas. Runtime ESM
+carga los tres componentes Nest compilados sin AppModule ni conexión.
+
+Ocho integraciones nuevas en réplica MongoDB efímera loopback: Decimal128 y campos
+exactos, rollback tras escritura, competencia/reintento, archivo/movimiento/valores
+entre preview y confirmar, CAS de repositorio y bloqueo completo por fila inválida.
+Ejecutar `npm run test:integration:structure --workspace=api` con MONGOD_BINARY local.
+
+`apps/web/test/import.browser.mjs` usa Chromium y API interceptada con fixtures: cinco
+tamaños 1440×900, 1280×720, 1024×768, 768×1024, 390×844; descargas reales reabiertas
+por el lector CSV/XLSX, preview válido/inválido, 409 conservado, descarte, foco,
+envío único, actualización y Lector. Sin API real, secretos ni Atlas. Capturas
+en TEMP `ep04c2-<ancho>-<escena>.png`; inspección visual de escritorio y móvil.
+Se mantiene pendiente aceptación del usuario en Excel/LibreOffice de escritorio
+y dispositivos físicos: reapertura automatizada no equivale a esa aceptación.
+
+Once mutaciones deliberadas detectadas y revertidas: matching por nombre, vacío
+como limpieza, cero ignorado, confirmación parcial, omisión del CAS, fórmula
+cacheada aceptada, nota sobrescrita, archivado permitido, omisión de permisos,
+identidad estructural ignorada y límite de entrada omitido. Se reforzó la aserción
+de operación explícita para cero; las pruebas fallan ante esa regresión.
+
+Cierre local EP-04C2: npm ci y npm run check aprobados; 626 pruebas (330 API,
+12 cargas ESM, 213 dominio y 71 web), 116 nuevas. Integración local: 29 casos,
+ocho nuevos. Cinco suites Chromium en cinco tamaños: 25 escenarios aprobados.
+Lint final sin advertencias nuevas, tipos/builds/formato/diff y revisión de secretos
+aprobados. No se ejecutó bootstrap ni se inició una API contra Atlas. Durante la
+reinstalación se detectó y detuvo un npm run dev preexistente que bloqueaba archivos;
+no se reinició ni se inspeccionó su configuración. Las pruebas usaron solo fixtures
+y MongoDB efímero local; no permiten certificar la actividad previa de ese servidor.

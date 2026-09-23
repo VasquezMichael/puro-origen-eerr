@@ -19,6 +19,7 @@ import type {
   StructureResponse,
 } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "../api";
+import { ImportFlow } from "./import-flow";
 import { CloneFlow } from "./clone-flow";
 import { MovementForm, type MovementSelection } from "./movement-form";
 import { DraftNavigationGuard } from "./draft-navigation-guard";
@@ -69,6 +70,8 @@ export function StructureWorkspace({ id }: { id: string }) {
     return () => clearTimeout(timer);
   }, [cloneNotice]);
   const [busy, setBusy] = useState(false);
+  const [importDirty, setImportDirty] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const sending = useRef(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [preview, setPreview] = useState<CategoryPreviewResponse | null>(null);
@@ -467,9 +470,9 @@ export function StructureWorkspace({ id }: { id: string }) {
       }
     >
       <DraftNavigationGuard
-        key={pending > 0 ? "dirty" : "clean"}
-        dirty={pending > 0}
-        busy={busy}
+        key={pending > 0 || importDirty ? "dirty" : "clean"}
+        dirty={pending > 0 || importDirty}
+        busy={busy || importBusy}
       />
       {!data || !context ? (
         <section>
@@ -529,6 +532,21 @@ export function StructureWorkspace({ id }: { id: string }) {
               />
             </div>
             <div className={styles.actions}>
+              {data.structure && (
+                <ImportFlow
+                  id={id}
+                  canEdit={canEdit}
+                  blocked={disabled || pending > 0}
+                  onDirty={setImportDirty}
+                  onBusy={setImportBusy}
+                  onImported={(result) => {
+                    dispatch({ type: "RELOAD", data: result.result });
+                    setStatus(
+                      `Importación completada: ${result.changedFields} campos en ${result.affectedItems} ítems. Notas conservadas.`,
+                    );
+                  }}
+                />
+              )}
               <button onClick={() => open("GENERAL")}>
                 {canEdit ? "Nota general" : "Ver nota general"}
                 {data.note ? " · con nota" : ""}
