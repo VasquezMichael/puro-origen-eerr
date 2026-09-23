@@ -1,3 +1,6 @@
+import { CloneController } from './clone.controller.js';
+import { CloneService } from './clone.service.js';
+import { ClonePreviewToken } from './clone-preview-token.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BranchesPersistenceModule } from '../branches/branches-persistence.module.js';
@@ -14,7 +17,14 @@ import { StructureRepository } from './structure.repository.js';
     BranchesPersistenceModule,
     MongooseModule.forFeature([{ name: Eerr.name, schema: EerrSchema }]),
   ],
-  controllers: [EerrController, StructureController],
-  providers: [EerrService, EerrClock, StructureService, StructureRepository],
+  controllers: [EerrController, StructureController, CloneController],
+  providers: [
+    EerrService,
+    EerrClock,
+    StructureService,
+    StructureRepository,
+    CloneService,
+    ClonePreviewToken,
+  ],
 })
 export class EerrModule {}

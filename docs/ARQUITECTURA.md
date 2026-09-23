@@ -224,3 +224,32 @@ Los EERR sin estructura heredan la plantilla al inicializarse.
 MovementForm reutiliza Modal y ActionMenu. No hay drag-and-drop. Los borradores del
 nodo/subárbol o estructurales bloquean el movimiento; los ajenos se conservan. Un 409
 invalida el preview, mantiene selección y requiere recarga y nueva revisión explícita.
+
+## EP-04C1: clonación
+
+EerrModule agrega CloneController, CloneService y ClonePreviewToken, reutilizando
+StructureRepository, EerrService, BranchesService y EerrClock. Sin importaciones de
+aplicaciones desde paquetes, ciclos ni nuevas dependencias. eerr-clone en dominio
+valida origen, compatibilidad y copia mediante lista explícita de campos permitidos.
+El mapeo por código estable genera nuevas instancias y aplica toda la plantilla destino.
+
+El preview no persiste metadata: HMAC-SHA256 con clave derivada y ámbito exclusivo de
+clonación a partir del secreto ya configurado; no introduce variable de entorno. El
+token no sirve para autenticación. Une actor, modo, extremos, revisiones y huella del
+snapshot/plantilla, vence con EerrClock y no contiene valores financieros. No agrega
+versiones: usa revision y version existentes; la huella verifica integridad de lectura.
+
+Confirmación: transacción snapshot, relectura, compatibilidad, bloqueo mensual compartido
+con inicialización/publicación y CAS de destino no preparado. Semilla de plantilla y
+snapshot son atómicos. Conserva createdAt/createdBy; updatedAt e initializedAt son de
+la nueva operación. Origen y otros EERR permanecen intactos. Las estructuras BSON se
+convierten usando storedStructure/publicStructure existentes; no se reconvierten valores
+del origen en su documento. El resultado copiado se valida pero nunca se reemplaza
+por el resultado de evaluar la expresión. Errores no dejan plantilla parcial.
+
+CloneFlow y CloneSummary reutilizan Modal, estilos locales y API con sesión. Solo se
+montan en EERR no preparado con autorización. Borradores pendientes bloquean el inicio;
+modo/origen sobreviven errores y 409, que retira preview y consentimiento adicional.
+El éxito actualiza el workspace y anuncia origen/modo durante quince segundos. Crear
+un contenedor navega a /eerr/[id] sin inicialización automática. No hay acceso a Atlas
+en pruebas: HTTP en memoria y replica set temporal loopback opcional.

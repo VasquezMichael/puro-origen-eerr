@@ -19,6 +19,7 @@ import type {
   StructureResponse,
 } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "../api";
+import { CloneFlow } from "./clone-flow";
 import { MovementForm, type MovementSelection } from "./movement-form";
 import { DraftNavigationGuard } from "./draft-navigation-guard";
 import { WorkspaceShell } from "../workspace-shell";
@@ -58,6 +59,15 @@ export function StructureWorkspace({ id }: { id: string }) {
   );
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const [cloneNotice, setCloneNotice] = useState("");
+  useEffect(() => {
+    if (!cloneNotice) return;
+    const timer = setTimeout(() => {
+      setStatus((current) => (current === cloneNotice ? "" : current));
+      setCloneNotice("");
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [cloneNotice]);
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
@@ -580,13 +590,19 @@ export function StructureWorkspace({ id }: { id: string }) {
                 comenzar.
               </p>
               {canEdit && (
-                <button
-                  className={styles.primary}
+                <CloneFlow
+                  id={id}
+                  data={data}
                   disabled={disabled}
-                  onClick={() => open("PREPARE")}
-                >
-                  Preparar estructura
-                </button>
+                  pending={pending > 0}
+                  onBase={() => open("PREPARE")}
+                  onReload={() => void reload()}
+                  onInitialized={(result, message) => {
+                    dispatch({ type: "RELOAD", data: result });
+                    setStatus(message);
+                    setCloneNotice(message);
+                  }}
+                />
               )}
             </section>
           ) : (

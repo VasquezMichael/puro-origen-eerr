@@ -814,3 +814,28 @@
 .movementId {
   overflow-wrap: anywhere;
 }
+
+.cloneConsent {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.cloneConsent input {
+  width: auto;
+  flex: 0 0 auto;
+  margin-top: 0.25rem;
+}
+
+.cloneSummary {
+  display: grid;
+  gap: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.cloneSummary h3,
+.cloneSummary h4 {
+  font-weight: 700;
+}
+.cloneSummary ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}

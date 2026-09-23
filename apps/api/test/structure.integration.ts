@@ -1,3 +1,6 @@
+import { ConfigService } from '@nestjs/config';
+import { CloneService } from '../src/eerr/clone.service.js';
+import { ClonePreviewToken } from '../src/eerr/clone-preview-token.js';
 import 'reflect-metadata';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
@@ -30,6 +33,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
   let model: Model<Eerr>;
   let repository: StructureRepository;
   let service: StructureService;
+  let clones: CloneService;
   let id: string;
   const viewer = {
     sub: '222222222222222222222222',
@@ -122,14 +126,26 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
     );
     const branches = {
       list: async () => [
-        { id: '123456789012345678901234' },
-        { id: 'abcdefabcdefabcdefabcdef' },
+        { id: '123456789012345678901234', name: 'Central', active: false },
+        { id: 'abcdefabcdefabcdefabcdef', name: 'Otra', active: false },
       ],
     } as unknown as BranchesService;
     service = new StructureService(
       repository,
       new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
       clock,
+    );
+    clones = new CloneService(
+      repository,
+      new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
+      branches,
+      clock,
+      new ClonePreviewToken(
+        new ConfigService({
+          JWT_SECRET: 'test-only-not-real-secret-0000000000000000',
+        }),
+        clock,
+      ),
     );
   });
   afterAll(async () => {
@@ -856,4 +872,196 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
     );
     expect(result.revision).toBe(current.revision + 1);
   });
+  async function cloneFixture() {
+    const source = await model.create({
+      branchId: '123456789012345678901234',
+      year: 2026,
+      month: 8,
+      createdBy: viewer.sub,
+    });
+    let current = await service.initialize(source._id, 0, viewer);
+    const preview = await service.preview(
+      source._id,
+      {
+        expectedRevision: current.revision,
+        operation: 'CREATE',
+        parentCode: ROOTS[0].code,
+        name: 'Ventas',
+      },
+      viewer,
+    );
+    current = await service.confirm(
+      source._id,
+      {
+        expectedRevision: current.revision,
+        previewId: preview.previewId,
+        confirm: true,
+      },
+      viewer,
+    );
+    const category = current.structure!.nodes.find(
+      (n) => n.kind === 'CATEGORY',
+    )!;
+    current = await service.createItem(
+      source._id,
+      {
+        expectedRevision: current.revision,
+        parentId: category.nodeId,
+        name: 'Digitales',
+      },
+      viewer,
+    );
+    const item = current.structure!.nodes.find((n) => n.kind === 'ITEM')!;
+    current = await service.amount(
+      source._id,
+      item.nodeId,
+      { expectedRevision: current.revision, state: 'CARGADO', input: '10+20' },
+      viewer,
+    );
+    return { sourceId: source._id, itemId: item.nodeId, current };
+  }
+  it.each(['ESTRUCTURA', 'ESTRUCTURA_Y_VALORES'] as const)(
+    'EP-04C1 %s inicializa BSON y plantilla sin tocar origen',
+    async (mode) => {
+      const { sourceId, current } = await cloneFixture();
+      const sourceBefore = JSON.stringify(
+          await model.findById(sourceId).lean(),
+        ),
+        destinationBefore = await model.findById(id).lean();
+      const p = await clones.preview(
+        id,
+        { sourceEerrId: sourceId, mode },
+        viewer,
+      );
+      expect(await repository.existingTemplate('2026-9')).toBeNull();
+      expect((await model.findById(id).lean())!.structure).toBeNull();
+      const result = await clones.confirm(
+        id,
+        { sourceEerrId: sourceId, mode, previewToken: p.previewToken! },
+        viewer,
+      );
+      const stored = await model.findById(id).lean(),
+        item = stored!.structure!.nodes.find((n) => n.kind === 'ITEM')!;
+      expect(result.revision).toBe(1);
+      expect(stored!.createdAt).toEqual(destinationBefore!.createdAt);
+      expect(stored!.updatedAt).toEqual(clock.now());
+      expect(stored!.structure!.initializedAt).toEqual(clock.now());
+      expect(stored!.structure!.initializedBy).toBe(viewer.sub);
+      expect(item.nodeId).not.toBe(
+        current.structure!.nodes.find((n) => n.kind === 'ITEM')!.nodeId,
+      );
+      expect(item.amount!.value?.toString() ?? null).toBe(
+        mode === 'ESTRUCTURA' ? null : '30.00',
+      );
+      if (mode === 'ESTRUCTURA_Y_VALORES')
+        expect(item.amount!.value!._bsontype).toBe('Decimal128');
+      expect(JSON.stringify(await model.findById(sourceId).lean())).toBe(
+        sourceBefore,
+      );
+      expect(
+        (await repository.existingTemplate('2026-9'))!.categories,
+      ).toHaveLength(1);
+    },
+  );
+  it('EP-04C1 fallo tras sembrar plantilla revierte toda la transacción', async () => {
+    const { sourceId } = await cloneFixture(),
+      p = await clones.preview(
+        id,
+        { sourceEerrId: sourceId, mode: 'ESTRUCTURA' },
+        viewer,
+      ),
+      before = JSON.stringify(await model.find().sort({ _id: 1 }).lean());
+    const original = repository.initializeClone.bind(repository);
+    const spy = vi
+      .spyOn(repository, 'initializeClone')
+      .mockImplementation(async (...args) => {
+        await original(...args);
+        throw new Error('Fallo después del snapshot');
+      });
+    try {
+      await expect(
+        clones.confirm(
+          id,
+          {
+            sourceEerrId: sourceId,
+            mode: 'ESTRUCTURA',
+            previewToken: p.previewToken!,
+          },
+          viewer,
+        ),
+      ).rejects.toThrow('Fallo después');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(JSON.stringify(await model.find().sort({ _id: 1 }).lean())).toBe(
+      before,
+    );
+    expect(await repository.existingTemplate('2026-9')).toBeNull();
+  });
+  it('EP-04C1 dos confirmaciones concurrentes solo inicializan una vez', async () => {
+    const { sourceId } = await cloneFixture(),
+      p = await clones.preview(
+        id,
+        { sourceEerrId: sourceId, mode: 'ESTRUCTURA' },
+        viewer,
+      );
+    const input = {
+      sourceEerrId: sourceId,
+      mode: 'ESTRUCTURA' as const,
+      previewToken: p.previewToken!,
+    };
+    const results = await Promise.allSettled([
+      clones.confirm(id, input, viewer),
+      clones.confirm(id, input, viewer),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(
+      (
+        results.find((r) => r.status === 'rejected') as PromiseRejectedResult
+      ).reason.getStatus(),
+    ).toBe(409);
+    expect((await model.findById(id).lean())!.revision).toBe(1);
+  });
+  it.each(['source', 'template', 'base'] as const)(
+    'EP-04C1 cambio de %s invalida preview sin sobrescritura',
+    async (kind) => {
+      const { sourceId, itemId, current } = await cloneFixture(),
+        p = await clones.preview(
+          id,
+          { sourceEerrId: sourceId, mode: 'ESTRUCTURA' },
+          viewer,
+        );
+      if (kind === 'source')
+        await service.amount(
+          sourceId,
+          itemId,
+          { expectedRevision: current.revision, state: 'CARGADO', input: '99' },
+          viewer,
+        );
+      if (kind === 'base') await service.initialize(id, 0, viewer);
+      if (kind === 'template')
+        await repository.transaction(async (session) => {
+          await repository.lockTemplate('2026-9', session);
+        });
+      const before = JSON.stringify(await model.find().sort({ _id: 1 }).lean()),
+        template = JSON.stringify(await repository.existingTemplate('2026-9'));
+      await expect(
+        clones.confirm(
+          id,
+          {
+            sourceEerrId: sourceId,
+            mode: 'ESTRUCTURA',
+            previewToken: p.previewToken!,
+          },
+          viewer,
+        ),
+      ).rejects.toMatchObject({ status: 409 });
+      expect(JSON.stringify(await model.find().sort({ _id: 1 }).lean())).toBe(
+        before,
+      );
+      expect(JSON.stringify(await repository.existingTemplate('2026-9'))).toBe(
+        template,
+      );
+    },
+  );
 });

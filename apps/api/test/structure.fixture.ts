@@ -74,6 +74,38 @@ export class MemoryStructureRepository {
         .sort((a, b) => a._id.localeCompare(b._id)),
     );
   }
+  async existingTemplate(key: string) {
+    return copy(this.state.templates[key] ?? null);
+  }
+  async cloneCandidates(branchIds: string[], year: number, month: number) {
+    return copy(
+      this.state.rows.filter(
+        (row) =>
+          branchIds.includes(row.branchId.toString()) &&
+          row.structure &&
+          row.year * 12 + row.month <= year * 12 + month,
+      ),
+    );
+  }
+  async initializeClone(
+    id: string,
+    structure: EerrStructure,
+    now: Date,
+    session?: unknown,
+  ) {
+    const row = this.state.rows.find((r) => r._id === id);
+    if (
+      !row ||
+      row.structure != null ||
+      row.note !== undefined ||
+      (row.revision ?? 0) !== 0 ||
+      row.loadStatus !== 'SIN_CARGAR'
+    )
+      throw new ConflictException('Destino no elegible');
+    const result = await this.write(id, 0, structure, session);
+    row.updatedAt = now;
+    return { ...result, updatedAt: now };
+  }
   async template(key: string) {
     return copy(
       this.state.templates[key] ?? {

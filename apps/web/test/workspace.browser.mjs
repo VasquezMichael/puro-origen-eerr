@@ -943,7 +943,7 @@ try {
     row.structure = null;
     await page.reload();
     await page
-      .getByRole("button", { name: "Preparar estructura", exact: true })
+      .getByRole("button", { name: "Usar estructura base", exact: true })
       .click();
     await dialog.getByRole("button", { name: "Confirmar preparación" }).click();
     await dialog.waitFor({ state: "hidden" });

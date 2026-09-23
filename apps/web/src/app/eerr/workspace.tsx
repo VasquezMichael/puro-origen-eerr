@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { WorkspaceShell } from './workspace-shell';
 import { useSession } from '../session-context';
 import shellStyles from './workspace.module.css';
@@ -38,6 +39,7 @@ export function EerrWorkspace() {
 }
 
 function ContextBrowser({ user, branches }: { user: User; branches: Branch[] }) {
+  const router = useRouter();
   const [perspective, setPerspective] = useState<'branch' | 'month'>('branch');
   const [branchId, setBranchId] = useState(branches[0]?.id ?? '');
   const [period, setPeriod] = useState(() => businessMonthAt(new Date()));
@@ -61,7 +63,7 @@ function ContextBrowser({ user, branches }: { user: User; branches: Branch[] }) 
       {perspective === 'branch' && selected && !selected.active && <p className="notice">Sucursal inactiva: podés consultar sus históricos. No admite nuevos EERR.</p>}
       {creation && <CreateForm key={creation.branch.id} initial={creation} onCancel={() => setCreation(null)} onCreated={(row) => {
         setSuccess(`Se creó ${periodName(row.year, row.month)} para ${creation.branch.name}.`);
-        setPeriod({ year: row.year, month: row.month }); setCreation(null); setRevision(revision + 1); setDetail(row.id);
+        setPeriod({ year: row.year, month: row.month }); setCreation(null); setRevision(revision + 1); setDetail(row.id); router.push(`/eerr/${row.id}`);
       }} />}
       {success && <p className="branch-success" role="status">{success}</p>}
       <div className="branches-toolbar"><span>{perspective === 'branch' ? 'Períodos de la sucursal' : periodName(period.year, period.month)}</span><button className="text-button" disabled={creation !== null} onClick={() => setRevision(revision + 1)}>Actualizar</button></div>

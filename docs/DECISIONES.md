@@ -332,3 +332,44 @@ no participan del orden activo y retienen padre/posición. Restaurar inserta en 
 produce error. Esta regla actualiza el comportamiento de restauración de EP-04UX.1.
 No hay migración ni normalización durante GET. Se difieren drag-and-drop, movimientos
 entre bloques, archivo de categorías, eliminación, auditoría y cálculos derivados.
+
+## EP-04C1: clonación controlada como inicialización
+
+- Solo sobre un EERR existente sin estructura persistida, notas ni modificaciones:
+  revision ausente/cero y loadStatus SIN_CARGAR. Una estructura parcial no está vacía.
+  Nunca reemplazar, fusionar, borrar ni crear períodos durante la clonación.
+- Modos ESTRUCTURA y ESTRUCTURA_Y_VALORES. Ambos copian solo ítems activos, códigos,
+  nombres locales y jerarquía compatible, con nodeId nuevos. Solo estructura deja
+  importes/expresiones/cantidades SIN_CARGAR. Con valores conserva exactamente resultado,
+  expresión original, cantidades y diferencia entre cero y SIN_CARGAR. Se verifica
+  consistencia de expresión/resultado sin sustituir el valor persistido por un recálculo.
+- No copiar notas, archivo, auditoría, actores/timestamps del origen ni cálculos.
+  Se preservan unidad y quantityEnabled como atributos estructurales existentes.
+- Decisión confirmada: la plantilla destino es autoritativa, incluidas categorías
+  adicionales, nombres y orden diferentes. Todas las categorías requeridas del origen
+  deben existir por código con el mismo parentesco/bloque. Sus lugares entre hermanos
+  se llenan según el orden destino; categorías adicionales se agregan después de esos
+  lugares. Los ítems preservan su orden relativo y se normalizan posiciones activas.
+- Sin registro de plantilla se permite sembrarla desde el snapshot origen, salvo que
+  ya existan estructuras inicializadas en el período (incoherencia, requiere revisión).
+  Una plantilla persistida vacía es autoritativa: no equivale a plantilla inexistente.
+  Nunca modificar otros EERR, ni reparar/publicar categorías implícitamente.
+- Decisión confirmada: conservar createdAt y createdBy del contenedor destino; registrar
+  initializedAt/initializedBy actuales y actualizar updatedAt con la operación. No
+  copiar revisiones del origen: primera inicialización incrementa revision de 0 a 1.
+- Origen accesible, inicializado, válido y no posterior al destino; nunca el mismo EERR.
+  Se admite mismo período de otra sucursal e históricos inactivos. La API ordena primero
+  períodos previos de la misma sucursal (más reciente primero), luego mismo período de
+  otra y finalmente restantes accesibles. Para valores se preselecciona misma sucursal.
+- Valores de otra sucursal exigen advertencia y confirmCrossBranchValues=true ligado al
+  preview concreto. No se exige para solo estructura o valores de la misma sucursal.
+- Preview estrictamente sin escrituras: token firmado de cinco minutos ligado a actor,
+  origen/destino, modo, revisiones existentes e integridad del contenido y plantilla.
+  Confirmar revalida todo bajo transacción y CAS. Doble envío/reintento no sobrescribe.
+  No se crea un sistema de versiones persistido adicional.
+- Administrador y Editor autorizado en destino; lectura autorizada de origen (puede ser
+  Lector allí). Lector lista fuentes consultables pero no inicializa. Permisos revalidados
+  por guard y servicios; ninguna preferencia visual amplía acceso.
+- Crear EERR sigue siendo una operación separada y redirige a elegir base o clonación.
+  Inicialización base conserva su contrato idempotente. Se difieren reemplazo, selección
+  parcial, notas/archivados, importación, cierre, auditoría completa y cálculos derivados.

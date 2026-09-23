@@ -299,3 +299,43 @@ Archivo normaliza posiciones activas; restauración inserta y desplaza hermanos 
 sin reescribir BSON financiero. Esto reemplaza únicamente la conservación absoluta de
 posiciones descrita en EP-04UX.1: el archivado conserva su posición de recuperación;
 los activos deben mantener posiciones únicas. Nombre/código siguen siendo únicos.
+
+## Clonación EP-04C1
+
+Prefijo `/eerr/:id`, UUID v4:
+
+| Método y ruta | Cuerpo | Respuesta |
+| --- | --- | --- |
+| GET /clone-sources | Sin cuerpo | CloneSource[] ordenado por API |
+| POST /clone/preview | `{ sourceEerrId, mode }` | ClonePreviewResponse |
+| POST /clone/confirm | `{ sourceEerrId, mode, previewToken, confirmCrossBranchValues? }` | StructureResponse |
+
+mode: ESTRUCTURA o ESTRUCTURA_Y_VALORES. DTO estricto rechaza campos extra, UUID inválido,
+modo desconocido, token vacío/excesivo y consentimiento no booleano. Nunca acepta nodos,
+importes calculados, identidades nuevas, timestamps ni revisiones arbitrarias del cliente.
+Token válido cinco minutos y ligado a actor/origen/destino/modo/revisiones/contenido.
+
+CloneSource: id, branchId, branchName, year/month, loadStatus, initialized=true, categories,
+items, loadedAmounts, sameBranch/samePeriod. Solo accesibles, válidos, preparados, no
+posteriores y distintos del destino. GET nunca escribe; Lector puede listar consultables.
+
+Preview: source/destination (contextos), mode, counts (blocks/categories/items,
+loadedAmounts/loadedQuantities, zeroAmounts/zeroQuantities, unloadedAmounts/unloadedQuantities),
+destinationCategories, compatible, issues, seedTemplate, crossBranchWarning, included,
+excluded, revisions (source/destination/template), previewToken nullable y expiresAt.
+Incompatibilidad devuelve preview sin token y confirmación bloqueada. Fuente inconsistente
+no se corrige automáticamente. Plantilla existente puede contener categorías adicionales
+u otro orden; conserva nombres y parentescos autoritativos. Ausencia de categoría requerida
+o cambio de parentesco/bloque impide clonar. Solo ausencia real de plantilla permite semilla.
+
+Confirmar exige permiso de edición destino y lectura origen, revalida elegibilidad,
+revisiones y plantilla dentro de transacción, y confirma valores entre sucursales solo
+con true explícito. CAS exige destino sin estructura/nota/revisión previa. Conserva
+createdAt/createdBy del contenedor, actualiza updatedAt y metadata de inicialización;
+revision pasa a 1. No modifica origen ni otros EERR y no crea período ni sucursal.
+
+400: DTO, selección o consentimiento inválidos; 401: sesión; 403: sin edición; 404:
+EERR inaccesible/inexistente; 409: destino no elegible, token vencido/modificado, revisión
+o plantilla cambiada. Si un token válido pierde acceso o su origen deja de existir,
+la confirmación también devuelve 409 sin revelar información adicional. Reintentar
+tras éxito devuelve conflicto sin sobrescribir.

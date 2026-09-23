@@ -233,3 +233,31 @@ Archivados no se mueven ni cuentan en el orden activo. Restaurar recupera su pad
 inserta en su posición previa, acotada al rango actual, desplazando hermanos activos.
 Si falta el padre se rechaza; nunca se elige otro automáticamente. Los permisos y
 alcance histórico existentes se mantienen; no se modifican otros períodos.
+
+## EP-04C1: elegir cómo inicializar
+
+Después de crear un EERR se abre el espacio de carga con tres alternativas: Usar
+estructura base, Clonar estructura y Clonar estructura y valores. Abandonar este paso
+conserva el contenedor vacío. Un EERR preparado no muestra clonación; uno con notas u
+otras ediciones no admite clonar aunque no tenga estructura.
+
+El selector solo ofrece EERR reales, accesibles e inicializados hasta el período destino,
+priorizando la misma sucursal y períodos recientes. Muestra sucursal/período, relación
+con destino, estado, categorías, ítems y cargados; el UUID no es protagonista.
+
+El preview separado informa ambos contextos, modo, bloques, categorías e ítems, importes
+y cantidades cargados, ceros, SIN_CARGAR, inclusiones/exclusiones, plantilla y revisiones.
+No escribe. Conflictos de plantilla se explican y bloquean confirmar. La plantilla
+existente conserva todos sus nombres/categorías/orden; las requeridas se vinculan por
+código y mismo parentesco/bloque. No se publica ni fusiona automáticamente.
+
+Solo estructura deja valores sin cargar. Con valores conserva importes, expresiones y
+cantidades exactos. Ningún modo copia notas, archivados, auditoría o cálculos. Valores
+desde otra sucursal muestran advertencia destacada con ambos nombres y checkbox de
+confirmación adicional. Cambiar origen/modo o generar nuevo preview retira consentimiento.
+
+Confirmar protege contra doble envío y cambios concurrentes. Un 409 conserva modo/origen
+y requiere preview nuevo; permite actualizar destino. Éxito abre la grilla y muestra
+origen/modo temporalmente. Las acciones admiten teclado, foco, Escape y tablet. No hay
+sobrescritura ni creación de períodos dentro de la confirmación. Permisos y corrección
+de históricos inactivos mantienen sus reglas anteriores.

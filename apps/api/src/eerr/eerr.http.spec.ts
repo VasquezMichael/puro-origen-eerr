@@ -39,7 +39,7 @@ const eerrModel = {
         models: { Branch: branchModel, User: userModel, Eerr: eerrModel },
       },
     },
-    { provide: ConfigService, useValue: { get: () => undefined } },
+    { provide: ConfigService, useValue: new ConfigService({JWT_SECRET: "test-only-not-real-secret-0000000000000000"}) },
   ],
   exports: [getConnectionToken(), ConfigService],
 })
