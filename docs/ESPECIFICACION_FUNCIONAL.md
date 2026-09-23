@@ -284,3 +284,23 @@ No se admite confirmación duplicada, aplicación parcial ni sobreescritura auto
 Los borradores manuales bloquean iniciar importación. Escape/cierre con archivo
 pendiente pide confirmación; navegación protegida por el guard existente. Lector
 solo descarga; Admin/Editor autorizado puede importar históricos inactivos.
+
+## Entrega EP-04C3: completar pendientes
+
+El menú general del EERR preparado ofrece “Completar pendientes con cero” a
+Administrador/Editor asignado. El modal exige generar y revisar un preview antes
+de “Completar con cero”. Informa sucursal/período, total activo, cargados, pendientes,
+progreso antes/después y listado con bloque/ruta/ítem. Solo incluye los que cambiarán.
+
+Carga 0,00 ARS en todos los importes activos SIN_CARGAR, sin crear expresión. No
+modifica cantidades, notas, valores ya cargados, archivados ni estructura. No cierra
+ni bloquea el período; las ediciones individuales siguen disponibles. Sin pendientes
+informa que no hay cambios y deshabilita confirmar, sin escritura ni nueva revisión.
+
+Borradores locales requieren guardarlos o descartarlos desde cada control, conservando
+sus entradas al volver del modal. La confirmación usa la revisión del preview; ante
+cualquier cambio concurrente devuelve 409 y mantiene el resumen para actualizarlo.
+Envíos simultáneos/repetidos no duplican efectos. Escape/cancelar no escribe y queda
+bloqueado durante una solicitud. Cantidades pendientes no impiden el 100 % monetario.
+
+EP-04C2 fue validado manualmente por el usuario antes de comenzar EP-04C3.

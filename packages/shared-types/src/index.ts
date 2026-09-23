@@ -117,3 +117,18 @@ export type ImportConfirmResponse = {
   affectedItems: number;
   changedFields: number;
 };
+
+export type CompletePendingPreviewResponse = Omit<
+  ReturnType<typeof import("@puro-origen/domain").completePendingPlan>,
+  "changes"
+> & {
+  destination: CloneContext;
+  revision: number;
+  previewToken: string | null;
+  expiresAt: string;
+};
+export type CompletePendingConfirmRequest = { previewToken: string };
+export type CompletePendingConfirmResponse = {
+  result: StructureResponse;
+  affectedItems: number;
+};

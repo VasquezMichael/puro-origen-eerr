@@ -306,3 +306,42 @@ aprobados. No se ejecutó bootstrap ni se inició una API contra Atlas. Durante 
 reinstalación se detectó y detuvo un npm run dev preexistente que bloqueaba archivos;
 no se reinició ni se inspeccionó su configuración. Las pruebas usaron solo fixtures
 y MongoDB efímero local; no permiten certificar la actividad previa de ese servidor.
+
+## EP-04C3 — completar importes pendientes
+
+Dominio: selección íntegra por estado activo, exclusión de cargados/ceros/archivados,
+rutas/orden, plan puro, 0.00 sin expresión, cantidades ausentes/intactas, no-op y
+progreso. HTTP real aislado: guard/DTO, roles e históricos, contexto, no escritura
+en preview, preservación de campos, revisión, tokens ligados/expirados/de otra
+operación, doble confirmación, rollback y bloqueo de selecciones cliente.
+
+Integración MongoDB efímera: lote Decimal128, preservación completa del BSON ajeno
+a la operación, rollback después de escritura, CAS y carrera real, cambios de
+importe/movimiento/archivo, no-op, edición posterior con expresión y vuelta a
+SIN_CARGAR. Reutiliza el runner local con limpieza de procesos/directorio. No usa
+AppModule, .env, bootstrap, Atlas ni datos reales. Esquemas reales se construyen
+durante Vitest; dos nuevas cargas ESM de servicio/controlador compilados.
+
+Web SSR: advertencias, resumen/progreso/lista, bloqueo por borradores, conflicto,
+envío/no-op/token ausente. `test/complete-pending.browser.mjs` recorre en Chromium
+1440×900, 1280×720, 1024×768, 768×1024 y 390×844 con API interceptada: borrador
+conservado, preview/409/nuevo preview, cancelación, envío único, no-op, grilla/progreso,
+cantidades, permisos, foco, Escape y geometría. Requiere PLAYWRIGHT_MODULE,
+BROWSER_BINARY y web compilada aislada en 127.0.0.1:3100, sin API. Capturas sintéticas
+en TEMP ep04c3-<ancho>-<escena>.png. Queda aceptación manual en dispositivos finales.
+
+Once mutaciones detectadas y restauradas: incluir archivados, cambiar cantidades,
+sobrescribir expresiones existentes, inventar input "0", omitir CAS, aplicar lote
+parcial, escribir no-op, permitir Lector, introducir cierre persistido, borrar
+borradores al recargar y alterar progreso. Fallaron pruebas de comportamiento;
+la de cierre agregó temporalmente un campo al esquema y al update para comprobar
+que la preservación completa del documento detecta esa ampliación indebida.
+
+Cierre local EP-04C3: npm run check aprobado con 675 pruebas (360 API, 14 cargas
+ESM, 222 dominio y 79 web), 49 nuevas. Integración MongoDB efímera: 37 aprobadas,
+ocho nuevas. Regresión Chromium de completar pendientes, carga manual e importación:
+15 escenarios aprobados en los cinco tamaños; capturas de escritorio y móvil revisadas.
+Las once mutaciones fueron restauradas antes del check y la integración finales.
+Tipos, lint, compilación, diff y revisión de secretos aprobados; sin dependencias nuevas.
+.env sigue ignorado y no se leyó. No se ejecutó bootstrap, API contra Atlas ni
+operaciones sobre administrador/datos reales. Permanece la aceptación visual manual.

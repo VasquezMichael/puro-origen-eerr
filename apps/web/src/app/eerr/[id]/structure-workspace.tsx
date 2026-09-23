@@ -19,6 +19,7 @@ import type {
   StructureResponse,
 } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "../api";
+import { CompletePendingFlow } from "./complete-pending-flow";
 import { ImportFlow } from "./import-flow";
 import { CloneFlow } from "./clone-flow";
 import { MovementForm, type MovementSelection } from "./movement-form";
@@ -70,6 +71,8 @@ export function StructureWorkspace({ id }: { id: string }) {
     return () => clearTimeout(timer);
   }, [cloneNotice]);
   const [busy, setBusy] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [completeBusy, setCompleteBusy] = useState(false);
   const [importDirty, setImportDirty] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
   const sending = useRef(false);
@@ -470,9 +473,9 @@ export function StructureWorkspace({ id }: { id: string }) {
       }
     >
       <DraftNavigationGuard
-        key={pending > 0 || importDirty ? "dirty" : "clean"}
-        dirty={pending > 0 || importDirty}
-        busy={busy || importBusy}
+        key={pending > 0 || importDirty || completeOpen ? "dirty" : "clean"}
+        dirty={pending > 0 || importDirty || completeOpen}
+        busy={busy || importBusy || completeBusy}
       />
       {!data || !context ? (
         <section>
@@ -557,6 +560,10 @@ export function StructureWorkspace({ id }: { id: string }) {
                   disabled={disabled}
                   actions={[
                     {
+                      label: "Completar pendientes con cero",
+                      run: () => setCompleteOpen(true),
+                    },
+                    {
                       label: "Agregar categoría global",
                       run: () =>
                         open(
@@ -587,6 +594,21 @@ export function StructureWorkspace({ id }: { id: string }) {
               )}
             </div>
           </div>
+          {completeOpen && canEdit && (
+            <CompletePendingFlow
+              id={id}
+              pending={pending > 0 || importDirty}
+              blocked={disabled}
+              onBusy={setCompleteBusy}
+              onClose={() => setCompleteOpen(false)}
+              onCompleted={(result) => {
+                dispatch({ type: "RELOAD", data: result.result });
+                setStatus(
+                  `Se completaron ${result.affectedItems} importes con cero. Cantidades y notas conservadas; el período sigue editable.`,
+                );
+              }}
+            />
+          )}
           {!overlay && conflictNotice}
           {error && !conflict && !overlay && (
             <p className={styles.error} role="alert">

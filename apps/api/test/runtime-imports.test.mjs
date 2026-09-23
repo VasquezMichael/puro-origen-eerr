@@ -5,6 +5,8 @@ import { test } from 'node:test';
 // npm test compila primero con Nest. Node carga ESM real, sin transformar ni
 // simular Mongoose. No se importa AppModule ni se instancian conexiones.
 for (const [modulePath, exportName] of [
+  ['eerr/complete-pending.service.js', 'CompletePendingService'],
+  ['eerr/complete-pending.controller.js', 'CompletePendingController'],
   ['eerr/import/import.service.js', 'ImportService'],
   ['eerr/import/import.controller.js', 'ImportController'],
   ['eerr/import/import-token.js', 'ImportToken'],

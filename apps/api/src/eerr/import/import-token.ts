@@ -18,6 +18,16 @@ export type PreviewTicket = {
   planDigest: string;
   expires: number;
 };
+export type CompletePendingTicket = {
+  kind: 'complete-pending';
+  id: string;
+  actor: string;
+  revision: number;
+  fingerprint: string;
+  planDigest: string;
+  expires: number;
+};
+type Ticket = TemplateTicket | PreviewTicket | CompletePendingTicket;
 export const IMPORT_PREVIEW_MS = 300000;
 export const importConflict = () =>
   new ConflictException(
@@ -37,14 +47,11 @@ export class ImportToken {
       .update('puro-origen:eerr-import:v1')
       .digest();
   }
-  sign(ticket: TemplateTicket | PreviewTicket) {
+  sign(ticket: Ticket) {
     const payload = Buffer.from(JSON.stringify(ticket)).toString('base64url');
     return payload + '.' + this.mac(payload).toString('base64url');
   }
-  verify<T extends TemplateTicket | PreviewTicket>(
-    token: string,
-    kind: T['kind'],
-  ): T {
+  verify<T extends Ticket>(token: string, kind: T['kind']): T {
     try {
       const [payload, signature, ...extra] = token.split('.');
       if (!payload || !signature || extra.length || token.length > 4096)
@@ -61,7 +68,7 @@ export class ImportToken {
       ) as T;
       if (
         ticket.kind !== kind ||
-        (ticket.kind === 'preview' &&
+        (ticket.kind !== 'template' &&
           (!Number.isFinite(ticket.expires) ||
             ticket.expires <= this.clock.now().getTime()))
       )
