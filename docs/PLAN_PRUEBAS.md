@@ -225,3 +225,47 @@ en dominio y API, incluir archivados en hermanos activos, perder lugares de cate
 restaurar siempre al final y omitir revisiones globales. Capturas y logs sintéticos
 permanecen en el directorio temporal local; no contienen datos reales. La validación
 con usuarios y dispositivos físicos permanece como comprobación manual posterior.
+
+## EP-04C1
+
+Dominio eerr-clone: identidades nuevas/códigos estables, mapeo de parentesco, valores
+positivos/cero/SIN_CARGAR, expresiones consistentes y legado sin expresión, cantidades,
+exclusión de notas/archivo/auditoría, independencia, semilla y plantilla autoritativa
+con categorías adicionales/nombres/orden distintos; incompatibilidades de códigos,
+parentesco, ciclos y posiciones. Normaliza activos tras excluir archivados.
+
+HTTP aislado con guard real: listado ordenado y filtrado, ambos modos, ausencia de
+escrituras en preview, destinos parciales/editados, permisos, históricos inactivos,
+consentimiento entre sucursales, tokens ligados/vencidos, cambios de origen/destino/
+plantilla, doble confirmación y rollback. Token usa clave ficticia y reloj fijo. Se
+mantienen construcción real de esquemas y smoke de módulos ESM compilados por Nest.
+
+Integración opcional `npm run test:integration:structure --workspace=api`: replica set
+MongoDB efímero en loopback, sin URI externa. Clonación en ambos modos, Decimal128,
+createdAt preservado/updatedAt nuevo, origen intacto, rollback después de plantilla y
+snapshot, dos confirmaciones, origen cambiado, plantilla cambiada e inicialización
+base competidora. No importa AppModule, no lee .env ni ejecuta bootstrap.
+
+Web unitario: tres opciones y elegibilidad, preview/alcance/exclusiones, consentimiento,
+bloqueo por incompatibilidad/carga y borradores. Smoke `clone.browser.mjs` en Chromium
+real con API interceptada: creación separada y navegación a inicialización, selección
+preferente, errores, incompatibilidad, advertencia, checkbox, 409, nuevo preview,
+envío único, grilla final, permisos, foco y geometría. Tamaños: 1440×900, 1280×720,
+1024×768, 768×1024, 390×844. Requiere PLAYWRIGHT_MODULE, BROWSER_BINARY y web aislada
+en 127.0.0.1:3100, sin API real. Capturas sintéticas en TEMP: ep04c1-<ancho>-<escena>.png.
+Se repiten workspace, movement y navigation para regresión de funcionalidades previas.
+La verificación con fixtures no reemplaza aceptación del usuario en dispositivos físicos.
+
+Validación EP-04C1: cuatro smoke de Chromium aprobados en los cinco tamaños (20
+escenarios), con inspección de capturas de selección, preview, incompatibilidad,
+error y 409. Se corrigió el retorno de foco al cerrar la clonación. Nueve mutaciones
+detectadas por aserciones y revertidas: copiar archivados, copiar valores en modo
+estructura, reutilizar nodeId, aceptar expresión inconsistente, ignorar parentesco
+de plantilla, omitir consentimiento entre sucursales, ignorar actor del token,
+permitir clonación sin Editor y habilitar confirmación de preview incompatible.
+Los logs y las capturas sintéticas quedan en TEMP; no se versionan datos reales.
+
+Cierre local: npm run check aprobó 510 pruebas (265 API, 9 cargas ESM, 174 dominio,
+62 web), con 79 casos nuevos; además 21 integraciones MongoDB locales (7 nuevas).
+Tipos, lint y builds aprobados; git diff --check y revisión de secretos sin hallazgos.
+No se usaron .env real, Atlas ni bootstrap y no se agregaron dependencias.

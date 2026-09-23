@@ -56,3 +56,45 @@ export type CategoryMovePreviewResponse = {
   warning: string;
   noOp: boolean;
 };
+
+export type CloneMode = import("@puro-origen/domain").CloneMode;
+export type CloneCounts = ReturnType<
+  typeof import("@puro-origen/domain").cloneSourceCounts
+>;
+export type CloneContext = {
+  id: string;
+  branchId: string;
+  branchName: string;
+  year: number;
+  month: number;
+};
+export type CloneSource = CloneContext & {
+  loadStatus: string;
+  initialized: true;
+  categories: number;
+  items: number;
+  loadedAmounts: number;
+  sameBranch: boolean;
+  samePeriod: boolean;
+};
+export type ClonePreviewRequest = { sourceEerrId: string; mode: CloneMode };
+export type CloneConfirmRequest = ClonePreviewRequest & {
+  previewToken: string;
+  confirmCrossBranchValues?: boolean;
+};
+export type ClonePreviewResponse = {
+  source: CloneContext;
+  destination: CloneContext;
+  mode: CloneMode;
+  counts: CloneCounts;
+  destinationCategories: number;
+  compatible: boolean;
+  issues: string[];
+  seedTemplate: boolean;
+  crossBranchWarning: string | null;
+  included: string[];
+  excluded: string[];
+  revisions: { source: number; destination: number; template: number | null };
+  previewToken: string | null;
+  expiresAt: string;
+};

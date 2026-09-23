@@ -11,7 +11,11 @@ import {
   type EerrStructure,
   type StructureNode,
 } from '@puro-origen/domain';
-import { Eerr, type EerrDocument } from './schemas/eerr.schema.js';
+import {
+  Eerr,
+  EerrLoadStatus,
+  type EerrDocument,
+} from './schemas/eerr.schema.js';
 import {
   ConceptSchema,
   PreviewSchema,
@@ -89,6 +93,62 @@ export class StructureRepository {
         'El período supera el límite de publicación coordinada; requiere revisión técnica',
       );
     return rows;
+  }
+  existingTemplate(key: string, session?: ClientSession) {
+    return this.templates()
+      .findById(key)
+      .session(session ?? null)
+      .lean()
+      .exec();
+  }
+  cloneCandidates(branchIds: string[], year: number, month: number) {
+    return this.eerrs
+      .find({
+        branchId: { $in: branchIds },
+        structure: { $ne: null },
+        $or: [{ year: { $lt: year } }, { year, month: { $lte: month } }],
+      })
+      .sort({ year: -1, month: -1, _id: 1 })
+      .lean()
+      .exec();
+  }
+  async initializeClone(
+    id: string,
+    structure: EerrStructure,
+    now: Date,
+    session: ClientSession,
+  ) {
+    const row = await this.eerrs
+      .findOneAndUpdate(
+        {
+          _id: id,
+          ...revisionFilter(0),
+          structure: null,
+          note: { $exists: false },
+          loadStatus: EerrLoadStatus.SIN_CARGAR,
+        },
+        {
+          $set: {
+            structure: storedStructure(structure),
+            loadStatus: loadProgress(structure.nodes).status,
+            updatedAt: now,
+          },
+          $inc: { revision: 1 },
+        },
+        {
+          returnDocument: 'after',
+          runValidators: true,
+          timestamps: false,
+          session,
+        },
+      )
+      .lean()
+      .exec();
+    if (!row)
+      throw new ConflictException(
+        'El destino cambió; no se sobrescribió ningún dato',
+      );
+    return row;
   }
   async template(key: string, session?: ClientSession) {
     return (
