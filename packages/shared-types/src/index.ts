@@ -98,3 +98,22 @@ export type ClonePreviewResponse = {
   previewToken: string | null;
   expiresAt: string;
 };
+
+export type ImportPreviewResponse = Omit<
+  ReturnType<typeof import("@puro-origen/domain").importPlan>,
+  "changes"
+> & {
+  destination: CloneContext;
+  fileName: string;
+  format: "csv" | "xlsx";
+  warnings: string[];
+  revision: number;
+  structuralRevision: number;
+  previewToken: string | null;
+  expiresAt: string;
+};
+export type ImportConfirmResponse = {
+  result: StructureResponse;
+  affectedItems: number;
+  changedFields: number;
+};

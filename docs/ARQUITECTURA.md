@@ -253,3 +253,36 @@ modo/origen sobreviven errores y 409, que retira preview y consentimiento adicio
 El éxito actualiza el workspace y anuncia origen/modo durante quince segundos. Crear
 un contenedor navega a /eerr/[id] sin inicialización automática. No hay acceso a Atlas
 en pruebas: HTTP en memoria y replica set temporal loopback opcional.
+
+## Importación EP-04C2
+
+`domain/eerr-import` centraliza límites, identidad compatible y plan puro de cambios.
+La API adapta CSV/XLSX a filas; `ImportService` valida acceso y firma previews con
+HMAC derivado del secreto existente (sin nueva variable de entorno). Se reenvía el
+archivo al confirmar: no se persiste archivo ni preview, no hay temporales ni logs
+del contenido. `StructureRepository.writeImport` aplica un único update de campos
+indexados con CAS dentro de transacción, Decimal128, progreso y revision+1; conserva
+notas, estructura, creación e inicialización. La web presenta/descarga y nunca
+reemplaza la autoridad de la API. `ImportFlow` integra el guard de borradores.
+
+Límites: 2 MiB de entrada, 12 MiB expandidos, 64 entradas ZIP, dos hojas, 1000 filas,
+2048 caracteres por celda y 2000 cambios. Preflight con yauzl 3.4.0 (MIT) limita
+expansión real/declarada; saxes 6.0.0 (ISC) rechaza DTD, fórmulas, coordenadas
+esparsas excesivas y contenido activo. JSZip 3.10.1 (MIT/GPL-3.0-or-later, opción MIT)
+reempaca solo partes ya validadas antes de cargar la biblioteca, evitando diferencias
+entre parsers ZIP. Sin parser ZIP/XML propio ni extracción al disco.
+
+Biblioteca XLSX: @protobi/exceljs 4.4.0-protobi.10 (MIT), fork mantenido de ExcelJS;
+se evaluaron mantenimiento, licencia, auditoría npm, escritura/lectura y compatibilidad
+ESM con Node 24. UUID se fija a 11.1.1 mediante override limitado a ese paquete
+para resolver GHSA-w5hq-g745-h8pq. Platform-express sube a 12.1.0 para Multer 2.4.0
+corregido; no se actualiza indiscriminadamente el árbol. Referencias:
+https://github.com/exceljs/exceljs/discussions/3008 y https://github.com/protobi/exceljs.
+Auditoría de producción: cero vulnerabilidades. Quedan cinco avisos preexistentes
+en herramientas de desarrollo del árbol @nestjs/mau, fuera de esta importación.
+
+CSV escapa delimitadores/comillas y neutraliza inyección en nombres/rutas. XLSX
+usa celdas de entrada texto; números nativos se convierten a decimal sin depender
+del locale. Se rechazan fórmulas aun con caché, macros, enlaces externos y partes
+no admitidas. Un libro con objetos, gráficos u otros componentes adicionales debe
+volcarse sobre la plantilla; no es un importador de planillas arbitrarias.

@@ -4,6 +4,7 @@ import { mongo, Types } from 'mongoose';
 import {
   loadProgress,
   type EerrStructure,
+  type ImportChange,
   type StructureNode,
 } from '@puro-origen/domain';
 import {
@@ -105,6 +106,26 @@ export class MemoryStructureRepository {
     const result = await this.write(id, 0, structure, session);
     row.updatedAt = now;
     return { ...result, updatedAt: now };
+  }
+  async writeImport(
+    id: string,
+    revision: number,
+    structure: EerrStructure,
+    changes: ImportChange[],
+    now: Date,
+    session?: unknown,
+  ) {
+    const updated = structuredClone(structure);
+    for (const change of changes) {
+      const node = updated.nodes.find(
+        (n) => n.code === change.code && n.nodeId === change.nodeId,
+      )!;
+      if (change.amount) node.amount = change.amount;
+      if (change.quantity) node.quantity = change.quantity;
+    }
+    const row = await this.write(id, revision, updated, session);
+    this.state.rows.find((r) => r._id === id)!.updatedAt = now;
+    return { ...row, updatedAt: now };
   }
   async template(key: string) {
     return copy(

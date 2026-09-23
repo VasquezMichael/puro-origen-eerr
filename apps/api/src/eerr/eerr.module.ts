@@ -1,3 +1,6 @@
+import { ImportController } from './import/import.controller.js';
+import { ImportService } from './import/import.service.js';
+import { ImportToken } from './import/import-token.js';
 import { CloneController } from './clone.controller.js';
 import { CloneService } from './clone.service.js';
 import { ClonePreviewToken } from './clone-preview-token.js';
@@ -17,8 +20,15 @@ import { StructureRepository } from './structure.repository.js';
     BranchesPersistenceModule,
     MongooseModule.forFeature([{ name: Eerr.name, schema: EerrSchema }]),
   ],
-  controllers: [EerrController, StructureController, CloneController],
+  controllers: [
+    ImportController,
+    EerrController,
+    StructureController,
+    CloneController,
+  ],
   providers: [
+    ImportService,
+    ImportToken,
     EerrService,
     EerrClock,
     StructureService,

@@ -1,3 +1,7 @@
+import { ImportService } from '../src/eerr/import/import.service.js';
+import { ImportToken } from '../src/eerr/import/import-token.js';
+import { readCsv, csvEscape } from '../src/eerr/import/csv.js';
+import { importPlan } from '@puro-origen/domain';
 import { ConfigService } from '@nestjs/config';
 import { CloneService } from '../src/eerr/clone.service.js';
 import { ClonePreviewToken } from '../src/eerr/clone-preview-token.js';
@@ -34,6 +38,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
   let repository: StructureRepository;
   let service: StructureService;
   let clones: CloneService;
+  let imports: ImportService;
   let id: string;
   const viewer = {
     sub: '222222222222222222222222',
@@ -134,6 +139,18 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       repository,
       new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
       clock,
+    );
+    imports = new ImportService(
+      repository,
+      new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
+      branches,
+      clock,
+      new ImportToken(
+        new ConfigService({
+          JWT_SECRET: 'test-only-not-real-secret-0000000000000000',
+        }),
+        clock,
+      ),
     );
     clones = new CloneService(
       repository,
@@ -1064,4 +1081,214 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       );
     },
   );
+  async function importFixture() {
+    let current = await service.initialize(id, 0, viewer);
+    const parentId = current.structure!.nodes[0].nodeId;
+    for (const name of ['Primero', 'Segundo'])
+      current = await service.createItem(
+        id,
+        { expectedRevision: current.revision, parentId, name },
+        viewer,
+      );
+    const items = current.structure!.nodes.filter((n) => n.kind === 'ITEM');
+    current = await service.amount(
+      id,
+      items[0].nodeId,
+      { expectedRevision: current.revision, state: 'CARGADO', input: '5+5' },
+      viewer,
+    );
+    current = await service.itemNote(
+      id,
+      items[0].nodeId,
+      { expectedRevision: current.revision, note: 'Nota conservada' },
+      viewer,
+    );
+    current = await service.periodNote(
+      id,
+      { expectedRevision: current.revision, note: 'Nota general conservada' },
+      viewer,
+    );
+    const grid = readCsv(await imports.template(id, 'csv', viewer));
+    grid[1][5] = '12,345';
+    grid[1][6] = '0';
+    grid[2][5] = '0';
+    grid[2][6] = '3';
+    const file = {
+      originalname: 'carga.csv',
+      mimetype: 'text/csv',
+      buffer: Buffer.from(
+        '\uFEFF' + grid.map((r) => r.map(csvEscape).join(';')).join('\r\n'),
+      ),
+    };
+    return { current, items, file };
+  }
+  it('EP-04C2 importa varias filas atómicamente en Decimal128 preservando notas y estructura', async () => {
+    const { file, current } = await importFixture(),
+      before = await model.findById(id).lean(),
+      p = await imports.preview(id, file, viewer);
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(
+      JSON.stringify(before),
+    );
+    const r = await imports.confirm(id, file, p.previewToken!, viewer),
+      stored = await model.findById(id).lean();
+    expect(r.changedFields).toBe(4);
+    expect(r.result.revision).toBe(current.revision + 1);
+    expect(r.result.progress.status).toBe('CARGADO');
+    expect(r.result.note).toBe('Nota general conservada');
+    const items = stored!.structure!.nodes.filter((n) => n.kind === 'ITEM');
+    expect(items[0].amount!.value!._bsontype).toBe('Decimal128');
+    expect(items[0].amount!.value!.toString()).toBe('12.35');
+    expect(items[1].amount!.value!.toString()).toBe('0.00');
+    expect(items[0].note).toBe('Nota conservada');
+    expect(stored!.createdAt).toEqual(before!.createdAt);
+    expect(stored!.createdBy).toEqual(before!.createdBy);
+    expect(stored!.updatedAt).toEqual(clock.now());
+    expect(stored!.structure!.initializedAt).toEqual(
+      before!.structure!.initializedAt,
+    );
+    expect(
+      stored!.structure!.nodes.map((n) => [
+        n.nodeId,
+        n.code,
+        n.parentId,
+        n.position,
+        n.name,
+      ]),
+    ).toEqual(
+      before!.structure!.nodes.map((n) => [
+        n.nodeId,
+        n.code,
+        n.parentId,
+        n.position,
+        n.name,
+      ]),
+    );
+  });
+  it('EP-04C2 rollback después de escritura no deja ninguna fila parcial', async () => {
+    const { file } = await importFixture(),
+      p = await imports.preview(id, file, viewer),
+      before = JSON.stringify(await model.findById(id).lean());
+    const original = repository.writeImport.bind(repository),
+      spy = vi
+        .spyOn(repository, 'writeImport')
+        .mockImplementation(async (...args) => {
+          await original(...args);
+          throw new Error('Fallo tras importar');
+        });
+    try {
+      await expect(
+        imports.confirm(id, file, p.previewToken!, viewer),
+      ).rejects.toThrow('Fallo tras importar');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+  });
+  it('EP-04C2 dos importaciones concurrentes y reintento solo aplican una', async () => {
+    const { file, current } = await importFixture(),
+      a = await imports.preview(id, file, viewer),
+      b = await imports.preview(id, file, viewer);
+    const results = await Promise.allSettled([
+      imports.confirm(id, file, a.previewToken!, viewer),
+      imports.confirm(id, file, b.previewToken!, viewer),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(
+      (
+        results.find((r) => r.status === 'rejected') as PromiseRejectedResult
+      ).reason.getStatus(),
+    ).toBe(409);
+    const before = JSON.stringify(await model.findById(id).lean());
+    await expect(
+      imports.confirm(id, file, a.previewToken!, viewer),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+    expect((await model.findById(id).lean())!.revision).toBe(
+      current.revision + 1,
+    );
+  });
+  it.each(['archive', 'move', 'values'] as const)(
+    'EP-04C2 cambio %s invalida preview sin modificar datos',
+    async (kind) => {
+      const { file, current, items } = await importFixture(),
+        p = await imports.preview(id, file, viewer);
+      if (kind === 'archive')
+        await service.changeArchive(
+          id,
+          items[0].nodeId,
+          current.revision,
+          false,
+          viewer,
+        );
+      if (kind === 'move')
+        await service.moveItem(
+          id,
+          items[0].nodeId,
+          {
+            expectedRevision: current.revision,
+            parentId: items[0].parentId!,
+            position: 1,
+          },
+          viewer,
+        );
+      if (kind === 'values')
+        await service.amount(
+          id,
+          items[0].nodeId,
+          { expectedRevision: current.revision, state: 'CARGADO', input: '99' },
+          viewer,
+        );
+      const before = JSON.stringify(await model.findById(id).lean());
+      await expect(
+        imports.confirm(id, file, p.previewToken!, viewer),
+      ).rejects.toMatchObject({ status: 409 });
+      expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+      if (kind !== 'values')
+        await expect(imports.preview(id, file, viewer)).rejects.toMatchObject({
+          status: 409,
+        });
+    },
+  );
+  it('EP-04C2 CAS del repositorio rechaza revisión obsoleta incluso dentro de transacción nueva', async () => {
+    const { current, items } = await importFixture();
+    const plan = importPlan(current.structure!, [
+      { row: 2, code: items[0].code, amount: '50', quantity: '' },
+    ]);
+    await service.amount(
+      id,
+      items[0].nodeId,
+      { expectedRevision: current.revision, state: 'CARGADO', input: '77' },
+      viewer,
+    );
+    const before = JSON.stringify(await model.findById(id).lean());
+    await expect(
+      repository.transaction((session) =>
+        repository.writeImport(
+          id,
+          current.revision,
+          current.structure!,
+          plan.changes,
+          clock.now(),
+          session,
+        ),
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+  });
+  it('EP-04C2 fila inválida bloquea también las válidas', async () => {
+    const { file } = await importFixture(),
+      grid = readCsv(file.buffer);
+    grid[2][5] = '1/0';
+    file.buffer = Buffer.from(
+      grid.map((r) => r.map(csvEscape).join(';')).join('\n'),
+    );
+    const before = JSON.stringify(await model.findById(id).lean()),
+      p = await imports.preview(id, file, viewer);
+    expect(p.issues).toHaveLength(1);
+    expect(p.previewToken).toBeNull();
+    await expect(
+      imports.confirm(id, file, 'inventado', viewer),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+  });
 });

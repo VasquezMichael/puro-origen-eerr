@@ -339,3 +339,28 @@ EERR inaccesible/inexistente; 409: destino no elegible, token vencido/modificado
 o plantilla cambiada. Si un token válido pierde acceso o su origen deja de existir,
 la confirmación también devuelve 409 sin revelar información adicional. Reintentar
 tras éxito devuelve conflicto sin sobrescribir.
+
+## EP-04C2 — importación
+
+- `GET /eerr/:id/import/template?format=csv|xlsx`: descarga binaria autenticada
+  para Admin/Editor/Lector autorizado; exige estructura inicializada.
+- `POST /eerr/:id/import/preview`: multipart con único campo `file`; Admin/Editor.
+  Sin escrituras. Devuelve destination, fileName, format, revision, structuralRevision,
+  readRows, changedFields, unchangedFields, affectedItems, rows (before/after/changed),
+  issues (row/field/message), warnings, previewToken nullable y expiresAt.
+- `POST /eerr/:id/import/confirm`: multipart `file` idéntico y `previewToken`.
+  Devuelve result (StructureResponse), affectedItems y changedFields.
+
+Máximo 2 MiB, un archivo, 1000 filas/2000 cambios; no otros campos multipart.
+Columnas CSV: eerr_id;revision_estructura;codigo_item;item;ruta;importe_o_expresion;cantidad.
+CSV UTF-8/BOM, punto y coma, comillas dobles escapadas. XLSX exige Instrucciones y
+Carga, sin fórmulas/contenido activo; metadatos de ambas hojas deben coincidir.
+revision_estructura es un sello firmado opaco: no editar. Nombre/ruta no identifican.
+
+400: archivo/DTO/metadatos inválidos o estructura ausente; 401: sesión ausente;
+403: no Editor; 404: EERR no accesible/existente; 409: sello/token/revisión obsoletos
+o alterados; 413: límite de archivo/expansión/hojas/filas/celdas. Errores semánticos
+por fila se devuelven en el preview sin token; nunca se aplica el subconjunto válido.
+Confirmación revalida acceso, hash del archivo, identidad, operaciones y revisión
+dentro de transacción. Un ganador por CAS; reintento tras éxito devuelve 409.
+No-op no produce token ni escritura. Notas y estructura permanecen intactas.
