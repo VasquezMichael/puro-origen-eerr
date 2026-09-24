@@ -456,5 +456,20 @@ entre bloques, archivo de categorías, eliminación, auditoría y cálculos deri
   inexistente devuelven 404. Datos persistidos inválidos fallan controladamente
   con 500/`INVALID_PERSISTED_DATA`, sin corregirse durante GET.
 
-El cuadro web queda para EP-05A.2. Punto de equilibrio, meta y objetivo requieren
-definiciones adicionales en EP-05B; EP-06 conserva dashboard y comparación.
+## EP-05A.2: presentación confirmada del cuadro
+
+- El cuadro de resultados está antes de la grilla y es de solo lectura para Admin,
+  Editor y Lector. La grilla sigue siendo el único espacio de carga. Sin
+  estructura, se mantiene el flujo de inicialización y no se muestra el cuadro.
+- Categorías y bloques pueden mostrar subtotal parcial identificado como tal;
+  métricas derivadas esperan operandos completos. Vacío, pendiente y valor nulo
+  muestran raya y motivo; cero explícito muestra `0,00 ARS`.
+- Las cifras representan datos guardados, nunca borradores. Si hay cambios locales,
+  el cuadro lo indica. Solo se muestran cifras de la revisión visible de la
+  estructura; diferencias se reintentan de forma acotada y ofrecen actualización.
+- Los strings monetarios se muestran con dos decimales y `ARS`; los porcentajes
+  se redondean de cuatro a dos decimales con HALF_UP simétrico solo para lectura.
+  No hay interpretación de color para la calidad financiera.
+
+Punto de equilibrio, meta y objetivo requieren definiciones adicionales en
+EP-05B; EP-06 conserva dashboard y comparación.

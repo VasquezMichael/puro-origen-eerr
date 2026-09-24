@@ -1,4 +1,5 @@
 // Real Chromium, isolated web server, synthetic API only. Same environment as workspace.browser.mjs.
+import { emptyAnalysis } from "./browser-analysis-fixture.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -159,6 +160,7 @@ try {
       else if (path === `/eerr/${id}`)
         body = { id, branchId, year: 2026, month: 9 };
       else if (path === `/eerr/${id}/structure`) body = row;
+      else if (path === `/eerr/${id}/analysis`) body = emptyAnalysis(row, id);
       else if (path === "/eerr") body = [];
       else {
         errors.push("Unexpected API " + path);

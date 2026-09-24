@@ -1,4 +1,5 @@
 // Isolated Chromium, all API traffic intercepted; no Nest/Atlas/bootstrap.
+import { emptyAnalysis } from "./browser-analysis-fixture.mjs";
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import {tmpdir} from 'node:os';
@@ -19,6 +20,7 @@ try{for(const [width,height] of [[1440,900],[1280,720],[1024,768],[768,1024],[39
  else if(path==='/branches')body=[{id:branchId,name:'Sucursal ficticia',active:false,startDate:'2020-01-01T03:00:00Z'}];
  else if(path===`/eerr/${id}`)body={id,branchId,year:2026,month:9,loadStatus:row.progress.status};
  else if(path.endsWith('/structure'))body=row;
+ else if(path.endsWith('/analysis'))body=emptyAnalysis(row,id);
  else{errors.push('Unexpected API '+path);return route.abort();}return route.fulfill({status,json:body,headers});});
  const dialog=page.getByRole('dialog',{name:'Completar pendientes con cero'}),open=async()=>{await page.getByRole('button',{name:'Acciones de estructura',exact:true}).click();await page.getByRole('menuitem',{name:'Completar pendientes con cero',exact:true}).click();};
  const shot=async label=>{await page.screenshot({path:join(tmpdir(),`ep04c3-${width}-${label}.png`),fullPage:true});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));const box=await dialog.boundingBox();assert.ok(box.x>=0&&box.y>=0&&box.x+box.width<=width+1&&box.y+box.height<=height+1);};

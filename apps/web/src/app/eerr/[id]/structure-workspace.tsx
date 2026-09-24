@@ -29,6 +29,7 @@ import { Modal, ActionMenu } from "../overlays";
 import styles from "../workspace.module.css";
 import { editorReducer, initialEditorState } from "./editor-state";
 import { ValueEditor, NoteEditor, type FieldFeedback } from "./field-editors";
+import { ResultsStatement } from "./results-statement";
 import {
   visibleRows,
   availableActions,
@@ -177,7 +178,7 @@ export function StructureWorkspace({ id }: { id: string }) {
     }
   }
   function reload() {
-    void perform<StructureResponse>(
+    return perform<StructureResponse>(
       "structure",
       "GET",
       undefined,
@@ -647,6 +648,12 @@ export function StructureWorkspace({ id }: { id: string }) {
             </section>
           ) : (
             <>
+              <ResultsStatement
+                id={id}
+                revision={data.revision}
+                hasDrafts={pending > 0 || importDirty || conflict}
+                onRefreshStructure={reload}
+              />
               <div className={styles.gridIntro}>
                 <h2>Estructura y valores</h2>
                 <span>

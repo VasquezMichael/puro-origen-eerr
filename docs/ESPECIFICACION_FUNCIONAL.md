@@ -320,6 +320,22 @@ indefinidos los porcentajes aunque los resultados monetarios sean válidos.
 
 La respuesta es de solo lectura, identifica la revisión calculada, distingue
 sin inicializar, vacío, pendiente, parcial, completo y denominador cero, y nunca
-guarda cálculos derivados. La presentación del cuadro pertenece a EP-05A.2;
-punto de equilibrio y objetivo a EP-05B; dashboard, comparación y consolidación
-a EP-06.
+guarda cálculos derivados.
+
+## EP-05A.2: cuadro de resultados en la interfaz
+
+El workspace presenta antes de «Estructura y valores» un cuadro de solo lectura
+para los tres roles autorizados. Contiene categorías y subcategorías históricas,
+totales de Ingresos, Costos y Gastos Generales, Margen Bruto y Resultado Neto
+en ARS y porcentaje. Los ítems permanecen en la grilla de carga. Estados vacíos,
+pendientes, parciales y completos se expresan con texto y completitud local;
+las métricas bloqueadas explican el motivo. El cero cargado se distingue del
+valor ausente.
+
+El cuadro muestra únicamente importes guardados y señala los borradores locales.
+La revisión del análisis debe igualar la de la estructura visible antes de
+mostrar resultados; actualización y errores del cuadro no impiden editar. Los
+valores se formatean exactamente desde strings, sin cálculo financiero del cliente.
+La tabla es accesible y se adapta a móvil sin ocultar los importes. Sin estructura
+preparada se prioriza la inicialización. Punto de equilibrio y objetivo quedan
+para EP-05B; dashboard, comparación y consolidación para EP-06.
