@@ -274,6 +274,9 @@ el contexto y Carga distingue columnas informativas de las dos editables.
 Editar solo importe_o_expresion y cantidad: vacío no modifica, cero es explícito y
 SIN_CARGAR limpia valor/expresión. Cantidad es entero no negativo sin expresiones;
 importe admite las expresiones exactas existentes escritas como texto sin =.
+En XLSX, importe_o_expresion debe guardarse como Texto también para literales y
+cero; una celda numérica se marca como error por fila y bloquea la confirmación,
+porque la conversión a Number puede perder precisión. CSV conserva su semántica.
 Los metadatos deben coincidir en todas las filas. No crea ni mueve categorías/ítems,
 no modifica notas ni reimporta archivados. Una sola fila inválida impide todo cambio.
 

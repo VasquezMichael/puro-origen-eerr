@@ -41,10 +41,12 @@ Nunca leer, imprimir, copiar ni versionar apps/api/.env.
 
 El typecheck web genera primero los tipos de rutas de Next para funcionar en un
 checkout limpio. Todos los workspaces verifican tipos y compilan. El lint cubre
-web y API; las pruebas actuales cubren el controlador de API (una prueba unitaria).
-Los paquetes vacíos aún no tienen lint ni pruebas y la web no tiene pruebas:
-`--if-present` omite esos scripts, no implica cobertura. Incorporar herramientas
-y pruebas relevantes cuando se agregue código, justificando nuevas dependencias.
+web, API y dominio. Las pruebas automatizadas cubren reglas de dominio,
+controladores y servicios aislados de API, componentes y estado web, y carga ESM
+compilada. `--if-present` omite scripts ausentes, no implica cobertura.
+Las integraciones con MongoDB local efímero y los recorridos Chromium se ejecutan
+por separado; el CI normal no instala MongoDB ni navegador. Consultar
+`PLAN_PRUEBAS.md` para sus comandos y alcance.
 
 El e2e existente (`npm run test:e2e --workspace=api`) importa AppModule, que carga
 configuración y conecta a MongoDB; no forma parte del check. Aislar su configuración

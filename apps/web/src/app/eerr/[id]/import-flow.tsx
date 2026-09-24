@@ -240,8 +240,9 @@ export function ImportFlow({
               son independientes.
             </p>
             <p>
-              Usá expresiones como texto sin =. No se admiten fórmulas nativas
-              de Excel, macros ni vínculos externos.
+              En XLSX, escribí importe_o_expresion como texto, incluso 0 y
+              números simples. Usá expresiones como texto sin =. No se admiten
+              fórmulas nativas de Excel, macros ni vínculos externos.
             </p>
             <div className={styles.actions}>
               <button disabled={busy} onClick={() => void download("csv")}>

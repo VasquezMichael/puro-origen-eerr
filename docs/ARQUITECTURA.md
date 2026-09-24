@@ -282,9 +282,12 @@ Auditoría de producción: cero vulnerabilidades. Quedan cinco avisos preexisten
 en herramientas de desarrollo del árbol @nestjs/mau, fuera de esta importación.
 
 CSV escapa delimitadores/comillas y neutraliza inyección en nombres/rutas. XLSX
-usa celdas de entrada texto; números nativos se convierten a decimal sin depender
-del locale. Se rechazan fórmulas aun con caché, macros, enlaces externos y partes
-no admitidas. Un libro con objetos, gráficos u otros componentes adicionales debe
+exige celdas de importe guardadas como texto: ExcelJS entrega los números nativos
+como `Number` y puede perder precisión antes del parser monetario exacto. Esas
+celdas generan un error por fila y campo, sin plan de cambio ni token de confirmación.
+Cantidad conserva su validación de entero y rango. Se rechazan fórmulas aun con
+caché, macros, enlaces externos y partes no admitidas. Un libro con objetos,
+gráficos u otros componentes adicionales debe
 volcarse sobre la plantilla; no es un importador de planillas arbitrarias.
 
 ## EP-04C3: completar pendientes

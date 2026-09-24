@@ -96,7 +96,14 @@ for (const condition of ["errors", "stale", "busy", "token", "noop"])
         ...p,
         issues:
           condition === "errors"
-            ? [{ row: 3, field: "cantidad", message: "Entero inválido" }]
+            ? [
+                {
+                  row: 2,
+                  field: "importe_o_expresion",
+                  message:
+                    "El importe debe estar guardado como texto en Excel. Cambiá el formato de la celda a Texto y volvé a ingresar el valor.",
+                },
+              ]
             : [],
         previewToken: condition === "token" ? null : p.previewToken,
         changedFields: condition === "noop" ? 0 : 1,
@@ -108,5 +115,8 @@ for (const condition of ["errors", "stale", "busy", "token", "noop"])
     assert.match(html, /<button[^>]*disabled/);
     if (condition === "stale")
       assert.match(html, /archivo y este resumen se conservan/);
-    if (condition === "errors") assert.match(html, /Fila 3/);
+    if (condition === "errors") {
+      assert.match(html, /Fila 2 · importe_o_expresion/);
+      assert.match(html, /Cambiá el formato de la celda a Texto/);
+    }
   });

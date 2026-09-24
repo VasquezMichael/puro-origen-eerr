@@ -274,7 +274,8 @@ No se usaron .env real, Atlas ni bootstrap y no se agregaron dependencias.
 
 Pruebas nuevas de dominio: semántica vacío/cero/SIN_CARGAR, parser monetario exacto,
 cantidad, rangos, códigos, duplicados, archivo, identidad y límites. API aislada:
-descarga/reapertura, CSV escapado/BOM/UTF-8, XLSX texto/número, fórmulas/cache, macros,
+descarga/reapertura, CSV escapado/BOM/UTF-8, XLSX importe textual y rechazo de
+todo importe numérico por fila, cantidad numérica válida, fórmulas/cache, macros,
 DTD, coordenadas esparsas, ZIP expandido, metadatos, multipart, permisos, preview,
 concurrencia, token/actor/archivo/expiración y preservación de notas. Runtime ESM
 carga los tres componentes Nest compilados sin AppModule ni conexión.
@@ -345,3 +346,20 @@ Las once mutaciones fueron restauradas antes del check y la integración finales
 Tipos, lint, compilación, diff y revisión de secretos aprobados; sin dependencias nuevas.
 .env sigue ignorado y no se leyó. No se ejecutó bootstrap, API contra Atlas ni
 operaciones sobre administrador/datos reales. Permanece la aceptación visual manual.
+
+## Corrección H-01 — precisión de importes XLSX
+
+La regresión XLSX comprueba que importes numéricos 0, enteros, decimales y el
+literal XML `0.004999999999999999999` producen error por fila/campo sin plan de
+`0.01`. Los mismos importes como texto, expresiones, cero, SIN_CARGAR y vacío
+conservan su semántica. La plantilla abre nuevamente con columna F en formato
+Texto; fórmulas siguen bloqueadas. Cantidades numéricas enteras en rango y CSV
+siguen admitidos. Una integración en MongoDB local efímero verifica que el
+preview con un importe numérico rechaza todo el lote sin cambiar ítems ni revisión;
+otra conserva como Decimal128 el resultado exacto del literal textual largo.
+
+Una mutación deliberada que vuelve a convertir la celda numérica mediante
+`String(value)` hace fallar la prueba del literal largo y se restaura. El smoke
+Chromium comprueba el mensaje de corrección, el archivo retenido, reemplazo y
+confirmación bloqueada en cinco tamaños. La aceptación manual en Excel/LibreOffice
+y dispositivos finales permanece pendiente.

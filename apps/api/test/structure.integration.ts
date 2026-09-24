@@ -5,6 +5,7 @@ import { ImportToken } from '../src/eerr/import/import-token.js';
 import { readCsv, csvEscape } from '../src/eerr/import/csv.js';
 import { importPlan } from '@puro-origen/domain';
 import { ConfigService } from '@nestjs/config';
+import ExcelJS from '@protobi/exceljs';
 import { CloneService } from '../src/eerr/clone.service.js';
 import { ClonePreviewToken } from '../src/eerr/clone-preview-token.js';
 import 'reflect-metadata';
@@ -1178,6 +1179,52 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
         n.name,
       ]),
     );
+  });
+  it('EP-04C2 rechaza importe XLSX numérico sin escribir ítems ni incrementar revisión', async () => {
+    await importFixture();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(
+      new Uint8Array(await imports.template(id, 'xlsx', viewer)).buffer,
+    );
+    const sheet = workbook.getWorksheet('Carga')!;
+    sheet.getCell('F2').value = 1500;
+    sheet.getCell('F3').value = '1500,25';
+    const file = {
+      originalname: 'carga.xlsx',
+      mimetype:
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+    };
+    const before = JSON.stringify(await model.findById(id).lean());
+    const preview = await imports.preview(id, file, viewer);
+    expect(preview.issues).toMatchObject([
+      { row: 2, field: 'importe_o_expresion' },
+    ]);
+    expect(preview.previewToken).toBeNull();
+    expect(JSON.stringify(preview)).not.toContain('0.01');
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+    await expect(
+      imports.confirm(id, file, 'inventado', viewer),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(JSON.stringify(await model.findById(id).lean())).toBe(before);
+  });
+  it('EP-04C2 persiste el redondeo exacto del literal textual largo como Decimal128', async () => {
+    const { file } = await importFixture();
+    const grid = readCsv(file.buffer);
+    grid[1][5] = '0.004999999999999999999';
+    file.buffer = Buffer.from(
+      '\uFEFF' + grid.map((r) => r.map(csvEscape).join(';')).join('\r\n'),
+    );
+    const preview = await imports.preview(id, file, viewer);
+    expect(preview.issues).toEqual([]);
+    expect(preview.rows[0].after.amount.value).toBe('0.00');
+    await imports.confirm(id, file, preview.previewToken!, viewer);
+    const stored = await model.findById(id).lean();
+    const amount = stored!.structure!.nodes.find(
+      (n) => n.kind === 'ITEM',
+    )!.amount!;
+    expect(amount.value!._bsontype).toBe('Decimal128');
+    expect(amount.value!.toString()).toBe('0.00');
   });
   it('EP-04C2 rollback después de escritura no deja ninguna fila parcial', async () => {
     const { file } = await importFixture(),

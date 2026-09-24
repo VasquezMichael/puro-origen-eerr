@@ -35,6 +35,7 @@ export type ImportRow = {
   code: string;
   amount: string;
   quantity: string;
+  amountIssue?: string;
 };
 export type ImportIssue = { row: number; field: string; message: string };
 export type ImportChange = {
@@ -88,6 +89,7 @@ export function importPlan(structure: EerrStructure, rows: ImportRow[]) {
     const code = row.code.trim().toLowerCase();
     const issue = (field: string, message: string) =>
       issues.push({ row: row.row, field, message });
+    if (row.amountIssue) issue("importe_o_expresion", row.amountIssue);
     if (!code) {
       issue("codigo_item", "Código vacío");
       continue;
@@ -116,6 +118,9 @@ export function importPlan(structure: EerrStructure, rows: ImportRow[]) {
       changed: ImportRowPreview["changed"] = [];
     const change: ImportChange = { code, nodeId: node.nodeId };
     for (const field of ["amount", "quantity"] as const) {
+      if (field === "amount" && row.amountIssue) {
+        continue;
+      }
       const input = row[field].trim();
       if (!input) {
         unchangedFields++;

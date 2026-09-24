@@ -383,6 +383,11 @@ entre bloques, archivo de categorías, eliminación, auditoría y cálculos deri
 - Vacío conserva; 0 carga cero; SIN_CARGAR (trim, sin distinción de mayúsculas)
   limpia el campo. Importe y cantidad independientes. Se reutilizan el parser
   racional, rangos, ARS y ROUND_HALF_UP existentes; nunca eval ni fórmulas Excel.
+- En XLSX, `importe_o_expresion` debe guardarse como texto, incluso para 0 y
+  números simples. Cualquier celda numérica de esa columna produce error por
+  fila y bloquea el lote: ExcelJS convierte el literal a `Number` y puede alterar
+  su precisión decimal. CSV mantiene su semántica de texto. Cantidad numérica
+  conserva la validación existente de entero no negativo y rango.
 - revision_estructura es un sello firmado de identidad estructural, no una revisión
   editable por el usuario. Incluye códigos, relaciones, posiciones y archivo;
   excluye nombre de ítem y valores/notas. Renombrar ítem conserva compatibilidad;
