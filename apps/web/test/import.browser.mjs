@@ -1,4 +1,5 @@
 // Chromium with synthetic API fixtures only; never starts the API or connects to MongoDB.
+import { emptyAnalysis } from "./browser-analysis-fixture.mjs";
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import {tmpdir} from 'node:os';
@@ -30,6 +31,7 @@ try {for(const [width,height] of [[1440,900],[1280,720],[1024,768],[768,1024],[3
  else if(path==='/branches')body=[{id:branchId,name:'Sucursal ficticia',active:true,startDate:'2020-01-01T03:00:00Z'}];
  else if(path===`/eerr/${id}`)body={id,branchId,year:2026,month:9,loadStatus:'CARGADO',createdAt:'2026-09-23T12:00:00Z'};
  else if(path.endsWith('/structure'))body=row;
+ else if(path.endsWith('/analysis'))body=emptyAnalysis(row,id);
  else {errors.push('Unexpected API '+path);return route.abort();}
  return route.fulfill({status,json:body,headers});});
  const dialog=page.getByRole('dialog',{name:'Importar valores'});

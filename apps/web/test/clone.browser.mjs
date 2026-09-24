@@ -1,4 +1,5 @@
 // Real Chromium against an isolated web build. All API traffic uses synthetic fixtures.
+import { emptyAnalysis } from "./browser-analysis-fixture.mjs";
 import assert from 'node:assert/strict';
 import {pathToFileURL} from 'node:url';
 import {tmpdir} from 'node:os';
@@ -22,6 +23,7 @@ try{for(const [width,height] of [[1440,900],[1280,720],[1024,768],[768,1024],[39
  else if(path==='/branches')body=branches;
  else if(path===`/eerr/${id}`)body={id,branchId,year:2026,month:9,loadStatus:'SIN_CARGAR',createdAt:'2026-09-23T12:00:00Z'};
  else if(path===`/eerr/${id}/structure`)body=row;
+ else if(path===`/eerr/${id}/analysis`)body=emptyAnalysis(row,id);
  else if(path===`/eerr/${id}/clone-sources`)body=sourceRows;
  else if(path==='/eerr')body=created?[{id,branchId,year:2026,month:9,loadStatus:'SIN_CARGAR',createdAt:'2026-09-23T12:00:00Z'}]:[];
  else {errors.push('Unexpected API '+path);return route.abort();}return route.fulfill({status,json:body,headers});});

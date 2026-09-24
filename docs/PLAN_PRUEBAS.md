@@ -385,3 +385,20 @@ restauradas: selección equivocada por nombre de bloque, pendiente como completo
 inclusión de archivados, duplicación del total, conversión del agregado a Number,
 límite individual aplicado al agregado, KPI parcial, gasto pendiente bloqueando
 Margen Bruto, ámbito vacío como completo y redondeo porcentual anticipado.
+
+## EP-05A.2 — cuadro web
+
+Pruebas web deterministas cubren orden, jerarquía, subtotales sin duplicación,
+estados y motivos, cero explícito, signos y números mayores al entero seguro,
+redondeo porcentual HALF_UP simétrico y exclusión de funciones diferidas. La
+prueba de navegador con API simulada debe cubrir lectura completa/parcial, vacío,
+error y reintento, revisión coincidente y divergente, guardado, borradores y
+Lector. Revisar 1440×900, 1280×720, 1024×768, 768×1024 y 390×844, con
+capturas y comprobación de desbordes. No requiere .env ni conexión a MongoDB.
+
+En EP-05A.2 se detectaron y restauraron nueve mutaciones manuales: cálculo en
+frontend, conversión monetaria a Number, nulo como cero, margen parcial,
+aceptación de respuesta antigua, revisión ignorada, pérdida de borradores,
+cuadro oculto al Lector y estado expresado sin texto. Las pruebas de navegador
+utilizan exclusivamente respuestas simuladas; resta aceptación visual manual
+con datos de negocio.

@@ -83,9 +83,10 @@ Confirmar revalida acceso, revisiones y plantilla, y consume la vista previa en
 la transacción. Los reintentos técnicos vuelven a comprobar las precondiciones;
 no habilitan revisiones obsoletas. No hay fallback parcial mediante updateMany.
 
-/eerr/[id] presenta el árbol y carga manual sin resultados financieros. Su reducer
-conserva borradores tras 409 y recarga; solo elimina el de la celda cuyo guardado
-fue confirmado. API/dominio mantienen la autoridad sobre permisos y reglas.
+/eerr/[id] presenta el árbol y carga manual junto al cuadro financiero de solo
+lectura. Su reducer conserva borradores tras 409 y recarga; solo elimina el de
+la celda cuyo guardado fue confirmado. API/dominio mantienen la autoridad sobre
+permisos y reglas.
 
 Las pruebas normales siguen sin MongoDB. La integración opcional
 `npm run test:integration:structure --workspace=api` exige MONGOD_BINARY con ruta
@@ -332,5 +333,22 @@ estable `INVALID_PERSISTED_DATA`, sin reparaciones ni detalles BSON. No hay cach
 ETag ni resultados derivados persistidos. `calculationVersion: 1` identifica la
 versión de las fórmulas para futuros clientes/cachés.
 
-EP-05A.2 presentará el cuadro en la web. Punto de equilibrio y objetivo quedan
-para EP-05B; dashboard, comparaciones y consolidación, para EP-06.
+## EP-05A.2: cuadro calculado en el workspace
+
+Antes de la grilla de estructura y valores, `ResultsStatement` presenta bloques,
+categorías jerárquicas y métricas del GET de análisis. `analysis-model` organiza
+únicamente la presentación por códigos de raíz y referencias de categoría;
+`analysis-format` formatea strings sin convertir importes a punto flotante y
+redondea el porcentaje de cuatro a dos decimales con HALF_UP simétrico. No hay
+fórmulas financieras en la web ni derivados persistidos.
+
+`useAnalysis` consulta por separado de la estructura. El reducer conserva
+borradores tras recargas y conflictos; cada revisión nueva dispara otra lectura.
+Solo se renderizan cifras cuando `sourceRevision` coincide con la revisión visible.
+Respuestas anteriores se abortan, una diferencia se reintenta hasta tres veces y
+después ofrece actualización manual de estructura y análisis. Un error del GET
+afecta solo al cuadro. La tabla usa encabezados, texto de estado y relación
+explícita de jerarquía; en móvil las filas se adaptan sin ocultar valores.
+
+Punto de equilibrio y objetivo quedan para EP-05B; dashboard, comparaciones y
+consolidación, para EP-06.

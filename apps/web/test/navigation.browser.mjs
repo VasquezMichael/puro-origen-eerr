@@ -1,4 +1,5 @@
 // Real Chromium, isolated web only. Every API response is an in-memory fixture.
+import { emptyAnalysis } from "./browser-analysis-fixture.mjs";
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
@@ -169,6 +170,7 @@ try {
       else if (path === "/eerr" && method === "GET") body = [row];
       else if (path === `/eerr/${id}`) body = row;
       else if (path === `/eerr/${id}/structure`) body = structure;
+      else if (path === `/eerr/${id}/analysis`) body = emptyAnalysis(structure, id);
       else {
         errors.push(`Unexpected API ${method} ${path}`);
         return route.abort();

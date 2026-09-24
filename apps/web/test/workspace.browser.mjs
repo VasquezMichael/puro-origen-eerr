@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { emptyAnalysis } from "./browser-analysis-fixture.mjs";
 import {
   evaluateMoneyExpression,
   loadProgress,
@@ -287,7 +288,8 @@ try {
           status = 404;
           body = { message: "EERR no accesible" };
         } else body = row;
-      } else if (path === "/eerr") body = [];
+      } else if (path === `/eerr/${id}/analysis`) body = emptyAnalysis(row, id);
+      else if (path === "/eerr") body = [];
       else {
         errors.push(`Unexpected API ${path}`);
         return route.abort();
