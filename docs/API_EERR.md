@@ -394,3 +394,30 @@ currency ARS, scale 2. No cambia cantidades ni notas. Solo avanzan revision, upd
 y el estado de carga calculado; no existe transición de cierre. No-op no emite token
 ni escribe. La confirmación revalida y recalcula dentro de transacción/CAS; un solo
 envío puede aplicar y todos los demás son conflictos sin escrituras parciales.
+
+## EP-05A.1 — GET /eerr/:id/analysis
+
+Requiere sesión y UUID v4. Admin, Editor y Lector con acceso a la sucursal reciben
+200, incluso en históricos inactivos. ID ajeno o inexistente: 404; UUID inválido:
+400; sesión ausente: 401. No inicializa ni escribe. Responde a partir de un único
+documento EERR y contiene `eerrId`, `sourceRevision`, `calculationVersion: 1`,
+`initialized`, `currency: "ARS"`, `blocks`, `categories` y `metrics`.
+
+Los bloques siguen el orden fijo Ingresos/Costos/Gastos, identificado por `code`.
+Cada bloque y categoría incluye `nodeId`, `code`, nombre histórico, `status`,
+`value` (string ARS con dos decimales o null) y `completeness` con loadedCount,
+pendingCount, totalCount y completenessPercent (string con dos decimales o null
+si no hay ítems). La categoría también incluye parentNodeId, parentCode,
+depth desde el bloque (=1 para categoría directa) y position. Los conteos de
+padre e hijo se superponen: no deben sumarse entre sí. EMPTY: sin ítems/value null;
+PENDING: ninguno cargado/value null; PARTIAL: suma conocida; COMPLETE: total
+definitivo, incluido `"0.00"`.
+
+`metrics` contiene grossMargin, grossMarginPercent, netResult y netResultPercent.
+Cada una lleva status COMPLETE, BLOCKED o NOT_CALCULABLE; value string o null;
+unit ARS o PERCENT; reason null, UNINITIALIZED, PENDING_INPUTS, EMPTY_INPUT o
+ZERO_DENOMINATOR. Los porcentajes son strings canónicos de cuatro decimales sin
+símbolo %. Sin estructura: 200, initialized false, bloques/categorías vacíos y
+cuatro métricas bloqueadas con UNINITIALIZED. Datos persistidos incoherentes:
+500 con `code: "INVALID_PERSISTED_DATA"` y mensaje estable, sin detalles internos.
+No hay ETag, caché, escrituras ni resultados persistidos.

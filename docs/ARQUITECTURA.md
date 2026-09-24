@@ -310,3 +310,27 @@ locales; CompletePendingSummary presenta conteos, progreso y lista desplazable.
 El workspace mantiene borradores y alimenta DraftNavigationGuard con el modal y
 el estado de envío. El éxito actualiza el reducer por RELOAD; no cierra el período.
 El no-op y los conflictos no llaman al escritor ni cambian timestamps.
+
+## EP-05A.1: motor financiero y lectura del cuadro
+
+`@puro-origen/calculation-engine` depende solamente de `domain`: recibe un snapshot
+público y validado, identifica los tres bloques por sus códigos protegidos y suma
+los valores monetarios persistidos de los ítems activos con `BigInt`. Recorre el
+parentesco para acumular cada ítem una vez en su bloque y en cada categoría
+ascendente; los subtotales no se vuelven a sumar. No usa nombres, orden del array,
+`nodeId` transversal, cantidades, notas ni expresiones originales como entrada
+financiera. `shared-types` publica el contrato del motor para API y web;
+el orden de compilación es domain → calculation-engine → shared-types → aplicaciones.
+
+`AnalysisController/AnalysisService` agregan `GET /eerr/:id/analysis` al EerrModule.
+`EerrService.readAuthorized` comparte el filtro de acceso existente y devuelve un
+solo documento con snapshot y revisión. La conversión Decimal128 → string ocurre
+antes del motor. El GET no escribe ni inicializa, no requiere transacción para ese
+documento y devuelve `sourceRevision`; futuras lecturas de varios EERR requerirán
+una política de consistencia distinta. Un snapshot inválido produce 500 con código
+estable `INVALID_PERSISTED_DATA`, sin reparaciones ni detalles BSON. No hay caché,
+ETag ni resultados derivados persistidos. `calculationVersion: 1` identifica la
+versión de las fórmulas para futuros clientes/cachés.
+
+EP-05A.2 presentará el cuadro en la web. Punto de equilibrio y objetivo quedan
+para EP-05B; dashboard, comparaciones y consolidación, para EP-06.

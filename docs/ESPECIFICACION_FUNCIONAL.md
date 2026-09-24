@@ -307,3 +307,19 @@ Envíos simultáneos/repetidos no duplican efectos. Escape/cancelar no escribe y
 bloqueado durante una solicitud. Cantidades pendientes no impiden el 100 % monetario.
 
 EP-04C2 fue validado manualmente por el usuario antes de comenzar EP-04C3.
+
+## EP-05A.1: análisis básico disponible en la API
+
+El análisis de un EERR existente devuelve subtotales de categorías, totales de
+Ingresos, Costos y Gastos Generales, Margen Bruto y Resultado Neto en ARS y como
+porcentaje de Ingresos. Selecciona bloques por código protegido y utiliza solo
+importes guardados de ítems activos. Una categoría/bloque parcial muestra la suma
+conocida marcada como parcial; las métricas entre bloques esperan a que todos sus
+operandos estén completos. Sin ítems no equivale a cero, y un ingreso cero deja
+indefinidos los porcentajes aunque los resultados monetarios sean válidos.
+
+La respuesta es de solo lectura, identifica la revisión calculada, distingue
+sin inicializar, vacío, pendiente, parcial, completo y denominador cero, y nunca
+guarda cálculos derivados. La presentación del cuadro pertenece a EP-05A.2;
+punto de equilibrio y objetivo a EP-05B; dashboard, comparación y consolidación
+a EP-06.

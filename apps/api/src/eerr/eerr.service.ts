@@ -103,6 +103,11 @@ export class EerrService {
   }
 
   async get(id: string, viewer: Viewer) {
+    return this.toPublic(await this.readAuthorized(id, viewer));
+  }
+
+  /** Devuelve el mismo documento autorizado que contiene snapshot y revisión. */
+  async readAuthorized(id: string, viewer: Viewer) {
     // El filtro hace indistinguibles un UUID inexistente y uno no autorizado.
     const branches = await this.branches.list(viewer);
     const row = await this.eerr
@@ -112,7 +117,7 @@ export class EerrService {
       })
       .exec();
     if (!row) throw new NotFoundException('EERR no encontrado');
-    return this.toPublic(row);
+    return row;
   }
 
   private async accessibleBranch(id: string, viewer: Viewer) {

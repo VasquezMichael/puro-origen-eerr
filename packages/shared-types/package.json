@@ -14,6 +14,7 @@
   "types": "dist/index.d.ts",
   "private": true,
   "dependencies": {
-    "@puro-origen/domain": "^0.1.0"
+    "@puro-origen/domain": "^0.1.0",
+    "@puro-origen/calculation-engine": "0.1.0"
   }
 }

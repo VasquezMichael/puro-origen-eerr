@@ -1,4 +1,5 @@
 import { CompletePendingService } from '../src/eerr/complete-pending.service.js';
+import { AnalysisService } from '../src/eerr/analysis.service.js';
 import { completePendingPlan } from '@puro-origen/domain';
 import { ImportService } from '../src/eerr/import/import.service.js';
 import { ImportToken } from '../src/eerr/import/import-token.js';
@@ -43,6 +44,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
   let clones: CloneService;
   let imports: ImportService;
   let completePending: CompletePendingService;
+  let analysis: AnalysisService;
   let id: string;
   const viewer = {
     sub: '222222222222222222222222',
@@ -143,6 +145,9 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       repository,
       new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
       clock,
+    );
+    analysis = new AnalysisService(
+      new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
     );
     imports = new ImportService(
       repository,
@@ -1580,5 +1585,148 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
     expect((await completePending.preview(id, viewer)).affected).toHaveLength(
       1,
     );
+  });
+
+  it('EP-05A.1 lee una sola revisión Decimal128 sin escribir y sigue ediciones, cero, limpieza y archivo', async () => {
+    expect((await analysis.get(id, viewer)).initialized).toBe(false);
+    let current = await service.initialize(id, 0, viewer);
+    const roots = current.structure!.nodes.filter(
+      (node) => node.kind === 'BLOCK',
+    );
+    for (const [index, name] of ['Venta', 'Costo', 'Gasto'].entries())
+      current = await service.createItem(
+        id,
+        {
+          expectedRevision: current.revision,
+          parentId: roots[index]!.nodeId,
+          name,
+        },
+        viewer,
+      );
+    const items = current.structure!.nodes.filter(
+      (node) => node.kind === 'ITEM',
+    );
+    for (const [index, input] of ['100.00', '60.00', '20.00'].entries())
+      current = await service.amount(
+        id,
+        items[index]!.nodeId,
+        { expectedRevision: current.revision, state: 'CARGADO', input },
+        viewer,
+      );
+    const before = await model.findById(id).lean();
+    const complete = await analysis.get(id, viewer);
+    expect(complete.sourceRevision).toBe(current.revision);
+    expect(complete.blocks.map((block) => block.value)).toEqual([
+      '100.00',
+      '60.00',
+      '20.00',
+    ]);
+    expect(complete.metrics.grossMargin.value).toBe('40.00');
+    expect(complete.metrics.netResult.value).toBe('20.00');
+    expect(await model.findById(id).lean()).toEqual(before);
+    expect(before!.structure!.nodes[3].amount!.value!._bsontype).toBe(
+      'Decimal128',
+    );
+    current = await service.amount(
+      id,
+      items[1]!.nodeId,
+      { expectedRevision: current.revision, state: 'CARGADO', input: '0' },
+      viewer,
+    );
+    expect((await analysis.get(id, viewer)).metrics.grossMargin.value).toBe(
+      '100.00',
+    );
+    current = await service.amount(
+      id,
+      items[1]!.nodeId,
+      { expectedRevision: current.revision, state: 'SIN_CARGAR' },
+      viewer,
+    );
+    expect((await analysis.get(id, viewer)).metrics.grossMargin.reason).toBe(
+      'PENDING_INPUTS',
+    );
+    current = await service.changeArchive(
+      id,
+      items[1]!.nodeId,
+      current.revision,
+      false,
+      viewer,
+    );
+    expect((await analysis.get(id, viewer)).blocks[1].status).toBe('EMPTY');
+    current = await service.changeArchive(
+      id,
+      items[1]!.nodeId,
+      current.revision,
+      true,
+      viewer,
+    );
+    expect((await analysis.get(id, viewer)).blocks[1].status).toBe('PENDING');
+    expect((await analysis.get(id, viewer)).sourceRevision).toBe(
+      current.revision,
+    );
+  });
+
+  it('EP-05A.1 refleja importación y completar pendientes en la nueva revisión', async () => {
+    const { file } = await importFixture();
+    const prior = await analysis.get(id, viewer);
+    expect(prior.blocks[0].status).toBe('PARTIAL');
+    const preview = await imports.preview(id, file, viewer);
+    expect((await analysis.get(id, viewer)).sourceRevision).toBe(
+      prior.sourceRevision,
+    );
+    const imported = await imports.confirm(
+      id,
+      file,
+      preview.previewToken!,
+      viewer,
+    );
+    const after = await analysis.get(id, viewer);
+    expect(after.sourceRevision).toBe(imported.result.revision);
+    expect(after.blocks[0]).toMatchObject({
+      status: 'COMPLETE',
+      value: '12.35',
+    });
+  });
+
+  it('EP-05A.1 completa ceros y lecturas concurrentes con una escritura conservan cada revisión', async () => {
+    const { current, items } = await pendingFixture();
+    const before = await analysis.get(id, viewer);
+    expect(before.sourceRevision).toBe(current.revision);
+    expect(before.blocks[0]).toMatchObject({
+      status: 'PARTIAL',
+      value: '10.00',
+    });
+    const preview = await completePending.preview(id, viewer);
+    const confirmed = await completePending.confirm(
+      id,
+      preview.previewToken!,
+      viewer,
+    );
+    const after = await analysis.get(id, viewer);
+    expect(after.sourceRevision).toBe(confirmed.result.revision);
+    expect(after.blocks[0]).toMatchObject({
+      status: 'COMPLETE',
+      value: '10.00',
+    });
+    expect(before.sourceRevision).toBeLessThan(after.sourceRevision);
+    expect(before.blocks[0].status).toBe('PARTIAL');
+    const simultaneousReads = Array.from({ length: 20 }, () =>
+      analysis.get(id, viewer),
+    );
+    const update = service.amount(
+      id,
+      items[0].nodeId,
+      { expectedRevision: after.sourceRevision, state: 'CARGADO', input: '20' },
+      viewer,
+    );
+    const snapshots = await Promise.all(simultaneousReads);
+    const updated = await update;
+    for (const snapshot of snapshots) {
+      expect([
+        [after.sourceRevision, '10.00'],
+        [updated.revision, '20.00'],
+      ]).toContainEqual([snapshot.sourceRevision, snapshot.blocks[0].value]);
+    }
+    expect((await analysis.get(id, viewer)).blocks[0].value).toBe('20.00');
   });
 });

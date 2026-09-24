@@ -1,4 +1,9 @@
 import type { EerrStructure } from "@puro-origen/domain";
+import type { AnalysisCalculation } from "@puro-origen/calculation-engine";
+export type AnalysisResponse = AnalysisCalculation & {
+  eerrId: string;
+  sourceRevision: number;
+};
 export type StructureResponse = {
   id: string;
   revision: number;
