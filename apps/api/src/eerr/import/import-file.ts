@@ -27,6 +27,8 @@ export const importMime = {
   csv: 'text/csv; charset=utf-8',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
+const NUMERIC_AMOUNT_ISSUE =
+  'El importe debe estar guardado como texto en Excel. Cambiá el formato de la celda a Texto y volvé a ingresar el valor.';
 function templateRows(context: TemplateContext) {
   const nodes = context.structure.nodes;
   return nodes
@@ -80,9 +82,19 @@ export async function createImportTemplate(
     ['eerr_id', context.id],
     ['revision_estructura', context.stamp],
     ['Versión al descargar', String(context.revision)],
+    [
+      'Importe en XLSX',
+      'Escribí todos los importes como texto en la columna importe_o_expresion. Si Excel guardó una celda como número, cambiá su formato a Texto y volvé a ingresar el valor.',
+    ],
     ['Vacío', 'No modifica ese campo'],
-    ['0', 'Carga cero explícito'],
-    ['SIN_CARGAR', 'Limpia valor y expresión del campo'],
+    [
+      'Literales',
+      'Texto: 1500, 1500,25 o 1500.25. El texto 0 carga cero explícito.',
+    ],
+    [
+      'SIN_CARGAR',
+      'Escribí SIN_CARGAR como texto para limpiar valor y expresión del campo',
+    ],
     [
       'Expresiones',
       'Texto sin =; por ejemplo (1000 + 500) / 3. No se admiten fórmulas nativas de Excel.',
@@ -100,7 +112,7 @@ export async function createImportTemplate(
   lines.forEach((r) => instructions.addRow(r));
   instructions.columns = [{ width: 26 }, { width: 85 }];
   instructions.eachRow((r) => {
-    r.height = 36;
+    r.height = r.number === 7 ? 54 : 36;
     r.eachCell((c) => {
       c.alignment = { wrapText: true, vertical: 'middle' };
     });
@@ -118,6 +130,7 @@ export async function createImportTemplate(
     { width: 30 },
     { width: 18 },
   ];
+  sheet.getColumn(6).numFmt = '@';
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
   sheet.eachRow((row, index) =>
     row.eachCell({ includeEmpty: true }, (cell, col) => {
@@ -192,7 +205,9 @@ export async function readImportFile(file: ImportFile) {
         ];
   if (!allowed.includes(file.mimetype.split(';')[0].toLowerCase()))
     throw invalidFile();
-  let grid: string[][], metadata: { id: string; stamp: string } | undefined;
+  let grid: string[][],
+    numericAmounts = new Set<number>(),
+    metadata: { id: string; stamp: string } | undefined;
   try {
     if (format === 'csv') grid = readCsv(file.buffer);
     else {
@@ -211,9 +226,14 @@ export async function readImportFile(file: ImportFile) {
       };
       grid = [];
       for (let r = 1; r <= sheet.rowCount; r++) {
-        const values = Array.from({ length: 7 }, (_, i) =>
-          cellText(sheet.getRow(r).getCell(i + 1).value),
-        );
+        const values = Array.from({ length: 7 }, (_, i) => {
+          const value = sheet.getRow(r).getCell(i + 1).value;
+          if (r > 1 && i === 5 && typeof value === 'number') {
+            numericAmounts.add(r);
+            return '';
+          }
+          return cellText(value);
+        });
         grid.push(values);
       }
     }
@@ -231,21 +251,31 @@ export async function readImportFile(file: ImportFile) {
     );
   if (grid.length < 2)
     throw new BadRequestException('El archivo no contiene filas de carga.');
-  const first = grid.slice(1).find((r) => r.some((v) => v.length));
+  const first = grid
+    .slice(1)
+    .find((r, i) => r.some((v) => v.length) || numericAmounts.has(i + 2));
   if (!first || first.length !== 7) throw invalidFile();
   const id = first[0].trim(),
     stamp = first[1].trim(),
     rows: ImportRow[] = [];
   for (let i = 1; i < grid.length; i++) {
     const r = grid[i];
-    if (!r.some((v) => v.length)) continue;
+    if (!r.some((v) => v.length) && !numericAmounts.has(i + 1)) continue;
     if (r.length !== 7) throw invalidFile();
     if (r.some((v) => v.length > IMPORT_LIMITS.cell)) throw tooLarge();
     if (!id || !stamp || r[0].trim() !== id || r[1].trim() !== stamp)
       throw new BadRequestException(
         'Metadatos inconsistentes entre filas. Descargá una plantilla nueva.',
       );
-    rows.push({ row: i + 1, code: r[2], amount: r[5], quantity: r[6] });
+    rows.push({
+      row: i + 1,
+      code: r[2],
+      amount: r[5],
+      quantity: r[6],
+      ...(numericAmounts.has(i + 1)
+        ? { amountIssue: NUMERIC_AMOUNT_ISSUE }
+        : {}),
+    });
   }
   if (metadata && (metadata.id !== id || metadata.stamp !== stamp))
     throw new BadRequestException(

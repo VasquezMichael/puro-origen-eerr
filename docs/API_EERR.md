@@ -355,6 +355,11 @@ Máximo 2 MiB, un archivo, 1000 filas/2000 cambios; no otros campos multipart.
 Columnas CSV: eerr_id;revision_estructura;codigo_item;item;ruta;importe_o_expresion;cantidad.
 CSV UTF-8/BOM, punto y coma, comillas dobles escapadas. XLSX exige Instrucciones y
 Carga, sin fórmulas/contenido activo; metadatos de ambas hojas deben coincidir.
+En XLSX, `importe_o_expresion` debe ser una celda de texto para preservar el
+literal decimal exacto; cualquier celda numérica, incluso 0, aparece como error
+de fila y campo en el preview e impide confirmar el lote. Se debe cambiar el
+formato a Texto y volver a ingresar el valor. Cantidad admite enteros válidos
+según el rango del dominio. CSV conserva vacío/0/SIN_CARGAR y expresiones.
 revision_estructura es un sello firmado opaco: no editar. Nombre/ruta no identifican.
 
 400: archivo/DTO/metadatos inválidos o estructura ausente; 401: sesión ausente;

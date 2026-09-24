@@ -6,6 +6,7 @@ import {
   emptyAmount,
   IMPORT_COLUMNS,
   IMPORT_LIMITS,
+  importPlan,
 } from '@puro-origen/domain';
 import {
   createImportTemplate,
@@ -58,6 +59,16 @@ async function book() {
 async function bytes(w: ExcelJS.Workbook) {
   return Buffer.from(await w.xlsx.writeBuffer());
 }
+async function xlsxWithAmount(value: string | number | null) {
+  const c = context();
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(
+    new Uint8Array(await createImportTemplate('xlsx', c)).buffer,
+  );
+  wb.getWorksheet('Carga')!.getCell('F2').value = value;
+  const parsed = await readImportFile(file(await bytes(wb), 'xlsx'));
+  return { c, parsed, plan: importPlan(c.structure, parsed.rows) };
+}
 describe('Archivos de importación aislados', () => {
   it('CSV BOM, delimitador, comillas e injection, con reapertura', async () => {
     const c = context(),
@@ -86,11 +97,140 @@ describe('Archivos de importación aislados', () => {
       'fixture-stamp',
     );
     expect(sheet.getCell('F2').numFmt).toBe('@');
+    expect(sheet.getColumn(6).numFmt).toBe('@');
+    expect(wb.getWorksheet('Instrucciones')!.getCell('B7').value).toContain(
+      'texto',
+    );
     expect(sheet.getCell('C2').fill).not.toEqual(sheet.getCell('F2').fill);
     sheet.getCell('F2').value = ' (1+2) / 3 ';
     sheet.getCell('G2').value = 0;
     const p = await readImportFile(file(await bytes(wb), 'xlsx'));
     expect(p.rows[0]).toMatchObject({ amount: ' (1+2) / 3 ', quantity: '0' });
+  });
+  it.each([0, 1500, 1500.25])(
+    'XLSX rechaza importe numérico %s por fila y campo',
+    async (amount) => {
+      const { parsed, plan } = await xlsxWithAmount(amount);
+      expect(parsed.rows[0].amount).toBe('');
+      expect(plan.issues).toEqual([
+        {
+          row: 2,
+          field: 'importe_o_expresion',
+          message: expect.stringContaining(
+            'Cambiá el formato de la celda a Texto',
+          ),
+        },
+      ]);
+      expect(plan.changes).toHaveLength(0);
+      expect(plan.rows[0].after.amount.state).toBe('SIN_CARGAR');
+    },
+  );
+  it('reporta el importe numérico aunque el código del ítem también sea inválido', async () => {
+    const c = context();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(
+      new Uint8Array(await createImportTemplate('xlsx', c)).buffer,
+    );
+    wb.getWorksheet('Carga')!.getCell('C2').value = randomUUID();
+    wb.getWorksheet('Carga')!.getCell('F2').value = 0;
+    const parsed = await readImportFile(file(await bytes(wb), 'xlsx'));
+    expect(
+      importPlan(c.structure, parsed.rows).issues.map((i) => i.field),
+    ).toEqual(['importe_o_expresion', 'codigo_item']);
+  });
+  it('rechaza el literal numérico largo del XML sin aproximarlo a 0.005 ni planificar 0.01', async () => {
+    const c = context();
+    const zip = await JSZip.loadAsync(await createImportTemplate('xlsx', c));
+    const path = 'xl/worksheets/sheet2.xml';
+    const xml = await zip.file(path)!.async('string');
+    const changed = xml.replace(
+      /<c r="F2"[^>]*>.*?<\/c>/,
+      '<c r="F2"><v>0.004999999999999999999</v></c>',
+    );
+    expect(changed).not.toBe(xml);
+    zip.file(path, changed);
+    const parsed = await readImportFile(
+      file(await zip.generateAsync({ type: 'nodebuffer' }), 'xlsx'),
+    );
+    const plan = importPlan(c.structure, parsed.rows);
+    expect(plan.issues).toMatchObject([
+      { row: 2, field: 'importe_o_expresion' },
+    ]);
+    expect(JSON.stringify({ parsed, plan })).not.toContain('0.005');
+    expect(JSON.stringify(plan)).not.toContain('0.01');
+    expect(plan.changes).toHaveLength(0);
+  });
+  it.each([
+    ['0', '0.00'],
+    ['1500', '1500.00'],
+    ['1500,25', '1500.25'],
+    ['1500.25', '1500.25'],
+    ['1000+500', '1500.00'],
+  ])('XLSX admite importe textual %s sin pérdida', async (amount, expected) => {
+    const { parsed, plan } = await xlsxWithAmount(amount);
+    expect(parsed.rows[0].amount).toBe(amount);
+    expect(plan.issues).toEqual([]);
+    expect(plan.changes[0].amount?.value).toBe(expected);
+  });
+  it('XLSX admite SIN_CARGAR textual y celda vacía conserva', async () => {
+    const c = context();
+    c.structure.nodes[3].amount = {
+      state: 'CARGADO',
+      input: '5',
+      value: '5.00',
+      currency: 'ARS',
+      scale: 2,
+    };
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(
+      new Uint8Array(await createImportTemplate('xlsx', c)).buffer,
+    );
+    wb.getWorksheet('Carga')!.getCell('F2').value = 'SIN_CARGAR';
+    let parsed = await readImportFile(file(await bytes(wb), 'xlsx'));
+    expect(importPlan(c.structure, parsed.rows).changes[0].amount?.state).toBe(
+      'SIN_CARGAR',
+    );
+    wb.getWorksheet('Carga')!.getCell('F2').value = '';
+    parsed = await readImportFile(file(await bytes(wb), 'xlsx'));
+    expect(importPlan(c.structure, parsed.rows).changes).toEqual([]);
+  });
+  it.each([
+    0,
+    3,
+    1.5,
+    999999999999,
+    1000000000000,
+    Number.MAX_SAFE_INTEGER + 1,
+  ])('cantidad numérica %s respeta entero y rango', async (quantity) => {
+    const c = context();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(
+      new Uint8Array(await createImportTemplate('xlsx', c)).buffer,
+    );
+    wb.getWorksheet('Carga')!.getCell('G2').value = quantity;
+    const parsed = await readImportFile(file(await bytes(wb), 'xlsx'));
+    const plan = importPlan(c.structure, parsed.rows);
+    if (
+      Number.isInteger(quantity) &&
+      quantity >= 0 &&
+      quantity <= 999999999999
+    ) {
+      expect(plan.issues).toEqual([]);
+      expect(plan.changes[0].quantity?.value).toBe(String(quantity));
+    } else expect(plan.issues).toMatchObject([{ row: 2, field: 'cantidad' }]);
+  });
+  it('CSV mantiene importe textual y semántica de cero', async () => {
+    const c = context();
+    const grid = readCsv(await createImportTemplate('csv', c));
+    grid[1][5] = '0';
+    const parsed = await readImportFile(
+      file(
+        Buffer.from(grid.map((r) => r.map(csvEscape).join(';')).join('\r\n')),
+      ),
+    );
+    expect(importPlan(c.structure, parsed.rows).changes[0].amount?.value).toBe(
+      '0.00',
+    );
   });
   it('plantillas excluyen archivados', async () => {
     const c = context();
