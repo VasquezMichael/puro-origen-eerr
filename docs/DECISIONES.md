@@ -423,3 +423,38 @@ entre bloques, archivo de categorías, eliminación, auditoría y cálculos deri
 - Borradores obligan a volver a guardarlos o descartarlos desde sus controles antes
   del preview; no se descartan automáticamente. 409 conserva modal y resumen, exige
   preview actualizado. Lector no obtiene acción ni permiso de preview/confirmación.
+
+## EP-05A.1: resultados financieros básicos confirmados
+
+- Ventas/Ingresos, Costos Totales y Gastos Totales corresponden íntegramente a los
+  tres bloques protegidos identificados por código, no por nombre visible ni por
+  `nodeId` entre períodos. Los ítems activos directos y descendientes participan
+  una vez; archivados, cantidades, notas y expresiones originales no participan.
+  Se usa el importe persistido, incluso en históricos sin expresión.
+- Margen Bruto = Ingresos − Costos; Margen Bruto % = 100 × Margen Bruto / Ingresos.
+  Resultado Neto = Margen Bruto − Gastos Generales; Resultado Neto % =
+  100 × Resultado Neto / Ingresos. Los resultados derivados pueden ser negativos.
+- Categorías y bloques sin ítems activos son `EMPTY`, sin valor, nunca cero
+  implícito. Con ítems y ninguno cargado son `PENDING`, sin valor. Con mezcla son
+  `PARTIAL` y muestran solo la suma conocida; todos cargados son `COMPLETE`,
+  incluido el cero explícito. Para declarar ausencia real de movimientos se
+  conserva un ítem con importe cero cargado.
+- Margen Bruto requiere Ingresos y Costos completos y no vacíos; Resultado Neto
+  requiere además Gastos completos y no vacíos. Los porcentajes requieren la
+  métrica monetaria y denominador Ingresos distinto de cero. Los pendientes
+  bloquean la métrica dependiente, sin interpretar SIN_CARGAR como cero; gastos
+  pendientes no bloquean el Margen Bruto. Un denominador cero produce motivo
+  `ZERO_DENOMINATOR`, nunca 0 % ficticio.
+- Cálculo bajo demanda y de solo lectura sobre un snapshot/revisión. Decimal128
+  persistido se transforma en string canónico; centavos y cocientes se calculan
+  con BigInt, sin Number monetario. Dinero de salida: dos decimales; porcentaje
+  de API: cuatro decimales, ambos con ROUND_HALF_UP simétrico. El límite por
+  celda `999999999999.99` no limita subtotales: 1000 nodos admiten como cota
+  conservadora `999999999999990.00` ARS de suma. No se persisten derivados.
+- El análisis contiene `sourceRevision` y `calculationVersion: 1`. Admin,
+  Editor y Lector autorizados leen, incluidos históricos inactivos; ajeno e
+  inexistente devuelven 404. Datos persistidos inválidos fallan controladamente
+  con 500/`INVALID_PERSISTED_DATA`, sin corregirse durante GET.
+
+El cuadro web queda para EP-05A.2. Punto de equilibrio, meta y objetivo requieren
+definiciones adicionales en EP-05B; EP-06 conserva dashboard y comparación.

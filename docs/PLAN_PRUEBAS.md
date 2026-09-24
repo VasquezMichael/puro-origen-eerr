@@ -363,3 +363,25 @@ Una mutación deliberada que vuelve a convertir la celda numérica mediante
 Chromium comprueba el mensaje de corrección, el archivo retenido, reemplazo y
 confirmación bloqueada en cinco tamaños. La aceptación manual en Excel/LibreOffice
 y dispositivos finales permanece pendiente.
+
+## EP-05A.1 — motor y API de análisis
+
+Pruebas puras del paquete con node:test: tres bloques, árbol multinivel, ítem
+directo, subtotal padre sin duplicación, orden e identidades, archivo, metadata
+irrelevante, histórico sin expresión, cuatro estados de ámbito, completitud,
+dependencias de cada KPI, negativos, cero denominador, porcentaje periódico y
+redondeo simétrico, máximo individual/agregado, snapshot inválido, ausencia de
+mutación y determinismo. HTTP aislado: guard real, roles, histórico inactivo,
+404/400/401, EERR sin inicializar, contrato/revisión, Decimal128 y 500 estable.
+La carga ESM compilada cubre servicio y controlador nuevos.
+
+La integración MongoDB efímera existente agrega lecturas antes/después de edición,
+cero, limpieza, archivo/restauración, importación y completar pendientes; comprueba
+Decimal128, revisión y GET sin escrituras. Usar exclusivamente el runner local con
+MONGOD_BINARY; nunca Atlas ni AppModule. EP-05A.2 añadirá pruebas web y navegador.
+
+En EP-05A.1 se ejecutaron diez mutaciones manuales compilables, detectadas y
+restauradas: selección equivocada por nombre de bloque, pendiente como completo,
+inclusión de archivados, duplicación del total, conversión del agregado a Number,
+límite individual aplicado al agregado, KPI parcial, gasto pendiente bloqueando
+Margen Bruto, ámbito vacío como completo y redondeo porcentual anticipado.

@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "npm run build --workspace=@puro-origen/domain && npm run build --workspace=@puro-origen/shared-types",
-    "pretypecheck": "npm run build --workspace=@puro-origen/domain && npm run build --workspace=@puro-origen/shared-types",
-    "predev": "npm run build --workspace=@puro-origen/domain && npm run build --workspace=@puro-origen/shared-types",
+    "prebuild": "npm run build --workspace=@puro-origen/domain && npm run build --workspace=@puro-origen/calculation-engine && npm run build --workspace=@puro-origen/shared-types",
+    "pretypecheck": "npm run build --workspace=@puro-origen/domain && npm run build --workspace=@puro-origen/calculation-engine && npm run build --workspace=@puro-origen/shared-types",
+    "predev": "npm run build --workspace=@puro-origen/domain && npm run build --workspace=@puro-origen/calculation-engine && npm run build --workspace=@puro-origen/shared-types",
     "typecheck": "next typegen && tsc --noEmit",
     "dev": "next dev",
     "build": "next build",

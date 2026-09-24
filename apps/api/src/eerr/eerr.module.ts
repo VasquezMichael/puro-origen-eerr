@@ -1,4 +1,6 @@
 import { CompletePendingController } from './complete-pending.controller.js';
+import { AnalysisController } from './analysis.controller.js';
+import { AnalysisService } from './analysis.service.js';
 import { CompletePendingService } from './complete-pending.service.js';
 import { ImportController } from './import/import.controller.js';
 import { ImportService } from './import/import.service.js';
@@ -23,6 +25,7 @@ import { StructureRepository } from './structure.repository.js';
     MongooseModule.forFeature([{ name: Eerr.name, schema: EerrSchema }]),
   ],
   controllers: [
+    AnalysisController,
     CompletePendingController,
     ImportController,
     EerrController,
@@ -30,6 +33,7 @@ import { StructureRepository } from './structure.repository.js';
     CloneController,
   ],
   providers: [
+    AnalysisService,
     CompletePendingService,
     ImportService,
     ImportToken,

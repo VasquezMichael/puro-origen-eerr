@@ -5,12 +5,17 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run build --workspace=@puro-origen/domain && npm run build",
+    "test": "node --test test/*.test.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "types": "dist/index.d.ts",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@puro-origen/domain": "0.1.0"
+  }
 }
