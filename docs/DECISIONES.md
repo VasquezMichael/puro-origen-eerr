@@ -500,3 +500,26 @@ EP-05B; EP-06 conserva dashboard y comparación.
   Ingresos positivos y contribución positiva. Pendientes, vacíos, cero ingresos,
   contribución no positiva, meta ausente e inalcanzable producen valor null y
   motivos distintos. Cero cargado en gastos y meta cero son válidos.
+
+## EP-05B.2: presentación y edición web confirmadas
+
+- El Cuadro de resultados conserva sus filas históricas y agrega, después de
+  Resultado Neto, Punto de Equilibrio, meta principal opcional, Objetivo de Venta,
+  referencia secundaria y supuestos. Son estimaciones, no certezas ni datos
+  editables en la referencia. No se agregan al Dashboard general en esta etapa.
+- Porcentaje de meta admite coma o punto de entrada y hasta cuatro decimales;
+  monto admite hasta dos, sin miles ni expresiones. La web normaliza a string y
+  utiliza la validación de dominio; la API conserva la autoridad final. El motor
+  de API realiza en exclusiva fórmulas y redondeo hacia arriba del objetivo.
+- El cambio de modalidad con valor escrito exige confirmar su limpieza. Guardar
+  y eliminar son explícitos; eliminar exige confirmación y deja disponible el
+  Punto de Equilibrio. Un 409 conserva el borrador hasta recargar y revisar.
+  La navegación y salida con borrador quedan protegidas.
+- Las cifras aparecen solo para la revisión visible de la estructura. Tras un
+  PUT, incluso no-op, se actualizan estructura y análisis antes de cerrar el
+  modal. La meta inalcanzable permanece válida y editable; faltantes muestran
+  raya y motivo, nunca un cero supuesto. Admin y Editor asignado modifican;
+  Lector consulta. El backend aplica los permisos efectivos.
+- La meta es local al EERR y no se clona, importa ni comparte. EP-06 conserva
+  Dashboard financiero, comparación y consolidación; EP-07 conserva cierre y
+  eliminación del período.

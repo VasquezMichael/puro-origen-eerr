@@ -4,6 +4,7 @@ import type { AnalysisResponse } from "@puro-origen/shared-types";
 import { formatAnalysisMoney, formatAnalysisPercent } from "./analysis-format";
 import { metricStatus, scopeStatus, statementRows, type StatementRow } from "./analysis-model";
 import { useAnalysis } from "./use-analysis";
+import { SalesGoalFlow } from "./sales-goal-flow";
 import styles from "./results-statement.module.css";
 
 function AnalysisRow({ row }: { row: StatementRow }) {
@@ -30,10 +31,16 @@ export function StatementTable({ analysis }: { analysis: AnalysisResponse }) {
   </table>;
 }
 
-export function ResultsStatement({ id, revision, hasDrafts, onRefreshStructure }: {
+export function ResultsStatement({ id, revision, hasDrafts, canEdit, disabled,
+  context, onGoalDirtyChange, onGoalBusyChange, onRefreshStructure }: {
   id: string;
   revision: number;
   hasDrafts: boolean;
+  canEdit: boolean;
+  disabled: boolean;
+  context: string;
+  onGoalDirtyChange: (dirty: boolean) => void;
+  onGoalBusyChange: (busy: boolean) => void;
   onRefreshStructure: () => Promise<boolean>;
 }) {
   const [attempt, setAttempt] = useState(0);
@@ -53,5 +60,12 @@ export function ResultsStatement({ id, revision, hasDrafts, onRefreshStructure }
       {state.kind === "error" && <div className={styles.message}>No pudimos cargar el cuadro de resultados. La estructura sigue disponible. <button type="button" onClick={() => void refresh()}>Reintentar cuadro</button></div>}
     </div>
     {state.kind === "ready" && state.data.initialized && <StatementTable analysis={state.data} />}
+    <SalesGoalFlow id={id} revision={revision}
+      analysis={state.kind === "ready" ? state.data : state.latest}
+      visible={state.kind === "ready" && state.data.initialized}
+      canEdit={canEdit} disabled={disabled} context={context}
+      onRefreshStructure={onRefreshStructure}
+      onRefreshAnalysis={() => setAttempt((current) => current + 1)}
+      onDirtyChange={onGoalDirtyChange} onBusyChange={onGoalBusyChange} />
   </section>;
 }
