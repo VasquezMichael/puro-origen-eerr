@@ -367,5 +367,30 @@ El motor puro recibe snapshot y meta del mismo documento leído por AnalysisServ
 Calcula contribución, punto de equilibrio, objetivo y referencia con enteros BigInt
 y racionales exactos; los mínimos monetarios se redondean al centavo superior.
 La referencia usa el objetivo ya redondeado y aplica HALF_UP. El resultado se
-identifica con `sourceRevision` y `calculationVersion: 2`. EP-05A.2 ignora los
-campos nuevos hasta EP-05B.2; no hay cálculo financiero en la web.
+identifica con `sourceRevision` y `calculationVersion: 2`; no hay cálculo financiero
+en la web.
+
+## EP-05B.2: proyecciones y edición de meta en el workspace
+
+`ResultsStatement` agrega `ProjectionsSection` después del resultado histórico.
+Consume `salesGoal` y `projections` del mismo GET de análisis: no calcula fórmulas
+ni redondea ventas; los formatos de moneda y referencia reutilizan
+`analysis-format`. `SalesGoalSummary` distingue la meta principal de la venta
+objetivo y de la referencia informativa. Los motivos `null` se muestran como raya
+con explicación textual; un cero explícito conserva su valor.
+
+`SalesGoalFlow` y `SalesGoalModal` gestionan el borrador local. La adaptación de
+coma decimal y la validación exacta usan el contrato puro de `domain`; el PUT
+envía `expectedRevision` de la estructura visible y bloquea doble envío. El
+resultado, incluido no-op, dispara recarga de estructura y análisis. El reducer
+conserva los demás borradores y `useAnalysis` solo presenta cifras cuando
+`sourceRevision` coincide; descarta respuestas antiguas y ofrece actualización
+manual si persiste una diferencia. El modal cierra después de la sincronización
+y restaura el foco. Conflictos 409 mantienen modalidad y valor para revisión,
+sin sobrescritura automática. `DraftNavigationGuard` recibe también el estado
+del borrador y envío de meta. Admin y Editor asignado ven acciones; el Lector
+solo lee. La API sigue siendo la autoridad de permisos y validaciones.
+
+La configuración pertenece solo al EERR de la sucursal y período. Clonación e
+importación no incluyen la meta. Dashboard financiero, comparaciones y
+consolidación permanecen en EP-06; cierre y eliminación del EERR en EP-07.

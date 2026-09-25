@@ -9,8 +9,9 @@ type AnalysisState =
   | { kind: "mismatch"; id: string; revision: number; attempt: number }
   | { kind: "error"; id: string; revision: number; attempt: number };
 
-export function useAnalysis(id: string, revision: number, attempt: number): AnalysisState {
+export function useAnalysis(id: string, revision: number, attempt: number): AnalysisState & { latest: AnalysisResponse | null } {
   const [state, setState] = useState<AnalysisState>({ kind: "loading", id, revision, attempt });
+  const [latest, setLatest] = useState<{ id: string; data: AnalysisResponse } | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
@@ -19,6 +20,7 @@ export function useAnalysis(id: string, revision: number, attempt: number): Anal
           const data = await eerrApi<AnalysisResponse>(`/eerr/${id}/analysis`, { signal: controller.signal });
           if (controller.signal.aborted) return;
           if (data.eerrId === id && data.sourceRevision === revision) {
+            setLatest({ id, data });
             setState({ kind: "ready", id, revision, attempt, data });
             return;
           }
@@ -40,5 +42,6 @@ export function useAnalysis(id: string, revision: number, attempt: number): Anal
     return () => controller.abort();
   }, [id, revision, attempt]);
   // El render puede preceder al cleanup del efecto tras un guardado.
-  return state.id === id && state.revision === revision && state.attempt === attempt ? state : { kind: "loading", id, revision, attempt };
+  const visible = state.id === id && state.revision === revision && state.attempt === attempt ? state : { kind: "loading" as const, id, revision, attempt };
+  return { ...visible, latest: latest?.id === id ? latest.data : null };
 }

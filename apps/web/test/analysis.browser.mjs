@@ -21,10 +21,14 @@ function fixture(revision, mode) {
   const cost = empty ? null : "100.00";
   const expense = empty ? null : mode === "partial" ? "5.00" : pending ? null : "15.00";
   const reason = pending ? "PENDING_INPUTS" : empty ? "EMPTY_INPUT" : null;
-  return { eerrId: id, sourceRevision: revision, calculationVersion: 1, initialized: true, currency: "ARS",
+  return { eerrId: id, sourceRevision: revision, calculationVersion: 2, initialized: true, currency: "ARS",
     blocks: [scope("b1", ROOTS[0].code, "INGRESOS", empty ? "EMPTY" : "COMPLETE", income, empty ? 0 : 1, empty ? 0 : 1), scope("b2", ROOTS[1].code, "COSTOS", empty ? "EMPTY" : "COMPLETE", cost, empty ? 0 : 1, empty ? 0 : 1), scope("b3", ROOTS[2].code, "GASTOS GENERALES", empty ? "EMPTY" : mode === "partial" ? "PARTIAL" : pending ? "PENDING" : "COMPLETE", expense, empty || mode === "pending" ? 0 : 1, empty ? 0 : mode === "partial" ? 2 : 1)],
     categories: [{ ...scope("cat", "cat-code", "Ventas históricas", empty ? "EMPTY" : "COMPLETE", income, empty ? 0 : 1, empty ? 0 : 1), parentNodeId: "b1", parentCode: ROOTS[0].code, depth: 1, position: 0 }],
-    metrics: { grossMargin: metric(empty ? null : negative ? "-1500.25" : "50.00", "ARS", empty ? "EMPTY_INPUT" : null), grossMarginPercent: metric(empty ? null : zero ? null : "66.6667", "PERCENT", empty ? "EMPTY_INPUT" : zero ? "ZERO_DENOMINATOR" : null), netResult: metric(pending || empty ? null : negative ? "-1515.25" : "35.00", "ARS", reason), netResultPercent: metric(pending || empty ? null : zero ? null : "33.3333", "PERCENT", pending || empty ? reason : zero ? "ZERO_DENOMINATOR" : null) } };
+    metrics: { grossMargin: metric(empty ? null : negative ? "-1500.25" : "50.00", "ARS", empty ? "EMPTY_INPUT" : null), grossMarginPercent: metric(empty ? null : zero ? null : "66.6667", "PERCENT", empty ? "EMPTY_INPUT" : zero ? "ZERO_DENOMINATOR" : null), netResult: metric(pending || empty ? null : negative ? "-1515.25" : "35.00", "ARS", reason), netResultPercent: metric(pending || empty ? null : zero ? null : "33.3333", "PERCENT", pending || empty ? reason : zero ? "ZERO_DENOMINATOR" : null) },
+    salesGoal: null,
+    projections: { breakEvenSales: metric(pending || empty || zero ? null : "50.00", "ARS", pending || empty ? reason : zero ? "ZERO_REVENUE" : null),
+      targetSales: metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
+      targetReference: { ...metric(null, "ARS", "GOAL_NOT_CONFIGURED"), type: null } } };
 }
 function structure() { return { id, revision: 2, progress: { total: 1, loaded: 1, pending: 0, status: "CARGADO" }, structure: { schemaVersion: 1, structureVersion: 1, nodes: [
   { nodeId: "b1", code: ROOTS[0].code, kind: "BLOCK", parentId: null, name: "INGRESOS", position: 0 },

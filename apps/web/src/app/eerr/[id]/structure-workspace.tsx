@@ -76,6 +76,8 @@ export function StructureWorkspace({ id }: { id: string }) {
   const [completeBusy, setCompleteBusy] = useState(false);
   const [importDirty, setImportDirty] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
+  const [goalDirty, setGoalDirty] = useState(false);
+  const [goalBusy, setGoalBusy] = useState(false);
   const sending = useRef(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [preview, setPreview] = useState<CategoryPreviewResponse | null>(null);
@@ -474,9 +476,9 @@ export function StructureWorkspace({ id }: { id: string }) {
       }
     >
       <DraftNavigationGuard
-        key={pending > 0 || importDirty || completeOpen ? "dirty" : "clean"}
-        dirty={pending > 0 || importDirty || completeOpen}
-        busy={busy || importBusy || completeBusy}
+        key={pending > 0 || importDirty || completeOpen || goalDirty ? "dirty" : "clean"}
+        dirty={pending > 0 || importDirty || completeOpen || goalDirty}
+        busy={busy || importBusy || completeBusy || goalBusy}
       />
       {!data || !context ? (
         <section>
@@ -651,7 +653,12 @@ export function StructureWorkspace({ id }: { id: string }) {
               <ResultsStatement
                 id={id}
                 revision={data.revision}
-                hasDrafts={pending > 0 || importDirty || conflict}
+                hasDrafts={pending > 0 || importDirty || conflict || goalDirty}
+                canEdit={canEdit}
+                disabled={disabled || goalBusy}
+                context={`${context.branch.name} · ${period}`}
+                onGoalDirtyChange={setGoalDirty}
+                onGoalBusyChange={setGoalBusy}
                 onRefreshStructure={reload}
               />
               <div className={styles.gridIntro}>

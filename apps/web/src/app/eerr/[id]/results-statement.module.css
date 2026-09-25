@@ -21,12 +21,46 @@
 .totalRow { font-weight: 700; }
 .totalRow .value { font-size: 1.02rem; }
 .statement button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.projections { margin-top: 1.5rem; border-top: 2px solid var(--stroke); padding-top: 1.25rem; min-width: 0; }
+.projectionsHeading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: .75rem 1.5rem; margin-bottom: 1rem; }
+.projectionsHeading h3 { margin: 0; font-size: 1.2rem; }
+.goalActions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.projectionGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
+.projectionMetric, .referenceMetric, .goalSummary, .noGoal { min-width: 0; margin: 0; padding: .9rem 1rem; border: 1px solid var(--stroke); border-radius: var(--radius); background: var(--surface-muted); overflow-wrap: anywhere; }
+.projectionMetric h4, .referenceMetric h4 { margin: 0 0 .4rem; font-size: .9rem; }
+.projectionMetric strong, .referenceMetric strong { display: block; font-size: clamp(1.08rem, 2vw, 1.4rem); line-height: 1.25; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.projectionMetric p, .referenceMetric p { margin: .5rem 0 0; color: var(--text-muted); font-size: .82rem; }
+.referenceMetric { background: transparent; }
+.referenceMetric strong { font-size: 1.05rem; }
+.goalSummary { display: grid; gap: .25rem; background: #f4f0e4; }
+.goalCaption { color: var(--text-muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+.goalSummary strong { font-size: .9rem; }
+.goalValue { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.noGoal { display: flex; align-items: center; color: var(--text-muted); }
+.estimateNote { margin: 1rem 0 .5rem; color: var(--text-muted); font-size: .83rem; }
+.assumptions { color: var(--text-muted); font-size: .82rem; }
+.assumptions summary { width: fit-content; cursor: pointer; font-weight: 600; }
+.assumptions ul { margin: .55rem 0 0; padding-left: 1.25rem; }
+.goalForm { display: grid; gap: 1rem; min-width: 0; }
+.goalForm p { margin: 0; }
+.goalModes { border: 1px solid var(--stroke); border-radius: var(--radius); display: grid; gap: .5rem; min-width: 0; }
+.goalModes legend { font-weight: 700; }
+.goalModes label { display: flex; align-items: center; gap: .5rem; }
+.goalValueInput { display: grid; gap: .4rem; font-weight: 700; }
+.goalValueInput > span { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.goalValueInput input { flex: 1 1 14rem; max-width: 100%; }
+.goalError { color: #922f2f; }
+.goalConfirm { border: 1px solid #bba66f; border-radius: var(--radius); padding: .75rem; display: grid; gap: .7rem; }
+.currentGoal { color: var(--text-muted); }
+.goalPrimary { background: var(--brand) !important; color: white !important; border-color: var(--brand) !important; }
+.dangerButton { border-color: #922f2f !important; color: #922f2f !important; }
 @media (min-width: 641px) and (max-width: 1100px) {
   .table thead th:first-child { width: 34%; }
   .table thead th:nth-child(2) { width: 29%; }
   .table thead th:last-child { width: 37%; }
 }
 @media (max-width: 640px) {
+  .projectionGrid { grid-template-columns: minmax(0, 1fr); }
   .table, .table tbody { display: block; }
   .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: .6rem 0; border-bottom: 1px solid var(--stroke); }

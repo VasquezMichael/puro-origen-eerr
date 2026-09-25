@@ -425,3 +425,29 @@ en mínimos, clonación de meta, proyección con pendientes, contribución cero,
 omisión de CAS, escritura habilitada al Lector y persistencia de derivados en
 GET. Las mutaciones del motor se aplicaron al JavaScript compilado; las de API
 a la fuente y se probaron con HTTP o MongoDB efímero. Ninguna quedó en el diff.
+
+## EP-05B.2: proyecciones y meta en la web
+
+Pruebas unitarias web cubren adaptación decimal exacta, límites de ambas
+modalidades, borrador y cambio de modalidad, representación de equilibrio,
+objetivo, referencia, cero y nulo, motivos de bloqueo, supuestos, acciones por
+permiso y estructura accesible del modal. No importan AppModule ni llaman a API.
+
+`projections.browser.mjs` usa Chromium real y respuestas HTTP simuladas, sin
+arrancar Nest ni conectarse a MongoDB. Recorre creación, porcentaje de cuatro
+decimales, monto, cambio de modalidad, validación, doble envío, CAS, conflicto
+409 con borrador conservado, recarga, meta inalcanzable, pendientes, eliminación,
+Lector y cinco tamaños: 1440×900, 1280×720, 1024×768, 768×1024 y 390×844.
+Guarda capturas sintéticas `ep05b2-*` en TEMP para inspección visual y comprueba
+desbordes horizontales. Requiere `PLAYWRIGHT_MODULE`, `BROWSER_BINARY` y web
+local aislada en 127.0.0.1:3100. No forma parte del CI sin navegador instalado.
+
+La aceptación visual manual con datos de negocio y dispositivos finales queda
+pendiente. EP-06 y EP-07 permanecen fuera de estas verificaciones.
+
+Se detectaron y restauraron diez mutaciones deliberadas: objetivo calculado en
+web, conversión a Number, nulo como cero, edición visible al Lector, borrador
+perdido tras 409, CAS omitido, eliminación sin confirmación, equilibrio oculto
+sin meta, proyección parcial convertida en cero y valor anterior copiado al
+cambiar modalidad. Las suites de análisis, workspace y navegación también se
+repitieron contra la build de producción con API simulada en los cinco tamaños.

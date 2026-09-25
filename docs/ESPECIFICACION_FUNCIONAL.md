@@ -354,4 +354,36 @@ Admin y Editor asignado pueden establecer, cambiar o eliminar la meta en EERR
 inicializados; Lector solo consulta. Los mínimos se redondean siempre al centavo
 superior. Si faltan cargas, un bloque está vacío, no hay ingresos, la contribución
 no es positiva o el margen objetivo es inalcanzable, la proyección muestra motivo
-explícito y ningún importe. La presentación y edición web quedan para EP-05B.2.
+explícito y ningún importe.
+
+## EP-05B.2: proyecciones en el Cuadro de resultados
+
+Después del Resultado Neto se presentan Punto de Equilibrio, meta principal si
+existe, Objetivo de Venta, referencia secundaria y supuestos económicos. El
+objetivo es una venta mínima estimada según la estructura actual. La referencia
+es ganancia neta estimada en ARS para una meta porcentual, o margen neto
+equivalente para una meta monetaria; no tiene edición propia. Un detalle accesible
+explica importes netos de IVA, Costos variables, Gastos mayormente fijos, relación
+Costos/Ingresos y la no descomposición de gastos semivariables.
+
+Sin meta, el equilibrio continúa y objetivo/referencia muestran raya con el
+mensaje de configuración. Los bloques pendientes o vacíos, ingresos cero,
+contribución no positiva, meta inalcanzable y denominador cero muestran motivo
+específico sin proyección parcial. La meta guardada sigue visible en estos estados.
+Los valores provienen exclusivamente de la API; la web solo los formatea. Un
+cero calculado se muestra como cero y los números largos no se recortan.
+
+Admin y Editor asignado configuran, cambian o eliminan la meta mediante modal
+explícito con modalidad, valor y explicación. Porcentaje admite coma o punto,
+cuatro decimales y rango [0, 100); monto ARS admite dos decimales hasta
+999999999999.99, sin miles ni expresiones. Cambiar modalidad con valor escrito
+solicita confirmación antes de vaciar el campo. Eliminar muestra su efecto sobre
+el objetivo y conserva estructura, importes y notas. Lector solo consulta.
+
+El guardado envía la revisión visible mediante CAS, previene doble envío y
+espera sincronizar `sourceRevision` de estructura y análisis antes de mostrar
+las proyecciones nuevas y cerrar el modal. No-op también sincroniza. Un 409
+preserva el borrador para actualizar y decidir; salir, recargar o cerrar un modal
+con cambios requiere confirmación. No se clonan ni importan metas. Gráficos,
+Dashboard financiero y comparación corresponden a EP-06; cierre y eliminación
+del EERR a EP-07.
