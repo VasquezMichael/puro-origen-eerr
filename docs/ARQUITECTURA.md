@@ -352,3 +352,20 @@ explícita de jerarquía; en móvil las filas se adaptan sin ocultar valores.
 
 Punto de equilibrio y objetivo quedan para EP-05B; dashboard, comparaciones y
 consolidación, para EP-06.
+
+## EP-05B.1: meta persistida y proyecciones bajo demanda
+
+`salesGoal` es un subdocumento opcional del EERR con modalidad, valor decimal
+exacto Decimal128, fecha y actor de actualización. Documentos previos sin campo
+se leen como meta nula, sin migración. Los IDs de usuarios existentes son ObjectId;
+`updatedBy` conserva el identificador textual autenticado. Solo el endpoint
+`PUT /eerr/:id/sales-goal` escribe la meta, con revisión CAS y no-op canónico.
+Las demás escrituras actualizan campos específicos y la preservan; clonar toma
+únicamente estructura y valores, nunca meta. No se almacenan derivados.
+
+El motor puro recibe snapshot y meta del mismo documento leído por AnalysisService.
+Calcula contribución, punto de equilibrio, objetivo y referencia con enteros BigInt
+y racionales exactos; los mínimos monetarios se redondean al centavo superior.
+La referencia usa el objetivo ya redondeado y aplica HALF_UP. El resultado se
+identifica con `sourceRevision` y `calculationVersion: 2`. EP-05A.2 ignora los
+campos nuevos hasta EP-05B.2; no hay cálculo financiero en la web.

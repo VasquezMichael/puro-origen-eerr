@@ -6,6 +6,7 @@ import {
   type Types,
 } from 'mongoose';
 import { StructureSchema, type StoredStructure } from './structure.schema.js';
+import { SalesGoalSchema, type StoredSalesGoal } from './sales-goal.schema.js';
 
 export enum EerrLoadStatus {
   SIN_CARGAR = 'SIN_CARGAR',
@@ -23,6 +24,9 @@ export class Eerr {
 
   @Prop({ type: StructureSchema, default: null })
   structure!: StoredStructure | null;
+
+  @Prop({ type: SalesGoalSchema, default: undefined })
+  salesGoal?: StoredSalesGoal | null;
 
   @Prop({ type: String, default: randomUUID, immutable: true })
   _id!: string;

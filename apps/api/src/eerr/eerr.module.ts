@@ -1,6 +1,8 @@
 import { CompletePendingController } from './complete-pending.controller.js';
 import { AnalysisController } from './analysis.controller.js';
 import { AnalysisService } from './analysis.service.js';
+import { SalesGoalController } from './sales-goal.controller.js';
+import { SalesGoalService } from './sales-goal.service.js';
 import { CompletePendingService } from './complete-pending.service.js';
 import { ImportController } from './import/import.controller.js';
 import { ImportService } from './import/import.service.js';
@@ -26,6 +28,7 @@ import { StructureRepository } from './structure.repository.js';
   ],
   controllers: [
     AnalysisController,
+    SalesGoalController,
     CompletePendingController,
     ImportController,
     EerrController,
@@ -34,6 +37,7 @@ import { StructureRepository } from './structure.repository.js';
   ],
   providers: [
     AnalysisService,
+    SalesGoalService,
     CompletePendingService,
     ImportService,
     ImportToken,

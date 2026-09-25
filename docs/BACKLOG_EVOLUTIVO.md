@@ -35,6 +35,9 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
   oficial, con pruebas de seguridad, compatibilidad y precisión.
 - EP-06: definir equivalencias entre ítems creados independientemente antes de
   implementar comparaciones entre EERR.
+- EP-05B.2: presentar y editar meta/proyecciones en web; explicar el supuesto
+  de gastos semivariables. Evaluar clasificación fija/variable detallada en un
+  incremento posterior, con decisión funcional previa.
 
 Cualquier mejora futura debe agregarse a este backlog. Los requisitos funcionales
 confirmados están en ESPECIFICACION_FUNCIONAL.md y las decisiones pendientes en

@@ -339,3 +339,19 @@ valores se formatean exactamente desde strings, sin cálculo financiero del clie
 La tabla es accesible y se adapta a móvil sin ocultar los importes. Sin estructura
 preparada se prioriza la inicialización. Punto de equilibrio y objetivo quedan
 para EP-05B; dashboard, comparación y consolidación para EP-06.
+
+## EP-05B.1: Punto de Equilibrio y Objetivo de Venta en la API
+
+El análisis calcula un Punto de Equilibrio sin requerir meta. La meta principal
+opcional por EERR puede ser margen neto deseado sobre ventas (porcentaje) o ganancia
+neta deseada (ARS). El Objetivo de Venta usa la modalidad elegida y presenta la
+otra como referencia informativa, basada en el objetivo redondeado. Las cifras son
+estimaciones según la tasa observada de costos variables y gastos mayormente fijos;
+no constituyen una clasificación individual de cada gasto. Todos los montos son
+netos de IVA. Las metas persisten en históricos, no se clonan ni importan.
+
+Admin y Editor asignado pueden establecer, cambiar o eliminar la meta en EERR
+inicializados; Lector solo consulta. Los mínimos se redondean siempre al centavo
+superior. Si faltan cargas, un bloque está vacío, no hay ingresos, la contribución
+no es positiva o el margen objetivo es inalcanzable, la proyección muestra motivo
+explícito y ningún importe. La presentación y edición web quedan para EP-05B.2.
