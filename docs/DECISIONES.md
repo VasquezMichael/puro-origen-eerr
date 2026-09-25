@@ -473,3 +473,30 @@ entre bloques, archivo de categorías, eliminación, auditoría y cálculos deri
 
 Punto de equilibrio, meta y objetivo requieren definiciones adicionales en
 EP-05B; EP-06 conserva dashboard y comparación.
+
+## EP-05B.1: proyecciones y meta confirmadas
+
+- INGRESOS son ventas netas de IVA; COSTOS son mercadería vendida y costos
+  variables; GASTOS GENERALES son mayormente fijos. Todos los importes son netos
+  de IVA. La relación Costos/Ingresos observada estima la tasa variable; gastos
+  semivariables no se descomponen todavía.
+- Con I=Ingresos, C=Costos y G=Gastos, y contribución I−C positiva, el Punto de
+  Equilibrio es `G×I/(I−C)`. Meta porcentual d sobre ventas: `G×I/((I−C)−I×d)`;
+  meta monetaria A: `(G+A)×I/(I−C)`. El resultado en ambos casos es el mínimo
+  de ventas requerido: se redondea hacia arriba al centavo con racional exacto.
+- Cada EERR tiene cero o una meta, porcentaje `0.0000 ≤ d < 100.0000` o monto
+  ARS `0.00..999999999999.99`. Los valores viajan como strings; se rechaza la
+  precisión de entrada excesiva y se completa la escala contractual sin pérdida.
+  La meta porcentual inalcanzable puede guardarse y produce motivo explícito.
+- La modalidad alternativa es solo referencia: con meta porcentual, `d×objetivo`
+  en ARS; con meta monetaria, `100×A/objetivo` en porcentaje. Utiliza el objetivo
+  ya redondeado; se redondea con HALF_UP a dos o cuatro decimales. Objetivo cero
+  deja el porcentaje de referencia no calculable.
+- Meta por EERR, conservada en históricos y editable por Admin/Editor asignado,
+  incluso con sucursal inactiva. Lector consulta. No se clona, importa ni comparte.
+  Solo se configura en EERR inicializado. Su escritura usa CAS; la lectura no
+  escribe. Los resultados se calculan siempre bajo demanda.
+- Proyecciones requieren los tres bloques con ítems activos y carga completa,
+  Ingresos positivos y contribución positiva. Pendientes, vacíos, cero ingresos,
+  contribución no positiva, meta ausente e inalcanzable producen valor null y
+  motivos distintos. Cero cargado en gastos y meta cero son válidos.

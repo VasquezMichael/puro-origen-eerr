@@ -421,3 +421,28 @@ símbolo %. Sin estructura: 200, initialized false, bloques/categorías vacíos 
 cuatro métricas bloqueadas con UNINITIALIZED. Datos persistidos incoherentes:
 500 con `code: "INVALID_PERSISTED_DATA"` y mensaje estable, sin detalles internos.
 No hay ETag, caché, escrituras ni resultados persistidos.
+
+## EP-05B.1 — PUT /eerr/:id/sales-goal y análisis extendido
+
+Requiere sesión, UUID v4 y EERR inicializado. Admin y Editor asignado escriben,
+incluidos históricos inactivos; Lector recibe 403; ajeno/inexistente 404.
+Body estricto: `{ "expectedRevision": 12, "goal": { "mode":
+"NET_MARGIN_PERCENT", "value": "10.0000" } }`, o modo `NET_PROFIT_AMOUNT`
+con valor `"2000000.00"`, o `"goal": null` para eliminar. No admite campos
+adicionales ni Number. El porcentaje tiene hasta cuatro decimales y es menor
+que 100; el monto tiene hasta dos y no supera 999999999999.99. Se completan
+ceros a escala canónica. Devuelve `{ eerrId, revision, salesGoal }`, donde la
+meta incluye `updatedAt` ISO y `updatedBy` (ID textual del usuario). La misma
+meta canónica es no-op sin nueva revisión ni timestamps. Revisión obsoleta: 409;
+contrato o estructura ausente: 400.
+
+`GET /eerr/:id/analysis` conserva los campos EP-05A y agrega `salesGoal` (null
+en documentos antiguos) y `projections`: `breakEvenSales`, `targetSales` y
+`targetReference`. Cada métrica tiene status, value string/null, unit y reason;
+la referencia añade type de la modalidad alternativa o null sin meta. Los
+motivos nuevos son UNINITIALIZED, PENDING_INPUTS, EMPTY_INPUT, ZERO_REVENUE,
+NON_POSITIVE_CONTRIBUTION_MARGIN, GOAL_NOT_CONFIGURED,
+TARGET_MARGIN_UNATTAINABLE y ZERO_DENOMINATOR. Los primeros bloquean la métrica;
+ZERO_DENOMINATOR en la referencia es NOT_CALCULABLE. Punto de equilibrio y
+objetivo tienen dos decimales y techo al centavo; referencia usa HALF_UP. La
+respuesta indica `calculationVersion: 2` y `sourceRevision`; GET no escribe.

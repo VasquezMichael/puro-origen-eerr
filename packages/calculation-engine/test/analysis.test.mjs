@@ -284,3 +284,136 @@ test("snapshot inválido, raíz faltante, código duplicado, ciclo y huérfano f
     assert.throws(() => calculateEerr(input));
   }
 });
+
+const percentGoal = (value) => ({ mode: "NET_MARGIN_PERCENT", value });
+const amountGoal = (value) => ({ mode: "NET_PROFIT_AMOUNT", value });
+
+test("punto de equilibrio y ambas metas usan la tasa de costo observada", () => {
+  const input = cells("100.00", "60.00", "20.00");
+  const noGoal = calculateEerr(input);
+  assert.equal(noGoal.projections.breakEvenSales.value, "50.00");
+  assert.equal(noGoal.projections.targetSales.reason, "GOAL_NOT_CONFIGURED");
+  assert.equal(
+    noGoal.projections.targetReference.reason,
+    "GOAL_NOT_CONFIGURED",
+  );
+  const percent = calculateEerr(input, percentGoal("10.0000"));
+  assert.equal(percent.projections.targetSales.value, "66.67");
+  assert.deepEqual(percent.projections.targetReference, {
+    status: "COMPLETE",
+    type: "NET_PROFIT_AMOUNT",
+    value: "6.67",
+    unit: "ARS",
+    reason: null,
+  });
+  const amount = calculateEerr(input, amountGoal("10.00"));
+  assert.equal(amount.projections.targetSales.value, "75.00");
+  assert.equal(amount.projections.targetReference.value, "13.3333");
+  assert.equal(amount.projections.targetReference.unit, "PERCENT");
+  assert.equal(percent.calculationVersion, 2);
+});
+
+test("mínimos se redondean hacia arriba, pero exactos no suman centavo", () => {
+  const input = cells("3.00", "1.00", "1.00");
+  assert.equal(calculateEerr(input).projections.breakEvenSales.value, "1.50");
+  assert.equal(
+    calculateEerr(input, amountGoal("0.01")).projections.targetSales.value,
+    "1.52",
+  );
+  const tiny = cells("100.00", "60.00", "0.01");
+  assert.equal(calculateEerr(tiny).projections.breakEvenSales.value, "0.03");
+  const percent = calculateEerr(
+    cells("100.00", "60.00", "1.00"),
+    percentGoal("10.0000"),
+  );
+  assert.equal(percent.projections.targetSales.value, "3.34");
+  assert.equal(percent.projections.targetReference.value, "0.33");
+});
+
+test("cero cargado, metas cero y referencia de objetivo nulo", () => {
+  const input = cells("100.00", "60.00", "0.00");
+  assert.equal(calculateEerr(input).projections.breakEvenSales.value, "0.00");
+  assert.equal(
+    calculateEerr(input, percentGoal("0.0000")).projections.targetSales.value,
+    "0.00",
+  );
+  const zero = calculateEerr(input, amountGoal("0.00"));
+  assert.equal(zero.projections.targetSales.value, "0.00");
+  assert.equal(zero.projections.targetReference.reason, "ZERO_DENOMINATOR");
+  assert.equal(zero.projections.targetReference.status, "NOT_CALCULABLE");
+  assert.equal(
+    calculateEerr(input, amountGoal("1.00")).projections.targetSales.value,
+    "2.50",
+  );
+});
+
+test("proyecciones nunca interpretan vacíos o pendientes como cero", () => {
+  assert.equal(
+    calculateEerr(null).projections.breakEvenSales.reason,
+    "UNINITIALIZED",
+  );
+  const input = cells("100.00", "60.00", "20.00");
+  for (const index of [3, 4, 5]) {
+    const pending = structuredClone(input);
+    pending.nodes[index].amount = item(
+      99,
+      pending.nodes[0].nodeId,
+      null,
+    ).amount;
+    assert.equal(
+      calculateEerr(pending, amountGoal("1.00")).projections.targetSales.reason,
+      "PENDING_INPUTS",
+    );
+  }
+  const empty = snapshot(item(30, roots()[0].nodeId, "1.00"));
+  assert.equal(
+    calculateEerr(empty).projections.breakEvenSales.reason,
+    "EMPTY_INPUT",
+  );
+});
+
+test("ingresos cero, contribución no positiva y meta inalcanzable tienen razones distintas", () => {
+  assert.equal(
+    calculateEerr(cells("0.00", "0.00", "1.00")).projections.breakEvenSales
+      .reason,
+    "ZERO_REVENUE",
+  );
+  assert.equal(
+    calculateEerr(cells("100.00", "100.00", "1.00")).projections.breakEvenSales
+      .reason,
+    "NON_POSITIVE_CONTRIBUTION_MARGIN",
+  );
+  assert.equal(
+    calculateEerr(cells("100.00", "101.00", "1.00")).projections.breakEvenSales
+      .reason,
+    "NON_POSITIVE_CONTRIBUTION_MARGIN",
+  );
+  for (const goal of ["40.0000", "50.0000"]) {
+    const result = calculateEerr(
+      cells("100.00", "60.00", "1.00"),
+      percentGoal(goal),
+    );
+    assert.equal(result.projections.breakEvenSales.status, "COMPLETE");
+    assert.equal(
+      result.projections.targetSales.reason,
+      "TARGET_MARGIN_UNATTAINABLE",
+    );
+  }
+});
+
+test("centavos exactos soportan contribución mínima, resultados enormes y entrada inmutable", () => {
+  const input = cells("999999999999.99", "999999999999.98", "999999999999.99");
+  const before = structuredClone(input);
+  const goal = amountGoal("999999999999.99");
+  const result = calculateEerr(input, goal);
+  assert.equal(
+    result.projections.breakEvenSales.value,
+    "99999999999998000000000000.01",
+  );
+  assert.equal(
+    result.projections.targetSales.value,
+    "199999999999996000000000000.02",
+  );
+  assert.deepEqual(calculateEerr(input, goal), result);
+  assert.deepEqual(input, before);
+});

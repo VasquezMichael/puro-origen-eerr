@@ -402,3 +402,26 @@ aceptación de respuesta antigua, revisión ignorada, pérdida de borradores,
 cuadro oculto al Lector y estado expresado sin texto. Las pruebas de navegador
 utilizan exclusivamente respuestas simuladas; resta aceptación visual manual
 con datos de negocio.
+
+## EP-05B.1: proyecciones y meta
+
+Las pruebas puras cubren fórmulas de equilibrio y ambas metas, referencias sobre
+objetivo redondeado, techo al centavo frente a HALF_UP, resultados exactos, cero,
+vacíos, pendientes, contribución no positiva, meta ausente/inalcanzable,
+denominador mínimo, valores superiores al máximo por celda, determinismo e
+inmutabilidad. La validación de dominio rechaza Number, escalas excesivas, rangos
+y campos extra. Las pruebas HTTP ejercitan contrato estricto, roles, historial,
+UUID, conflicto, doble envío y no-op. El smoke ESM carga los nuevos módulos.
+
+La integración MongoDB local efímera verifica Decimal128, CAS real, carrera,
+revisión, timestamps, lectura histórica sin campo y actualización del análisis
+tras cambiar importes. También comprueba preservación de meta en las operaciones
+existentes. No usar Atlas, bootstrap ni AppModule. EP-05B.2 incorporará pruebas
+de interfaz y aceptación visual manual.
+
+Se ejecutaron diez mutaciones manuales, todas detectadas y restauradas: fórmula
+original incorrecta, Costos tratados como fijos, conversión a Number, HALF_UP
+en mínimos, clonación de meta, proyección con pendientes, contribución cero,
+omisión de CAS, escritura habilitada al Lector y persistencia de derivados en
+GET. Las mutaciones del motor se aplicaron al JavaScript compilado; las de API
+a la fuente y se probaron con HTTP o MongoDB efímero. Ninguna quedó en el diff.

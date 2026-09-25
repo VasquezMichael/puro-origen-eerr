@@ -4,6 +4,7 @@ import type { AnalysisResponse } from '@puro-origen/shared-types';
 import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import { EerrService } from './eerr.service.js';
 import { publicStructure } from './schemas/structure.schema.js';
+import { publicSalesGoal } from './schemas/sales-goal.schema.js';
 
 type Viewer = NonNullable<AuthenticatedRequest['user']>;
 
@@ -17,10 +18,12 @@ export class AnalysisService {
       const revision = row.revision ?? 0;
       if (!Number.isSafeInteger(revision) || revision < 0)
         throw new Error('Revisión persistida inválida');
+      const salesGoal = publicSalesGoal(row.salesGoal);
       return {
         eerrId: row._id,
         sourceRevision: revision,
-        ...calculateEerr(publicStructure(row.structure)),
+        ...calculateEerr(publicStructure(row.structure), salesGoal),
+        salesGoal,
       };
     } catch {
       throw new InternalServerErrorException({

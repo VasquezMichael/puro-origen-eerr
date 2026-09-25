@@ -1,8 +1,19 @@
 import type { EerrStructure } from "@puro-origen/domain";
+import type { SalesGoalValue } from "@puro-origen/domain";
 import type { AnalysisCalculation } from "@puro-origen/calculation-engine";
 export type AnalysisResponse = AnalysisCalculation & {
   eerrId: string;
   sourceRevision: number;
+  salesGoal: (SalesGoalValue & { updatedAt: string; updatedBy: string }) | null;
+};
+export type SalesGoalRequest = {
+  expectedRevision: number;
+  goal: SalesGoalValue | null;
+};
+export type SalesGoalResponse = {
+  eerrId: string;
+  revision: number;
+  salesGoal: AnalysisResponse["salesGoal"];
 };
 export type StructureResponse = {
   id: string;

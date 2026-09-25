@@ -22,6 +22,7 @@ describe('EerrSchema sin metadatos inferidos ni conexión', () => {
         createdBy: 'ObjectId',
         createdAt: 'Date',
         updatedAt: 'Date',
+        salesGoal: 'Embedded',
       })) {
         expect(EerrSchema.path(field)?.instance).toBe(type);
       }
@@ -46,6 +47,19 @@ describe('EerrSchema sin metadatos inferidos ni conexión', () => {
       expect(row.loadStatus).toBe('SIN_CARGAR');
       expect(row.createdAt).toBeInstanceOf(Date);
       expect(row.toObject()).not.toHaveProperty('values');
+      expect(row.toObject()).not.toHaveProperty('salesGoal');
+      const withGoal = new Model({
+        ...input,
+        salesGoal: {
+          mode: 'NET_MARGIN_PERCENT',
+          value: Types.Decimal128.fromString('10.0000'),
+          updatedAt: new Date('2026-09-15T12:00:00Z'),
+          updatedBy: input.createdBy.toString(),
+        },
+      });
+      await expect(withGoal.validate()).resolves.toBeUndefined();
+      expect(withGoal.salesGoal?.value.toString()).toBe('10.0000');
+      expect(withGoal.salesGoal?.value._bsontype).toBe('Decimal128');
       const id = row._id;
       row.isNew = false;
       row._id = 'ffffffff-ffff-4fff-8fff-ffffffffffff';

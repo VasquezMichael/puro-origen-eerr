@@ -1,5 +1,6 @@
 import { CompletePendingService } from '../src/eerr/complete-pending.service.js';
 import { AnalysisService } from '../src/eerr/analysis.service.js';
+import { SalesGoalService } from '../src/eerr/sales-goal.service.js';
 import { completePendingPlan } from '@puro-origen/domain';
 import { ImportService } from '../src/eerr/import/import.service.js';
 import { ImportToken } from '../src/eerr/import/import-token.js';
@@ -45,6 +46,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
   let imports: ImportService;
   let completePending: CompletePendingService;
   let analysis: AnalysisService;
+  let salesGoals: SalesGoalService;
   let id: string;
   const viewer = {
     sub: '222222222222222222222222',
@@ -148,6 +150,11 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
     );
     analysis = new AnalysisService(
       new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
+    );
+    salesGoals = new SalesGoalService(
+      model as unknown as Model<EerrDocument>,
+      new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
+      clock,
     );
     imports = new ImportService(
       repository,
@@ -1728,5 +1735,221 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       ]).toContainEqual([snapshot.sourceRevision, snapshot.blocks[0].value]);
     }
     expect((await analysis.get(id, viewer)).blocks[0].value).toBe('20.00');
+  });
+
+  it('EP-05B.1 guarda Decimal128, CAS, no-op, cambio de modo, borrado e histórico sin campo', async () => {
+    const legacy = await analysis.get(id, viewer);
+    expect(legacy.salesGoal).toBeNull();
+    expect(legacy.projections.breakEvenSales.reason).toBe('UNINITIALIZED');
+    await expect(
+      salesGoals.put(id, { expectedRevision: 0, goal: null }, viewer),
+    ).rejects.toMatchObject({ status: 400 });
+    await service.initialize(id, 0, viewer);
+    const percent = await salesGoals.put(
+      id,
+      {
+        expectedRevision: 1,
+        goal: { mode: 'NET_MARGIN_PERCENT', value: '10' },
+      },
+      viewer,
+    );
+    expect(percent.revision).toBe(2);
+    expect(percent.salesGoal?.value).toBe('10.0000');
+    const raw = await model.findById(id).lean();
+    expect(raw!.salesGoal!.value._bsontype).toBe('Decimal128');
+    expect(raw!.salesGoal!.value.toString()).toBe('10.0000');
+    const noOp = await salesGoals.put(
+      id,
+      {
+        expectedRevision: 2,
+        goal: { mode: 'NET_MARGIN_PERCENT', value: '10.0000' },
+      },
+      viewer,
+    );
+    expect(noOp.revision).toBe(2);
+    expect(await model.findById(id).lean()).toEqual(raw);
+    await expect(
+      salesGoals.put(id, { expectedRevision: 1, goal: null }, viewer),
+    ).rejects.toMatchObject({ status: 409 });
+    const amount = await salesGoals.put(
+      id,
+      {
+        expectedRevision: 2,
+        goal: { mode: 'NET_PROFIT_AMOUNT', value: '5' },
+      },
+      viewer,
+    );
+    expect(amount.salesGoal?.value).toBe('5.00');
+    expect((await analysis.get(id, viewer)).sourceRevision).toBe(3);
+    const removed = await salesGoals.put(
+      id,
+      { expectedRevision: 3, goal: null },
+      viewer,
+    );
+    expect(removed).toMatchObject({ revision: 4, salesGoal: null });
+    expect((await analysis.get(id, viewer)).salesGoal).toBeNull();
+  });
+
+  it('EP-05B.1 dos metas concurrentes tienen un ganador y una revisión', async () => {
+    await service.initialize(id, 0, viewer);
+    const access = (salesGoals as unknown as { eerrs: EerrService }).eerrs;
+    const original = access.readAuthorized.bind(access);
+    let arrivals = 0;
+    let release!: () => void;
+    const ready = new Promise<void>((resolveReady) => {
+      release = resolveReady;
+    });
+    const barrier = vi
+      .spyOn(access, 'readAuthorized')
+      .mockImplementation(async (...args) => {
+        const row = await original(...args);
+        if (++arrivals === 2) release();
+        await ready;
+        return row;
+      });
+    const attempts = await Promise.allSettled([
+      salesGoals.put(
+        id,
+        {
+          expectedRevision: 1,
+          goal: { mode: 'NET_PROFIT_AMOUNT', value: '1.00' },
+        },
+        viewer,
+      ),
+      salesGoals.put(
+        id,
+        {
+          expectedRevision: 1,
+          goal: { mode: 'NET_PROFIT_AMOUNT', value: '2.00' },
+        },
+        viewer,
+      ),
+    ]);
+    barrier.mockRestore();
+    expect(
+      attempts.filter((attempt) => attempt.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      attempts.filter((attempt) => attempt.status === 'rejected'),
+    ).toHaveLength(1);
+    expect((await model.findById(id).lean())!.revision).toBe(2);
+  });
+
+  it('EP-05B.1 edición de importes actualiza proyecciones sin borrar meta ni escribir en GET', async () => {
+    let current = await service.initialize(id, 0, viewer);
+    const roots = current.structure!.nodes.filter(
+      (node) => node.kind === 'BLOCK',
+    );
+    for (let index = 0; index < 3; index++)
+      current = await service.createItem(
+        id,
+        {
+          expectedRevision: current.revision,
+          parentId: roots[index]!.nodeId,
+          name: `Ítem ${index}`,
+        },
+        viewer,
+      );
+    const items = current.structure!.nodes.filter(
+      (node) => node.kind === 'ITEM',
+    );
+    for (const [index, input] of ['100.00', '60.00', '20.00'].entries())
+      current = await service.amount(
+        id,
+        items[index]!.nodeId,
+        { expectedRevision: current.revision, state: 'CARGADO', input },
+        viewer,
+      );
+    const saved = await salesGoals.put(
+      id,
+      {
+        expectedRevision: current.revision,
+        goal: { mode: 'NET_MARGIN_PERCENT', value: '10.0000' },
+      },
+      viewer,
+    );
+    const before = await model.findById(id).lean();
+    const result = await analysis.get(id, viewer);
+    expect(result).toMatchObject({
+      sourceRevision: saved.revision,
+      salesGoal: { value: '10.0000' },
+      projections: {
+        breakEvenSales: { value: '50.00' },
+        targetSales: { value: '66.67' },
+      },
+    });
+    expect(await model.findById(id).lean()).toEqual(before);
+    current = await service.amount(
+      id,
+      items[1]!.nodeId,
+      { expectedRevision: saved.revision, state: 'CARGADO', input: '70.00' },
+      viewer,
+    );
+    expect(
+      (await analysis.get(id, viewer)).projections.breakEvenSales.value,
+    ).toBe('66.67');
+    expect((await model.findById(id).lean())!.salesGoal!.value.toString()).toBe(
+      '10.0000',
+    );
+  });
+
+  it.each(['ESTRUCTURA', 'ESTRUCTURA_Y_VALORES'] as const)(
+    'EP-05B.1 clonar %s no hereda meta del origen',
+    async (mode) => {
+      const { sourceId, current } = await cloneFixture();
+      await salesGoals.put(
+        sourceId,
+        {
+          expectedRevision: current.revision,
+          goal: { mode: 'NET_PROFIT_AMOUNT', value: '100.00' },
+        },
+        viewer,
+      );
+      const preview = await clones.preview(
+        id,
+        { sourceEerrId: sourceId, mode },
+        viewer,
+      );
+      await clones.confirm(
+        id,
+        { sourceEerrId: sourceId, mode, previewToken: preview.previewToken! },
+        viewer,
+      );
+      expect((await analysis.get(id, viewer)).salesGoal).toBeNull();
+      expect((await analysis.get(sourceId, viewer)).salesGoal?.value).toBe(
+        '100.00',
+      );
+    },
+  );
+
+  it('EP-05B.1 importación preserva meta', async () => {
+    const { file, current } = await importFixture();
+    await salesGoals.put(
+      id,
+      {
+        expectedRevision: current.revision,
+        goal: { mode: 'NET_PROFIT_AMOUNT', value: '9.00' },
+      },
+      viewer,
+    );
+    const preview = await imports.preview(id, file, viewer);
+    await imports.confirm(id, file, preview.previewToken!, viewer);
+    expect((await analysis.get(id, viewer)).salesGoal?.value).toBe('9.00');
+  });
+
+  it('EP-05B.1 completar pendientes preserva meta', async () => {
+    const { current } = await pendingFixture();
+    await salesGoals.put(
+      id,
+      {
+        expectedRevision: current.revision,
+        goal: { mode: 'NET_PROFIT_AMOUNT', value: '9.00' },
+      },
+      viewer,
+    );
+    const pending = await completePending.preview(id, viewer);
+    expect(pending.previewToken).not.toBeNull();
+    await completePending.confirm(id, pending.previewToken!, viewer);
+    expect((await analysis.get(id, viewer)).salesGoal?.value).toBe('9.00');
   });
 });
