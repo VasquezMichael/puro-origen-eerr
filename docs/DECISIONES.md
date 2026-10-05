@@ -523,3 +523,21 @@ EP-05B; EP-06 conserva dashboard y comparación.
 - La meta es local al EERR y no se clona, importa ni comparte. EP-06 conserva
   Dashboard financiero, comparación y consolidación; EP-07 conserva cierre y
   eliminación del período.
+
+## EP-06A.1: población y consolidación confirmadas
+
+- Una sucursal activa es esperada desde su mes de inicio vigente en el calendario
+  de Buenos Aires. Una activa aún no iniciada queda fuera. Una inactiva con EERR
+  histórico entra; una inactiva sin EERR no se cuenta como faltante. Como no hay
+  fecha de baja, editar la fecha de inicio puede cambiar cobertura histórica.
+- Solo todas las fuentes esperadas inicializadas y con tres bloques completos y
+  no vacíos producen consolidado definitivo. Un alcance sin fuentes no es un
+  consolidado cero. Ante faltantes se suma únicamente la base de EERR completos,
+  rotulada «Subtotal de X de Y sucursales esperadas»; derivados y proyecciones
+  consolidados permanecen null con motivo explícito.
+- Se suman Ingresos, Costos y Gastos en centavos exactos y después se recalculan
+  Margen Bruto, Resultado Neto y porcentajes. El Punto de Equilibrio consolidado
+  se recalcula solo para un consolidado completo y supone mezcla de ventas y
+  costos variables observada. Las metas locales no producen Objetivo consolidado.
+- Admin ve alcance global; Editor/Lector solo sucursales asignadas y el alcance
+  se denomina «Consolidado de mis sucursales accesibles». GET no escribe.

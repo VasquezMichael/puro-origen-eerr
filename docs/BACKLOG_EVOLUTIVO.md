@@ -36,6 +36,9 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
   oficial, con pruebas de seguridad, compatibilidad y precisión.
 - EP-06: definir equivalencias entre ítems creados independientemente antes de
   implementar comparaciones entre EERR.
+- Registrar fecha de baja o historial de vigencia de sucursales para reconstruir
+  con precisión la población esperada de meses históricos. EP-06A.1 usa la fecha
+  de inicio vigente e incluye inactivas solo cuando existe EERR del mes.
 - EP-05B.2: presentar y editar meta/proyecciones en web; explicar el supuesto
   de gastos semivariables. Evaluar clasificación fija/variable detallada en un
   incremento posterior, con decisión funcional previa.

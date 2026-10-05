@@ -467,3 +467,29 @@ ayuda. Las capturas sintéticas `ep05ux1-*` quedan en TEMP para inspección.
 Tres mutaciones deliberadas, luego restauradas, comprobaron que las pruebas
 detectan ayuda en otros motivos, porcentaje fijo en lugar del análisis y
 ausencia del texto general cuando falta el porcentaje.
+
+## EP-06A.1: motor agregado y API
+
+Las pruebas puras cubren clasificación de inicio en Buenos Aires, inactivas,
+suma BigInt superior al entero seguro, recálculo de porcentajes y equilibrio,
+resultado negativo, cero explícito, fuente vacía, pendiente y parcial, ausencia
+sin cero y permutaciones de orden. Las pruebas HTTP aisladas montan controlador,
+guard y servicio sin AppModule ni MongoDB: alcance Admin/Editor/Lector, ausencia
+de filtraciones, cobertura, subtotal, firma, cambios de revisión y membresía,
+reintento, 409 estable, parámetros inválidos, fuente corrupta y GET sin escritura.
+El smoke ESM carga el servicio y controlador compilados. El esquema prueba el
+índice mensual y conserva el único por sucursal/período.
+
+La integración local ejecuta consultas reales contra MongoDB 8.0.12 efímero en
+loopback, sin URI externa ni `.env`; verifica índice y plan de consulta mensual
+con dos documentos examinados, Decimal128, firma ante
+revisión nueva y documentos idénticos antes/después del GET. La suite aislada
+aprobó 50/50 casos, incluido el nuevo caso EP-06A.1; jamás usa Atlas.
+
+Trece mutaciones deliberadas fueron detectadas y restauradas: porcentaje local
+en lugar de agregado, equilibrio local, dos conversiones a Number (suma y
+subtotal de origen), inclusión de parcial, ausencia como cero, inactiva sin
+EERR como faltante, futura incluida, filtro de permisos omitido, firma que
+ignora ausencias/revisiones, escritura accidental en GET, objetivo tomado de
+meta local y omisión de la segunda comprobación de consistencia. El caso de
+subtotal de origen se reforzó con un centavo impar por encima del entero seguro.

@@ -1,5 +1,6 @@
 import { CompletePendingService } from '../src/eerr/complete-pending.service.js';
 import { AnalysisService } from '../src/eerr/analysis.service.js';
+import { AnalyticsService } from '../src/eerr/analytics.service.js';
 import { SalesGoalService } from '../src/eerr/sales-goal.service.js';
 import { completePendingPlan } from '@puro-origen/domain';
 import { ImportService } from '../src/eerr/import/import.service.js';
@@ -18,13 +19,15 @@ import { join, resolve, isAbsolute } from 'node:path';
 import { createServer } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { createConnection, type Connection, type Model } from 'mongoose';
-import { ROOTS } from '@puro-origen/domain';
+import { ROOTS, type EerrStructure } from '@puro-origen/domain';
 import {
   Eerr,
+  EerrLoadStatus,
   EerrSchema,
   type EerrDocument,
 } from '../src/eerr/schemas/eerr.schema.js';
 import { StructureRepository } from '../src/eerr/structure.repository.js';
+import { storedStructure } from '../src/eerr/schemas/structure.schema.js';
 import { StructureService } from '../src/eerr/structure.service.js';
 import { EerrService } from '../src/eerr/eerr.service.js';
 import {
@@ -33,6 +36,7 @@ import {
   TemplateSchema,
 } from '../src/eerr/schemas/structure.schema.js';
 import type { BranchesService } from '../src/branches/branches.service.js';
+import type { UsersService } from '../src/users/users.service.js';
 
 // No acepta URI: únicamente lanza su propio mongod temporal, sin AppModule ni configuración real.
 describe('EP-04A en replica set MongoDB efímero y local', () => {
@@ -1951,5 +1955,121 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
     expect(pending.previewToken).not.toBeNull();
     await completePending.confirm(id, pending.previewToken!, viewer);
     expect((await analysis.get(id, viewer)).salesGoal?.value).toBe('9.00');
+  });
+
+  it('EP-06A.1 consulta mensual real usa índice, Decimal128 y GET sin escrituras', async () => {
+    const makeStructure = (
+      income: string,
+      costs: string,
+      expenses: string,
+    ): EerrStructure => {
+      const roots = ROOTS.map((root, position) => ({
+        ...root,
+        nodeId: randomUUID(),
+        parentId: null,
+        position,
+        kind: 'BLOCK' as const,
+      }));
+      return {
+        schemaVersion: 1,
+        structureVersion: 1,
+        initializedAt: '2026-09-15T12:00:00Z',
+        initializedBy: viewer.sub,
+        nodes: [
+          ...roots,
+          ...[income, costs, expenses].map((value, index) => ({
+            nodeId: randomUUID(),
+            code: randomUUID(),
+            parentId: roots[index]!.nodeId,
+            position: 0,
+            name: `Ítem ${index}`,
+            kind: 'ITEM' as const,
+            amount: {
+              state: 'CARGADO' as const,
+              input: null,
+              value,
+              currency: 'ARS' as const,
+              scale: 2 as const,
+            },
+          })),
+        ],
+      };
+    };
+    await model.updateOne(
+      { _id: id },
+      {
+        $set: {
+          structure: storedStructure(makeStructure('100.00', '40.00', '20.00')),
+          loadStatus: EerrLoadStatus.CARGADO,
+        },
+      },
+    );
+    const second = await model.create({
+      branchId: 'abcdefabcdefabcdefabcdef',
+      year: 2026,
+      month: 9,
+      createdBy: viewer.sub,
+      loadStatus: EerrLoadStatus.CARGADO,
+      structure: storedStructure(makeStructure('50.00', '10.00', '5.00')),
+    });
+    const branches = {
+      list: async () => [
+        {
+          id: '123456789012345678901234',
+          name: 'Central',
+          active: true,
+          startDate: new Date('2026-09-01T03:00:00Z'),
+        },
+        {
+          id: 'abcdefabcdefabcdefabcdef',
+          name: 'Otra',
+          active: false,
+          startDate: new Date('2025-01-01T03:00:00Z'),
+        },
+      ],
+    } as unknown as BranchesService;
+    const users = {
+      findActiveById: async () => ({ isAdmin: true, branchAccesses: [] }),
+    } as unknown as UsersService;
+    const analytics = new AnalyticsService(
+      model as unknown as Model<EerrDocument>,
+      branches,
+      users,
+    );
+    const indexes = await model.collection.indexes();
+    expect(indexes).toContainEqual(
+      expect.objectContaining({ key: { year: 1, month: 1, branchId: 1 } }),
+    );
+    const plan = (await model
+      .find({
+        year: 2026,
+        month: 9,
+        branchId: {
+          $in: ['123456789012345678901234', 'abcdefabcdefabcdefabcdef'],
+        },
+      })
+      .hint({ year: 1, month: 1, branchId: 1 })
+      .explain('executionStats')) as unknown as {
+      executionStats: { totalDocsExamined: number };
+    };
+    expect(plan.executionStats.totalDocsExamined).toBe(2);
+    const before = await model.find().sort({ _id: 1 }).lean();
+    const result = await analytics.dashboard({ year: 2026, month: 9 }, viewer);
+    expect(result.coverage).toMatchObject({
+      expected: 2,
+      complete: 2,
+      inactiveWithHistory: 1,
+    });
+    expect(result.consolidated).toMatchObject({
+      definitive: true,
+      income: { value: '150.00' },
+      grossMarginPercent: { value: '66.6667' },
+      breakEvenSales: { value: '37.50' },
+      targetSales: null,
+    });
+    expect(await model.find().sort({ _id: 1 }).lean()).toEqual(before);
+    await model.updateOne({ _id: second._id }, { $inc: { revision: 1 } });
+    const revised = await analytics.dashboard({ year: 2026, month: 9 }, viewer);
+    expect(revised.sourceSignature).not.toBe(result.sourceSignature);
   });
 });

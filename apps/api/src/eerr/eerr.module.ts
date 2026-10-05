@@ -1,6 +1,8 @@
 import { CompletePendingController } from './complete-pending.controller.js';
 import { AnalysisController } from './analysis.controller.js';
 import { AnalysisService } from './analysis.service.js';
+import { AnalyticsController } from './analytics.controller.js';
+import { AnalyticsService } from './analytics.service.js';
 import { SalesGoalController } from './sales-goal.controller.js';
 import { SalesGoalService } from './sales-goal.service.js';
 import { CompletePendingService } from './complete-pending.service.js';
@@ -13,6 +15,7 @@ import { ClonePreviewToken } from './clone-preview-token.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BranchesPersistenceModule } from '../branches/branches-persistence.module.js';
+import { UsersModule } from '../users/users.module.js';
 import { EerrController } from './eerr.controller.js';
 import { EerrService } from './eerr.service.js';
 import { EerrClock } from './eerr-clock.js';
@@ -24,10 +27,12 @@ import { StructureRepository } from './structure.repository.js';
 @Module({
   imports: [
     BranchesPersistenceModule,
+    UsersModule,
     MongooseModule.forFeature([{ name: Eerr.name, schema: EerrSchema }]),
   ],
   controllers: [
     AnalysisController,
+    AnalyticsController,
     SalesGoalController,
     CompletePendingController,
     ImportController,
@@ -37,6 +42,7 @@ import { StructureRepository } from './structure.repository.js';
   ],
   providers: [
     AnalysisService,
+    AnalyticsService,
     SalesGoalService,
     CompletePendingService,
     ImportService,

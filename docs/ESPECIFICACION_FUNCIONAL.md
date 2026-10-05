@@ -402,3 +402,21 @@ La ayuda se abre con mouse, foco, teclado o toque y se cierra con Escape,
 pérdida de foco o interacción exterior. También puede consultarla el Lector.
 `ZERO_DENOMINATOR` conserva su motivo propio para la referencia porcentual de
 un Objetivo de Venta igual a cero; no activa esta ayuda.
+
+## EP-06A.1: datos del Dashboard
+
+La API ofrece cobertura mensual de sucursales accesibles y un consolidado
+definitivo solo si todas las esperadas tienen EERR preparado con tres bloques
+completos. Una sucursal activa comienza en el mes de su inicio según Buenos
+Aires; una inactiva solo participa si conserva EERR histórico. La fecha de
+inicio actualmente guardada determina la población incluso para meses pasados.
+
+Cuando faltan fuentes, la respuesta distingue faltantes, vacío, pendiente,
+parcial y sin inicializar, y devuelve únicamente el subtotal de bases de EERR
+completos, con alcance visible. Márgenes, porcentajes y equilibrio consolidados
+quedan sin valor. Cero cargado no es dato ausente. En consolidado completo la API
+suma Ingresos/Costos/Gastos exactos y recalcula derivados y Punto de Equilibrio;
+no combina metas locales ni produce Objetivo de Venta consolidado.
+
+La nueva interfaz del Dashboard corresponde a EP-06A.2. Comparaciones, series,
+gráficos, semáforos, exportación y cierre no se incorporan en EP-06A.1.

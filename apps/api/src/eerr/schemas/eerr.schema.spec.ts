@@ -30,6 +30,10 @@ describe('EerrSchema sin metadatos inferidos ni conexión', () => {
         { branchId: 1, year: -1, month: -1 },
         expect.objectContaining({ unique: true }),
       ]);
+      expect(EerrSchema.indexes()).toContainEqual([
+        { year: 1, month: 1, branchId: 1 },
+        expect.any(Object),
+      ]);
       const Model = new Mongoose().model('EerrRuntime', EerrSchema);
       const branchId = new Types.ObjectId();
       const input = {

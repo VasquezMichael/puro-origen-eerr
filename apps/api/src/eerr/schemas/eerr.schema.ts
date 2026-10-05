@@ -85,3 +85,5 @@ export class Eerr {
 export type EerrDocument = HydratedDocument<Eerr>;
 export const EerrSchema = SchemaFactory.createForClass(Eerr);
 EerrSchema.index({ branchId: 1, year: -1, month: -1 }, { unique: true });
+// Dashboard y publicación mensual consultan un período para muchas sucursales.
+EerrSchema.index({ year: 1, month: 1, branchId: 1 });

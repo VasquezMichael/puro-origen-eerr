@@ -14,3 +14,4 @@ export * from "./eerr-clone.js";
 export * from "./eerr-import.js";
 
 export * from "./eerr-complete-pending.js";
+export * from "./dashboard-population.js";
