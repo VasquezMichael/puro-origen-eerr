@@ -1,6 +1,8 @@
 import type { AnalysisResponse } from "@puro-origen/shared-types";
 import { formatAnalysisMoney, formatAnalysisPercent } from "./analysis-format";
 import { formatGoalPercent } from "./sales-goal-form";
+import { UnattainableHelp } from "./unattainable-help";
+import type { ReactNode } from "react";
 import styles from "./results-statement.module.css";
 
 type Projection = AnalysisResponse["projections"]["breakEvenSales"];
@@ -21,8 +23,8 @@ export function projectionExplanation(reason: Projection["reason"], reference = 
   }
 }
 
-export function ProjectionMetric({ label, metric, description, reference = false }: {
-  label: string; metric: Projection; description?: string; reference?: boolean;
+export function ProjectionMetric({ label, metric, description, reference = false, help }: {
+  label: string; metric: Projection; description?: string; reference?: boolean; help?: ReactNode;
 }) {
   const display = metric.value === null ? "—" : metric.unit === "ARS"
     ? formatAnalysisMoney(metric.value) : formatAnalysisPercent(metric.value);
@@ -30,7 +32,7 @@ export function ProjectionMetric({ label, metric, description, reference = false
   return <div className={reference ? styles.referenceMetric : styles.projectionMetric}>
     <h4>{label}</h4>
     <strong aria-label={metric.value === null ? `${label}: sin valor. ${explanation}` : undefined}>{display}</strong>
-    {explanation && <p>{explanation}</p>}
+    {explanation && <p>{explanation} {help}</p>}
   </div>;
 }
 
@@ -50,6 +52,9 @@ export function ProjectionsSection({ analysis, canEdit, disabled, onConfigure, o
   const { salesGoal, projections } = analysis;
   const referenceLabel = !salesGoal ? "Referencia secundaria" : salesGoal.mode === "NET_MARGIN_PERCENT"
     ? "Ganancia neta estimada" : "Margen neto equivalente";
+  const contribution = analysis.metrics.grossMarginPercent;
+  const contributionPercent = contribution.status === "COMPLETE" && contribution.unit === "PERCENT"
+    ? contribution.value : null;
   return <section className={styles.projections} aria-labelledby="projections-title">
     <div className={styles.projectionsHeading}>
       <div><p className={styles.eyebrow}>Estimaciones del período</p><h3 id="projections-title">Proyecciones</h3></div>
@@ -64,7 +69,9 @@ export function ProjectionsSection({ analysis, canEdit, disabled, onConfigure, o
       {salesGoal ? <SalesGoalSummary goal={salesGoal} />
         : <p className={styles.noGoal}>Configurá una meta para calcular el Objetivo de Venta.</p>}
       <ProjectionMetric label="Objetivo de Venta" metric={projections.targetSales}
-        description="Venta mínima estimada para alcanzar la meta configurada." />
+        description="Venta mínima estimada para alcanzar la meta configurada."
+        help={projections.targetSales.reason === "TARGET_MARGIN_UNATTAINABLE"
+          ? <UnattainableHelp contributionPercent={contributionPercent} /> : undefined} />
       <ProjectionMetric label={referenceLabel} metric={projections.targetReference} reference
         description="Referencia informativa calculada sobre el Objetivo de Venta mostrado." />
     </div>

@@ -29,13 +29,13 @@ function structure(revision) {
 }
 function analysis(revision, currentGoal, scenario) {
   const blocked = scenario === "pending";
-  const unattainable = scenario === "unattainable";
+  const unattainable = scenario === "unattainable" || scenario === "unattainable-no-percent";
   const reason = blocked ? "PENDING_INPUTS" : unattainable ? "TARGET_MARGIN_UNATTAINABLE" : null;
   const referenceUnit = currentGoal?.mode === "NET_PROFIT_AMOUNT" ? "PERCENT" : "ARS";
   return { eerrId: id, sourceRevision: revision, calculationVersion: 2, initialized: true, currency: "ARS",
     blocks: ROOTS.map(({ code, name }, index) => scope(`b${index + 1}`, code, name, ["100.00", "40.00", "20.00"][index])),
     categories: [{ ...scope("cat", "cat-code", "Ventas", "100.00"), parentNodeId: "b1", parentCode: ROOTS[0].code, depth: 1, position: 0 }],
-    metrics: { grossMargin: metric("60.00"), grossMarginPercent: metric("60.0000", "PERCENT"),
+    metrics: { grossMargin: metric("60.00"), grossMarginPercent: metric(scenario === "unattainable-no-percent" ? null : "60.0000", "PERCENT", scenario === "unattainable-no-percent" ? "PENDING_INPUTS" : null),
       netResult: metric("40.00"), netResultPercent: metric("40.0000", "PERCENT") },
     salesGoal: currentGoal,
     projections: {
@@ -54,7 +54,7 @@ try {
   const viewports = process.env.MUTATION_CASE ? [[1440, 900]]
     : [[1440, 900], [1280, 720], [1024, 768], [768, 1024], [390, 844]];
   for (const [width, height] of viewports) {
-    const context = await browser.newContext({ viewport: { width, height } });
+    const context = await browser.newContext({ viewport: { width, height }, hasTouch: true });
     const page = await context.newPage();
     if (process.env.MUTATION_CASE) page.setDefaultTimeout(4000);
     const errors = [];
@@ -166,10 +166,51 @@ try {
     assert.deepEqual(writes.at(-1), { expectedRevision: 3, goal: { mode: "NET_PROFIT_AMOUNT", value: "2000.00" } });
     assert.match(await projections.innerText(), /Margen neto equivalente[\s\S]*12,35 %/);
     await page.screenshot({ path: join(tmpdir(), `ep05b2-${width}-monto.png`), fullPage: true });
+    currentGoal = goal("NET_MARGIN_PERCENT", "65.0000");
     scenario = "unattainable"; await page.reload(); await projections.waitFor();
     assert.match(await projections.innerText(), /El margen deseado iguala o supera/);
+    const help = projections.getByRole("button", { name: "¿Por qué esta meta es inalcanzable?" });
+    const tooltip = page.getByRole("tooltip");
+    await help.scrollIntoViewIfNeeded();
+    const beforeHelp = { revision: row.revision, goal: JSON.stringify(currentGoal), writes: writes.length, reads };
+    await help.hover(); await tooltip.waitFor();
+    assert.match(await tooltip.innerText(), /margen de contribución actual del 60,00 %/);
+    let box = await tooltip.boundingBox();
+    assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1);
+    await page.screenshot({ path: join(tmpdir(), `ep05ux1-${width}-ayuda.png`), fullPage: true });
+    await page.mouse.move(0, 0); await tooltip.waitFor({ state: "hidden" });
+    await help.focus(); await tooltip.waitFor();
+    await tooltip.evaluate((element) => element.focus());
+    assert.equal(await tooltip.evaluate((element) => element === document.activeElement), true);
+    await page.keyboard.press("Escape"); await tooltip.waitFor({ state: "hidden" });
+    assert.equal(await help.evaluate((node) => node === document.activeElement), true);
+    await help.press("Enter"); await tooltip.waitFor();
+    await page.keyboard.press("Escape"); await tooltip.waitFor({ state: "hidden" });
+    await help.press("Space"); await tooltip.waitFor();
+    await page.getByRole("button", { name: "Cambiar meta" }).focus();
+    await tooltip.waitFor({ state: "hidden" });
+    await help.click(); await tooltip.waitFor();
+    await page.mouse.click(4, 4); await tooltip.waitFor({ state: "hidden" });
+    await help.scrollIntoViewIfNeeded();
+    box = await help.boundingBox();
+    assert.ok(box);
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await tooltip.waitFor();
+    await page.touchscreen.tap(4, 4); await tooltip.waitFor({ state: "hidden" });
+    assert.equal(row.revision, beforeHelp.revision);
+    assert.equal(JSON.stringify(currentGoal), beforeHelp.goal);
+    assert.equal(writes.length, beforeHelp.writes);
+    assert.equal(reads, beforeHelp.reads);
+    assert.match(await projections.innerText(), /El margen deseado iguala o supera/);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+    scenario = "unattainable-no-percent"; await page.reload(); await projections.waitFor();
+    await projections.getByRole("button", { name: "¿Por qué esta meta es inalcanzable?" }).focus();
+    assert.match(await page.getByRole("tooltip").innerText(), /Con la estructura vigente, el margen neto puede aproximarse/);
+    assert.doesNotMatch(await page.getByRole("tooltip").innerText(), /actual del [0-9]/);
+    currentGoal = goal("NET_PROFIT_AMOUNT", "2000.00");
     scenario = "pending"; await page.reload(); await projections.waitFor();
     assert.match(await projections.innerText(), /Disponible cuando se completen los importes requeridos/);
+    assert.equal(await projections.getByRole("button", { name: "¿Por qué esta meta es inalcanzable?" }).count(), 0);
     assert.match(await projections.innerText(), /2\.000,00 ARS/);
     await page.screenshot({ path: join(tmpdir(), `ep05b2-${width}-pendiente.png`), fullPage: true });
     scenario = "complete"; await page.reload(); await projections.waitFor();
@@ -182,8 +223,14 @@ try {
     assert.equal(writes.at(-1).goal, null);
     assert.match(await projections.innerText(), /33,34 ARS/);
     assert.equal(await projections.getByText("—").count(), 2);
-    role = "READER"; await page.reload(); await projections.waitFor();
-    assert.equal(await projections.getByRole("button").count(), 0);
+    role = "READER"; currentGoal = goal("NET_MARGIN_PERCENT", "65.0000"); scenario = "unattainable";
+    await page.reload(); await projections.waitFor();
+    assert.equal(await projections.getByRole("button", { name: "¿Por qué esta meta es inalcanzable?" }).count(), 1);
+    await projections.getByRole("button", { name: "¿Por qué esta meta es inalcanzable?" }).focus();
+    await page.getByRole("tooltip").waitFor();
+    await page.keyboard.press("Escape");
+    assert.equal(await projections.getByRole("button", { name: /Configurar meta|Cambiar meta|Eliminar meta/ }).count(), 0);
+    currentGoal = null; scenario = "complete";
     role = "ADMIN"; await page.reload(); await projections.waitFor();
     assert.equal(await projections.getByRole("button", { name: "Configurar meta" }).count(), 1);
     if (width === 1440) {

@@ -7,7 +7,8 @@ const { canonicalSalesGoal, salesGoalDirty, initialSalesGoalDraft, formatGoalPer
 const { ProjectionsSection, projectionExplanation } = await import("../src/app/eerr/[id]/projections-section.tsx");
 const { SalesGoalModal } = await import("../src/app/eerr/[id]/sales-goal-modal.tsx");
 const metric = (value, unit = "ARS", reason = null) => ({ status: value === null ? "BLOCKED" : "COMPLETE", value, unit, reason });
-const fixture = (goal = null) => ({ salesGoal: goal, projections: {
+const fixture = (goal = null) => ({ salesGoal: goal,
+  metrics: { grossMarginPercent: metric("40.0000", "PERCENT") }, projections: {
   breakEvenSales: metric("50000.00"), targetSales: goal ? metric("66666.67") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
   targetReference: { ...goal ? metric(goal.mode === "NET_MARGIN_PERCENT" ? "6666.67" : "13.3333", goal.mode === "NET_MARGIN_PERCENT" ? "ARS" : "PERCENT") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"), type: goal ? goal.mode === "NET_MARGIN_PERCENT" ? "NET_PROFIT_AMOUNT" : "NET_MARGIN_PERCENT" : null },
 } });
@@ -86,6 +87,37 @@ test("motivos no calculables se traducen sin códigos ni cero ficticio", () => {
     assert.match(markup, new RegExp(projectionExplanation(reason, true).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     assert.doesNotMatch(markup, new RegExp(reason));
     assert.doesNotMatch(markup, /0,00 ARS/);
+  }
+});
+
+test("la ayuda contextual usa el porcentaje entregado por el análisis y conserva el motivo", () => {
+  const data = fixture({ mode: "NET_MARGIN_PERCENT", value: "40.0000" });
+  data.metrics.grossMarginPercent = metric("37.1250", "PERCENT");
+  data.projections.targetSales = metric(null, "ARS", "TARGET_MARGIN_UNATTAINABLE");
+  const markup = render(data);
+  assert.match(markup, /El margen deseado iguala o supera el margen de contribución actual/);
+  assert.match(markup, /aria-label="¿Por qué esta meta es inalcanzable\?"/);
+  assert.match(markup, /margen de contribución actual del 37,13 %/);
+  assert.match(markup, /role="tooltip"/);
+  assert.match(markup, /aria-controls=/);
+  assert.doesNotMatch(markup, /<[^>]+title=/);
+});
+
+test("sin porcentaje disponible la ayuda ofrece el texto general", () => {
+  const data = fixture({ mode: "NET_MARGIN_PERCENT", value: "40.0000" });
+  data.metrics.grossMarginPercent = metric(null, "PERCENT", "PENDING_INPUTS");
+  data.projections.targetSales = metric(null, "ARS", "TARGET_MARGIN_UNATTAINABLE");
+  const markup = render(data);
+  assert.match(markup, /Con la estructura vigente, el margen neto puede aproximarse/);
+  assert.doesNotMatch(markup, /margen de contribución actual del/);
+});
+
+test("otras razones, incluso ZERO_DENOMINATOR de referencia, no reciben la ayuda", () => {
+  for (const reason of ["PENDING_INPUTS", "EMPTY_INPUT", "ZERO_REVENUE", "NON_POSITIVE_CONTRIBUTION_MARGIN", "GOAL_NOT_CONFIGURED", "ZERO_DENOMINATOR"]) {
+    const data = fixture({ mode: "NET_PROFIT_AMOUNT", value: "0.00" });
+    data.projections.targetSales = metric(null, "ARS", reason);
+    data.projections.targetReference = { ...metric(null, "PERCENT", "ZERO_DENOMINATOR"), type: "NET_MARGIN_PERCENT" };
+    assert.doesNotMatch(render(data), /¿Por qué esta meta es inalcanzable\?/);
   }
 });
 

@@ -5,7 +5,8 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
 
 - Chatbot/IA para consultar y analizar EERR.
 - Interpretación de tendencias y dashboards.
-- Ayuda contextual mediante tooltips.
+- Evaluar otras ayudas contextuales mediante tooltips. EP-05UX.1 incorpora solo
+  la ayuda de la meta porcentual inalcanzable.
 - Evaluar creación de períodos futuros; EP-03 los rechaza y no habilita esta mejora.
 - Modo oscuro si queda fuera del MVP.
 - Aislar configuración y persistencia del e2e existente antes de incorporarlo a CI.
@@ -38,6 +39,10 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
 - EP-05B.2: presentar y editar meta/proyecciones en web; explicar el supuesto
   de gastos semivariables. Evaluar clasificación fija/variable detallada en un
   incremento posterior, con decisión funcional previa.
+- Al finalizar el MVP con su estado real definitivo, preparar un Manual de
+  aceptación funcional para el responsable operativo, con escenarios de prueba,
+  datos de entrada, resultados esperados, permisos, casos límite y comportamiento
+  ante errores. No elaborarlo antes para evitar que quede desactualizado.
 
 Cualquier mejora futura debe agregarse a este backlog. Los requisitos funcionales
 confirmados están en ESPECIFICACION_FUNCIONAL.md y las decisiones pendientes en
