@@ -446,3 +446,47 @@ TARGET_MARGIN_UNATTAINABLE y ZERO_DENOMINATOR. Los primeros bloquean la métrica
 ZERO_DENOMINATOR en la referencia es NOT_CALCULABLE. Punto de equilibrio y
 objetivo tienen dos decimales y techo al centavo; referencia usa HALF_UP. La
 respuesta indica `calculationVersion: 2` y `sourceRevision`; GET no escribe.
+
+## EP-06A.1 — GET /analytics/dashboard
+
+`GET /analytics/dashboard?year=2026&month=9` requiere sesión. Admite solamente
+un año entero 1–9999 y un mes entero 1–12, una vez cada uno; rechaza campos
+extra, representaciones ambiguas y parámetros repetidos. Admin recibe el
+alcance global. Editor/Lector reciben solo sucursales asignadas, incluidas
+inactivas con EERR históricos. Máximo 200 sucursales accesibles por respuesta;
+superarlo devuelve 400 sin cálculo parcial. Una sesión inválida devuelve 401.
+
+La respuesta contiene `year`, `month`, `timezone`, `calculationVersion`, `scope`,
+`coverage`, `consolidated`, `branches`, `sources` y `sourceSignature`. `scope`
+incluye tipo `GLOBAL` o `ACCESSIBLE`, etiqueta y conteos autorizado/esperado.
+`coverage` separa expected, withEerr, withoutEerr, complete, partial, pending,
+empty, uninitialized, inactiveWithHistory, inactiveWithoutHistory y
+excludedNotStarted. Los conteos de carga son disjuntos y se refieren a fuentes
+esperadas. `branches` enumera únicamente sucursales autorizadas con nombre,
+estado, clasificación temporal, eerrId/revision o null, loadStatus, estado del
+análisis, motivo y métricas individuales disponibles. `sources` ordena por
+branchId cada sucursal autorizada, con eerrId/revision o null.
+
+`consolidated` incluye estado COMPLETE/PARTIAL/PENDING/EMPTY, `definitive`,
+`includedCount`, `expectedCount`, etiqueta, bases income/costs/expenses,
+grossMargin y porcentaje, netResult y porcentaje, breakEvenSales y
+`targetSales: null`. Cada métrica lleva status, value string/null, unit y
+reason. Dinero usa dos decimales; porcentajes, cuatro. Sin ninguna fuente
+completa, las bases tienen motivo NO_COMPLETE_SOURCES. Si el alcance está
+incompleto, solo las bases de EERR completos contienen valores: derivados y
+equilibrio son null con INCOMPLETE_SCOPE. El equilibrio completo puede estar
+bloqueado por ZERO_REVENUE o NON_POSITIVE_CONTRIBUTION_MARGIN. La explicación
+del supuesto de mezcla observada aparece únicamente si es calculable.
+
+La población usa el mes de inicio actual en America/Argentina/Buenos_Aires.
+Una activa posterior al mes se excluye; una inactiva entra solo con EERR del
+mes. Editar la fecha de inicio cambia potencialmente cobertura histórica.
+No se suman derivados ni metas locales; no existe Objetivo consolidado.
+
+La API lee fuentes en lote, calcula sin escritura y vuelve a verificar membresía,
+metadatos de sucursales, IDs, revisiones y ausencias. Reintenta una vez. Si
+vuelven a cambiar responde 409 con `ANALYTICS_SOURCES_CHANGED`; una fuente
+persistida inválida responde 500 con `INVALID_PERSISTED_DATA`. La firma SHA-256
+es determinista sobre período, alcance autorizado, clasificación, fuentes
+ordenadas y versión de cálculo. No autoriza acceso ni sustituye la verificación.
+No hay caché ni derivados almacenados.

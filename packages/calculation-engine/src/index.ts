@@ -70,6 +70,31 @@ export type AnalysisCalculation = {
   };
 };
 
+export type AggregateReason =
+  MetricReason | "INCOMPLETE_SCOPE" | "NO_COMPLETE_SOURCES";
+export type AggregateMetric = Omit<MetricResult, "reason"> & {
+  reason: AggregateReason | null;
+};
+export type AggregateSource = {
+  branchId: string;
+  analysis: AnalysisCalculation | null;
+};
+export type AggregateCalculation = {
+  status: "COMPLETE" | "PARTIAL" | "PENDING" | "EMPTY";
+  definitive: boolean;
+  includedCount: number;
+  expectedCount: number;
+  income: AggregateMetric;
+  costs: AggregateMetric;
+  expenses: AggregateMetric;
+  grossMargin: AggregateMetric;
+  grossMarginPercent: AggregateMetric;
+  netResult: AggregateMetric;
+  netResultPercent: AggregateMetric;
+  breakEvenSales: AggregateMetric;
+  targetSales: null;
+};
+
 type Accumulator = { total: number; loaded: number; cents: bigint };
 const emptyAccumulator = (): Accumulator => ({
   total: 0,
@@ -99,6 +124,13 @@ function divideCeiling(numerator: bigint, denominator: bigint): bigint {
   if (numerator < 0n || denominator <= 0n)
     throw new Error("Proyección inválida");
   return numerator / denominator + (numerator % denominator === 0n ? 0n : 1n);
+}
+function breakEvenCents(
+  income: bigint,
+  contribution: bigint,
+  expenses: bigint,
+): bigint {
+  return divideCeiling(expenses * income, contribution);
 }
 
 function projectionReason(
@@ -146,7 +178,7 @@ function projections(
       targetReference: blockedReference(reason),
     };
   const breakEvenSales = monetary(
-    divideCeiling(expenses * income, contribution),
+    breakEvenCents(income, contribution, expenses),
   );
   if (goal === null)
     return {
@@ -247,6 +279,102 @@ function monetary(value: bigint): MetricResult {
     value: fixed(value, 2),
     unit: "ARS",
     reason: null,
+  };
+}
+function totalsMetrics(income: bigint, cost: bigint, expense: bigint) {
+  const gross = income - cost;
+  const net = gross - expense;
+  return {
+    grossMargin: monetary(gross),
+    grossMarginPercent: percentage(gross, income),
+    netResult: monetary(net),
+    netResultPercent: percentage(net, income),
+  };
+}
+
+/** El valor de bloque puede exceder el límite de una celda. */
+function aggregateCents(value: string): bigint {
+  if (!/^\d+\.\d{2}$/.test(value)) throw new Error("Total de fuente inválido");
+  const cents = BigInt(value.replace(".", ""));
+  if (fixed(cents, 2) !== value) throw new Error("Total de fuente no canónico");
+  return cents;
+}
+
+/** Agrega solo fuentes completas; las derivadas se calculan sobre las bases agregadas. */
+export function aggregateEerr(
+  sources: readonly AggregateSource[],
+): AggregateCalculation {
+  const expectedCount = sources.length;
+  const included = sources.filter(
+    ({ analysis }) =>
+      analysis?.initialized &&
+      ROOTS.every(
+        (root) =>
+          analysis.blocks.find((block) => block.code === root.code)?.status ===
+          "COMPLETE",
+      ),
+  );
+  let income = 0n,
+    costs = 0n,
+    expenses = 0n;
+  for (const { analysis } of included) {
+    const amounts = ROOTS.map((root) => {
+      const value = analysis!.blocks.find(
+        (block) => block.code === root.code,
+      )?.value;
+      if (value === null || value === undefined)
+        throw new Error("Bloque completo sin valor");
+      return aggregateCents(value);
+    });
+    income += amounts[0]!;
+    costs += amounts[1]!;
+    expenses += amounts[2]!;
+  }
+  const includedCount = included.length;
+  const definitive = expectedCount > 0 && includedCount === expectedCount;
+  const noItems = sources.every(
+    ({ analysis }) =>
+      analysis === null ||
+      (analysis.initialized &&
+        analysis.blocks.every((block) => block.status === "EMPTY")),
+  );
+  const missing = (
+    unit: AggregateMetric["unit"],
+    reason: AggregateReason,
+  ): AggregateMetric => ({ status: "BLOCKED", value: null, unit, reason });
+  const baseReason: AggregateReason =
+    includedCount === 0 ? "NO_COMPLETE_SOURCES" : "INCOMPLETE_SCOPE";
+  const derivedReason: AggregateReason = "INCOMPLETE_SCOPE";
+  const derived = definitive ? totalsMetrics(income, costs, expenses) : null;
+  const breakEvenSales = !definitive
+    ? missing("ARS", "INCOMPLETE_SCOPE")
+    : income === 0n
+      ? missing("ARS", "ZERO_REVENUE")
+      : income - costs <= 0n
+        ? missing("ARS", "NON_POSITIVE_CONTRIBUTION_MARGIN")
+        : monetary(breakEvenCents(income, income - costs, expenses));
+  return {
+    status: definitive
+      ? "COMPLETE"
+      : includedCount
+        ? "PARTIAL"
+        : noItems
+          ? "EMPTY"
+          : "PENDING",
+    definitive,
+    includedCount,
+    expectedCount,
+    income: includedCount ? monetary(income) : missing("ARS", baseReason),
+    costs: includedCount ? monetary(costs) : missing("ARS", baseReason),
+    expenses: includedCount ? monetary(expenses) : missing("ARS", baseReason),
+    grossMargin: derived?.grossMargin ?? missing("ARS", derivedReason),
+    grossMarginPercent:
+      derived?.grossMarginPercent ?? missing("PERCENT", derivedReason),
+    netResult: derived?.netResult ?? missing("ARS", derivedReason),
+    netResultPercent:
+      derived?.netResultPercent ?? missing("PERCENT", derivedReason),
+    breakEvenSales,
+    targetSales: null,
   };
 }
 function percentage(numerator: bigint, denominator: bigint): MetricResult {
@@ -351,13 +479,17 @@ export function calculateEerr(
   const incomeCents = accumulated.get(income.nodeId)!.cents;
   const grossCents = incomeCents - accumulated.get(cost.nodeId)!.cents;
   const expenseCents = accumulated.get(expense.nodeId)!.cents;
-  const netCents = grossCents - expenseCents;
+  const totals = totalsMetrics(
+    incomeCents,
+    accumulated.get(cost.nodeId)!.cents,
+    expenseCents,
+  );
   const grossReason = unavailable([income, cost]);
   const netReason = unavailable([income, cost, expense]);
   const grossMargin = grossReason
     ? blocked("ARS", grossReason)
-    : monetary(grossCents);
-  const netResult = netReason ? blocked("ARS", netReason) : monetary(netCents);
+    : totals.grossMargin;
+  const netResult = netReason ? blocked("ARS", netReason) : totals.netResult;
   return {
     calculationVersion: CALCULATION_VERSION,
     initialized: true,
@@ -375,11 +507,11 @@ export function calculateEerr(
       grossMargin,
       grossMarginPercent: grossReason
         ? blocked("PERCENT", grossReason)
-        : percentage(grossCents, incomeCents),
+        : totals.grossMarginPercent,
       netResult,
       netResultPercent: netReason
         ? blocked("PERCENT", netReason)
-        : percentage(netCents, incomeCents),
+        : totals.netResultPercent,
     },
   };
 }

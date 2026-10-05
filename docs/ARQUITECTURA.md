@@ -32,8 +32,9 @@ La interfaz `/admin/sucursales` consulta la API con la sesión existente; la API
 decide el acceso y restringe todas las operaciones administrativas.
 
 `EerrModule` consume `BranchesPersistenceModule` y registra su propio esquema y
-servicio. No requiere importar `AuthModule` ni `UsersModule`; usa el principal
-revalidado por el guard global, sin dependencias circulares. El servidor aplica
+servicio. No importa `AuthModule`; usa el principal revalidado por el guard
+global. EP-06A.1 incorpora `UsersModule` para volver a comprobar membresía al
+final de cada consulta agregada, sin dependencia circular. El servidor aplica
 las reglas de creación y limita las consultas por sucursales accesibles.
 La web `/eerr` presenta ambas perspectivas mediante consultas REST con sesión,
 sin persistencia ni cálculos financieros en el navegador.
@@ -394,3 +395,25 @@ solo lee. La API sigue siendo la autoridad de permisos y validaciones.
 La configuración pertenece solo al EERR de la sucursal y período. Clonación e
 importación no incluyen la meta. Dashboard financiero, comparaciones y
 consolidación permanecen en EP-06; cierre y eliminación del EERR en EP-07.
+
+## EP-06A.1: análisis agregado del Dashboard
+
+`dashboardPopulation` en dominio clasifica sucursales por el mes de inicio de
+Buenos Aires, estado actual y existencia de EERR. La API revalida el usuario y
+sus accesos, lee sucursales autorizadas y EERR del mes en lote, calcula cada
+snapshot con `calculateEerr` sin meta y vuelve a leer membresía, sucursales, IDs
+y revisiones. Una discrepancia provoca un reintento y luego 409 estable.
+
+`aggregateEerr` recibe únicamente fuentes esperadas ya autorizadas. Suma en
+BigInt los tres bloques de EERR completos; comparte primitivas de porcentaje,
+márgenes y equilibrio con el cálculo individual. No construye un EERR ficticio:
+el total de varias sucursales puede superar el límite de una celda. Un subtotal
+incompleto no declara derivados definitivos. No se persisten resultados ni se
+escriben documentos en GET. `sourceSignature` SHA-256 sobre fuentes y alcance
+ordenados identifica la revisión de lectura, sin sustituir la segunda lectura.
+
+El índice adicional `{ year: 1, month: 1, branchId: 1 }` acompaña la consulta
+mensual filtrada por sucursales autorizadas. Conserva el índice único por
+sucursal/año/mes. El límite inicial es 200 sucursales accesibles por respuesta;
+su ampliación o paginación requiere medir costo con datos representativos.
+EP-06A.2 incorporará la interfaz. Comparaciones, gráficos y alertas quedan fuera.

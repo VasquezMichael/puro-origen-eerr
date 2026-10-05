@@ -1,10 +1,70 @@
 import type { EerrStructure } from "@puro-origen/domain";
 import type { SalesGoalValue } from "@puro-origen/domain";
-import type { AnalysisCalculation } from "@puro-origen/calculation-engine";
+import type {
+  AggregateCalculation,
+  AnalysisCalculation,
+} from "@puro-origen/calculation-engine";
 export type AnalysisResponse = AnalysisCalculation & {
   eerrId: string;
   sourceRevision: number;
   salesGoal: (SalesGoalValue & { updatedAt: string; updatedBy: string }) | null;
+};
+export type DashboardBranch = {
+  branchId: string;
+  name: string;
+  active: boolean;
+  temporal: "EXPECTED" | "NOT_STARTED" | "INACTIVE_WITHOUT_HISTORY";
+  eerrId: string | null;
+  revision: number | null;
+  loadStatus: "SIN_CARGAR" | "PARCIAL" | "CARGADO" | null;
+  analysisStatus:
+    | "COMPLETE"
+    | "PARTIAL"
+    | "PENDING"
+    | "EMPTY"
+    | "UNINITIALIZED"
+    | "NO_EERR"
+    | "EXCLUDED";
+  reason: string | null;
+  blocks: AnalysisCalculation["blocks"] | null;
+  metrics: AnalysisCalculation["metrics"] | null;
+  breakEvenSales: AnalysisCalculation["projections"]["breakEvenSales"] | null;
+};
+export type DashboardResponse = {
+  year: number;
+  month: number;
+  timezone: string;
+  calculationVersion: number;
+  scope: {
+    type: "GLOBAL" | "ACCESSIBLE";
+    authorizedCount: number;
+    expectedCount: number;
+    label: string;
+  };
+  coverage: {
+    expected: number;
+    withEerr: number;
+    withoutEerr: number;
+    complete: number;
+    partial: number;
+    pending: number;
+    empty: number;
+    uninitialized: number;
+    inactiveWithHistory: number;
+    inactiveWithoutHistory: number;
+    excludedNotStarted: number;
+  };
+  consolidated: AggregateCalculation & {
+    label: string;
+    breakEvenAssumption: string | null;
+  };
+  branches: DashboardBranch[];
+  sources: {
+    branchId: string;
+    eerrId: string | null;
+    revision: number | null;
+  }[];
+  sourceSignature: string;
 };
 export type SalesGoalRequest = {
   expectedRevision: number;

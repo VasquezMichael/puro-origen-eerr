@@ -7,6 +7,8 @@ import { test } from 'node:test';
 for (const [modulePath, exportName] of [
   ['eerr/analysis.service.js', 'AnalysisService'],
   ['eerr/analysis.controller.js', 'AnalysisController'],
+  ['eerr/analytics.service.js', 'AnalyticsService'],
+  ['eerr/analytics.controller.js', 'AnalyticsController'],
   ['eerr/sales-goal.service.js', 'SalesGoalService'],
   ['eerr/sales-goal.controller.js', 'SalesGoalController'],
   ['eerr/complete-pending.service.js', 'CompletePendingService'],
