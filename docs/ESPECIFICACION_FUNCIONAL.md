@@ -387,3 +387,18 @@ preserva el borrador para actualizar y decidir; salir, recargar o cerrar un moda
 con cambios requiere confirmación. No se clonan ni importan metas. Gráficos,
 Dashboard financiero y comparación corresponden a EP-06; cierre y eliminación
 del EERR a EP-07.
+
+## EP-05UX.1: ayuda de meta porcentual inalcanzable
+
+Cuando el Objetivo de Venta informa que la meta porcentual iguala o supera el
+margen de contribución actual, el motivo permanece visible y un botón informativo
+“?” explica que la meta debe ser menor. Si el análisis entrega el Margen Bruto
+porcentual completo, la ayuda muestra ese porcentaje ya calculado por la API:
+con Costos variables, representa el margen de contribución usado por la
+proyección. Si no está disponible, usa el texto general. La web solo formatea
+el valor recibido; no recalcula la relación ni modifica la meta.
+
+La ayuda se abre con mouse, foco, teclado o toque y se cierra con Escape,
+pérdida de foco o interacción exterior. También puede consultarla el Lector.
+`ZERO_DENOMINATOR` conserva su motivo propio para la referencia porcentual de
+un Objetivo de Venta igual a cero; no activa esta ayuda.

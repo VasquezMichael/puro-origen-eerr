@@ -451,3 +451,19 @@ perdido tras 409, CAS omitido, eliminación sin confirmación, equilibrio oculto
 sin meta, proyección parcial convertida en cero y valor anterior copiado al
 cambiar modalidad. Las suites de análisis, workspace y navegación también se
 repitieron contra la build de producción con API simulada en los cinco tamaños.
+
+## EP-05UX.1: ayuda contextual de proyección inalcanzable
+
+Pruebas web verifican que solo `TARGET_MARGIN_UNATTAINABLE` del Objetivo de Venta
+presenta la ayuda, que conserva el motivo principal y que el porcentaje mostrado
+proviene de `grossMarginPercent` del mismo análisis; si falta, usa el texto
+general. `ZERO_DENOMINATOR` y otros motivos no se mezclan.
+
+Chromium con API simulada recorre hover, foco, Enter, Espacio, toque, Escape,
+salida de foco y clic/toque exterior en los cinco tamaños habituales. Comprueba
+posición visible sin desborde, acceso del Lector, foco restaurado y ausencia de
+solicitudes HTTP, escrituras o cambios de revisión/borrador por consultar la
+ayuda. Las capturas sintéticas `ep05ux1-*` quedan en TEMP para inspección.
+Tres mutaciones deliberadas, luego restauradas, comprobaron que las pruebas
+detectan ayuda en otros motivos, porcentaje fijo en lugar del análisis y
+ausencia del texto general cuando falta el porcentaje.
