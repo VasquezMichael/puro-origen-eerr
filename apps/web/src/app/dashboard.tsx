@@ -12,7 +12,9 @@ import styles from "./dashboard.module.css";
 export function dashboardError(error: unknown): string {
   if (error instanceof EerrApiError) {
     if (error.status === 409) return "Los datos cambiaron mientras se preparaba el Dashboard. Actualizá para obtener una vista consistente.";
-    if (error.status === 400) return "El período solicitado no es válido. Elegí otro año y mes.";
+    if (error.status === 400) return error.message.startsWith("El Dashboard admite hasta ")
+      ? error.message
+      : "El período solicitado no es válido. Elegí otro año y mes.";
     return error.message;
   }
   return "No pudimos cargar el Dashboard. Intentá nuevamente.";

@@ -90,6 +90,7 @@ test("sucursales completas, parciales, pendientes, vacías, sin estructura e ina
 test("errores 400 y 409 ofrecen mensajes claros", () => {
   assert.match(dashboardError(new EerrApiError("interno", 409)), /Los datos cambiaron/);
   assert.match(dashboardError(new EerrApiError("interno", 400)), /período solicitado/);
+  assert.match(dashboardError(new EerrApiError("El Dashboard admite hasta 200 sucursales accesibles", 400)), /hasta 200 sucursales/);
 });
 test("respuestas antiguas o abortadas no reemplazan el período vigente", () => {
   assert.equal(model.acceptsDashboardResponse(2, 3, false), false);
