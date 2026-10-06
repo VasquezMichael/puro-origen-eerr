@@ -1,52 +1,62 @@
 "use client";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { DashboardResponse } from "@puro-origen/shared-types";
 import { WorkspaceShell } from "./eerr/workspace-shell";
+import { eerrApi, EerrApiError } from "./eerr/api";
 import { roleLabel, type SessionUser } from "./session-model";
-import styles from "./eerr/workspace.module.css";
+import { Branches, Consolidated, Coverage, PeriodPicker } from "./dashboard-sections";
+import { acceptsDashboardResponse, currentPeriod, periodFromQuery, periodKey, periodLabel, queryIsCanonical, visibleDashboard, type DashboardSnapshot, type Period } from "./dashboard-model";
+import styles from "./dashboard.module.css";
+
+export function dashboardError(error: unknown): string {
+  if (error instanceof EerrApiError) {
+    if (error.status === 409) return "Los datos cambiaron mientras se preparaba el Dashboard. Actualizá para obtener una vista consistente.";
+    if (error.status === 400) return error.message.startsWith("El Dashboard admite hasta ")
+      ? error.message
+      : "El período solicitado no es válido. Elegí otro año y mes.";
+    return error.message;
+  }
+  return "No pudimos cargar el Dashboard. Intentá nuevamente.";
+}
 
 export function Dashboard({ user }: { user: SessionUser }) {
-  return (
-    <WorkspaceShell
-      section="dashboard"
-      title="Dashboard"
-      role={roleLabel(user)}
-      isAdmin={user.isAdmin}
-    >
-      <header className={styles.heading}>
-        <p className={styles.eyebrow}>Hola, {user.name}</p>
-        <h1>Dashboard</h1>
-        <p className={styles.dashboardIntro}>
-          Tu punto de partida para gestionar los estados de resultados de Puro
-          de Origen.
-        </p>
-      </header>
-      <section
-        className={styles.quickAccess}
-        aria-labelledby="quick-access-title"
-      >
-        <h2 id="quick-access-title">Accesos rápidos</h2>
-        <div className={styles.actions}>
-          <Link className={styles.quickLink} href="/eerr">
-            Estados de resultados <span aria-hidden="true">→</span>
-          </Link>
-          {user.isAdmin && (
-            <Link className={styles.quickLink} href="/admin/sucursales">
-              Sucursales <span aria-hidden="true">→</span>
-            </Link>
-          )}
-        </div>
-      </section>
-      <section
-        className={styles.dashboardEmpty}
-        aria-labelledby="dashboard-next-title"
-      >
-        <p className={styles.eyebrow}>Próximas etapas</p>
-        <h2 id="dashboard-next-title">Una mirada centralizada del negocio</h2>
-        <p>
-          Los indicadores y análisis financieros se incorporarán en una etapa
-          posterior. Por ahora, accedé a tus EERR desde Estados de resultados.
-        </p>
-      </section>
-    </WorkspaceShell>
-  );
+  const router = useRouter();
+  const search = useSearchParams();
+  const [fallback] = useState<Period>(() => currentPeriod(new Date()));
+  const query = search.toString();
+  const period = useMemo(() => periodFromQuery(new URLSearchParams(query), fallback), [query, fallback]);
+  const key = periodKey(period);
+  const [refresh, setRefresh] = useState(0);
+  const [visible, setVisible] = useState<DashboardSnapshot | null>(null);
+  const generation = useRef(0);
+  const requestKey = `${key}:${refresh}`;
+  useEffect(() => {
+    if (!queryIsCanonical(new URLSearchParams(query), period)) router.replace(`/?year=${period.year}&month=${period.month}`, { scroll: false });
+  }, [query, period, router]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const request = ++generation.current;
+    eerrApi<DashboardResponse>(`/analytics/dashboard?year=${period.year}&month=${period.month}`, { signal: controller.signal })
+      .then((data) => {
+        if (!acceptsDashboardResponse(request, generation.current, controller.signal.aborted)) return;
+        if (data.year !== period.year || data.month !== period.month) throw new Error("El servidor respondió con otro período.");
+        setVisible({ request: requestKey, signature: data.sourceSignature, data, error: "" });
+      })
+      .catch((failure: unknown) => { if (acceptsDashboardResponse(request, generation.current, controller.signal.aborted)) setVisible({ request: requestKey, signature: null, data: null, error: dashboardError(failure) }); });
+    return () => controller.abort();
+  }, [period.year, period.month, requestKey]);
+  const loading = visible?.request !== requestKey;
+  const error = loading ? "" : visible.error;
+  const data = !loading ? visibleDashboard(visible, requestKey) : null;
+  const select = (next: Period) => router.push(`/?year=${next.year}&month=${next.month}`, { scroll: false });
+  return <WorkspaceShell section="dashboard" title="Dashboard" role={roleLabel(user)} isAdmin={user.isAdmin}>
+    <div className={styles.dashboard}>
+      <header className={styles.heading}><div><p className={styles.eyebrow}>Resumen mensual · {periodLabel(period)}</p><h1>Dashboard</h1><p>Resultados de las sucursales dentro de tu alcance autorizado.</p></div></header>
+      <PeriodPicker key={key} period={period} onSelect={select} onRefresh={() => setRefresh((value) => value + 1)} loading={loading} />
+      <div role="status" aria-live="polite" className={styles.live}>{loading ? `Cargando Dashboard de ${periodLabel(period)}…` : error ? "No se pudo actualizar el Dashboard." : `Dashboard de ${periodLabel(period)} actualizado.`}</div>
+      {error && <section className={styles.feedback} role="alert"><p>{error}</p><button onClick={() => setRefresh((value) => value + 1)}>Reintentar</button></section>}
+      {data && <div><Coverage data={data} /><Consolidated data={data} /><Branches data={data} /></div>}
+    </div>
+  </WorkspaceShell>;
 }

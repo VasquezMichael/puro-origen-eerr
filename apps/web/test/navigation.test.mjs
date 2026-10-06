@@ -5,7 +5,6 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 const { navigationItems, roleLabel } =
   await import("../src/app/session-model.ts");
-const { Dashboard } = await import("../src/app/dashboard.tsx");
 const { WorkspaceShell } = await import("../src/app/eerr/workspace-shell.tsx");
 const { LoginForm } = await import("../src/app/login-form.tsx");
 const { LoginFrame } = await import("../src/app/session-provider.tsx");
@@ -35,16 +34,11 @@ for (const [role, admin, label] of [
       navigationItems(admin).map((item) => item.href),
       admin ? ["/", "/eerr", "/admin/sucursales"] : ["/", "/eerr"],
     );
-    const html = render(Dashboard, { user: session });
+    const html = render(WorkspaceShell, { isAdmin: admin, section: "dashboard", title: "Dashboard", children: React.createElement("h1", null, "Dashboard") });
     assert.equal((html.match(/data-app-shell/g) ?? []).length, 1);
-    assert.match(html, /Hola, Persona de prueba/);
     assert.match(html, /href="\/eerr"/);
     assert.equal(html.includes('href="/admin/sucursales"'), admin);
-    assert.doesNotMatch(
-      html,
-      /Modo Análisis|Modo Editor|¿Qué querés hacer hoy|Resultado Neto|Margen Bruto|\$[0-9]|[0-9]%/,
-    );
-    assert.match(html, /se incorporarán en una etapa posterior/);
+    assert.doesNotMatch(html, /Modo Análisis|Modo Editor|¿Qué querés hacer hoy/);
     assert.match(html, /Cerrar sesión/);
   });
 }

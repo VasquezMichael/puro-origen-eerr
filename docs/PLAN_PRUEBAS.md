@@ -493,3 +493,19 @@ EERR como faltante, futura incluida, filtro de permisos omitido, firma que
 ignora ausencias/revisiones, escritura accidental en GET, objetivo tomado de
 meta local y omisión de la segunda comprobación de consistencia. El caso de
 subtotal de origen se reforzó con un centavo impar por encima del entero seguro.
+
+## EP-06A.2: interfaz mensual del Dashboard
+
+Las pruebas unitarias del modelo y componentes cubren período inicial de Buenos
+Aires en el cambio de mes UTC, URL válida/inválida, selector, alcance contractual,
+cobertura, consolidado, subtotal, cero explícito, ausencia, estados de sucursal,
+precisión superior a `Number.MAX_SAFE_INTEGER` y mensajes 400/409. Las pruebas de
+navegador usan API simulada, Next compilado y Chromium en 1440×900, 1280×720,
+1024×768, 768×1024 y 390×844; inspeccionan capturas y desborde. Verifican
+cambio rápido de período, recarga de URL, reintento, permisos Admin/Editor/Lector,
+históricos, enlaces, teclado y ayuda contextual, sin API real ni Atlas.
+
+Mutaciones locales deliberadas comprueban que las aserciones detecten cero
+inventado, subtotal definitivo, derivados parciales, conversión a Number,
+respuesta obsoleta, firma mezclada, alcance global erróneo, control de creación
+para Lector y equilibrio parcial. Todas deben restaurarse antes de integrar.

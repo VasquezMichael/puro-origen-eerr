@@ -416,4 +416,21 @@ El índice adicional `{ year: 1, month: 1, branchId: 1 }` acompaña la consulta
 mensual filtrada por sucursales autorizadas. Conserva el índice único por
 sucursal/año/mes. El límite inicial es 200 sucursales accesibles por respuesta;
 su ampliación o paginación requiere medir costo con datos representativos.
-EP-06A.2 incorporará la interfaz. Comparaciones, gráficos y alertas quedan fuera.
+La interfaz se incorpora en EP-06A.2. Comparaciones, gráficos y alertas quedan fuera.
+
+## EP-06A.2: lectura mensual en la web
+
+La página `/` conserva `WorkspaceShell` y consulta exclusivamente
+`GET /analytics/dashboard` con la sesión existente. `dashboard-model` interpreta
+`year`/`month` de la URL y toma el período inicial de `businessMonthAt`, en el
+calendario de Buenos Aires. Las respuestas de otro período se abortan o descartan;
+la vista de carga no conserva cifras del período anterior. Una respuesta visible
+agrupa cobertura, consolidado y sucursales bajo su `sourceSignature`, sin combinar
+firmas ni mostrar la firma al usuario.
+
+Los componentes separan selector, cobertura, tarjetas y sucursales. Formatean los
+strings exactos de la API, sin fórmulas, redondeo financiero ni escrituras. La
+interfaz confía en el tipo de alcance y en `definitive` del contrato para decidir
+etiquetas y tarjetas; el backend sigue siendo la autoridad de permisos y cálculos.
+El Dashboard se limita al mes elegido. Comparaciones, gráficos y semáforos siguen
+diferidos a EP-06B/C.
