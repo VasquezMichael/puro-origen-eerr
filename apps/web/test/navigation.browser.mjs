@@ -1,5 +1,6 @@
 // Real Chromium, isolated web only. Every API response is an in-memory fixture.
 import { emptyAnalysis } from "./browser-analysis-fixture.mjs";
+import { dashboardFixture } from "./dashboard-browser-fixture.mts";
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
@@ -12,6 +13,7 @@ const browser = await chromium.launch({
   headless: true,
 });
 const origin = "http://127.0.0.1:3100";
+const dashboardUrl = `${origin}/?year=2026&month=9`;
 const id = "11111111-1111-4111-8111-111111111111",
   branchId = "123456789012345678901234";
 let passes = 0;
@@ -47,6 +49,7 @@ try {
       duplicate = false;
     const writes = [],
       errors = [];
+    let dashboardReads = 0;
     const user = () => ({
       id: "fixture",
       name: "Persona de prueba",
@@ -141,6 +144,15 @@ try {
       } else if (!authenticated) {
         status = 401;
         body = { message: "Sin sesión" };
+      } else if (path === "/analytics/dashboard" && method === "GET") {
+        assert.equal(url.searchParams.getAll("year").length, 1);
+        assert.equal(url.searchParams.getAll("month").length, 1);
+        const year = Number(url.searchParams.get("year"));
+        const month = Number(url.searchParams.get("month"));
+        assert.ok(Number.isInteger(year) && year >= 1 && year <= 9999);
+        assert.ok(Number.isInteger(month) && month >= 1 && month <= 12);
+        dashboardReads++;
+        body = dashboardFixture({ year, month, mode: "empty", role: admin ? "ADMIN" : role, includeNotStarted: false });
       } else if (path === "/branches" && method === "GET") body = branches;
       else if (path.startsWith("/branches") && method !== "GET") {
         const input = request.postDataJSON();
@@ -243,6 +255,7 @@ try {
       .getByRole("heading", { name: "Dashboard", exact: true })
       .waitFor();
     await shell("Dashboard");
+    await page.getByRole("heading", { name: "Sin EERR para este período" }).waitFor();
     assert.equal(writes.length, 0);
     assert.doesNotMatch(
       await page.locator("main").innerText(),
@@ -315,7 +328,7 @@ try {
       await dialog.getByRole("button", { name: "Descartar y salir" }).click();
       await page.waitForURL(
         label === "Dashboard"
-          ? origin + "/"
+          ? dashboardUrl
           : label === "Sucursales"
             ? origin + "/admin/sucursales"
             : origin + "/eerr",
@@ -375,7 +388,8 @@ try {
     await page
       .getByRole("heading", { name: "Dashboard", exact: true })
       .waitFor();
-    assert.equal(page.url(), origin + "/");
+    await page.waitForURL(dashboardUrl);
+    assert.equal(page.url(), dashboardUrl);
     await go("Sucursales");
     await page
       .getByRole("button", { name: "Nueva sucursal", exact: true })
@@ -481,6 +495,7 @@ try {
       assert.equal(await page.locator("[data-app-shell]").count(), 0);
     }
     assert.deepEqual(errors, []);
+    assert.ok(dashboardReads > 0);
     await context.close();
     passes++;
     console.log(

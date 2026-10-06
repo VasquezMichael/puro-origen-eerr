@@ -3,25 +3,11 @@ import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ROOTS } from "../../../packages/domain/dist/index.js";
+import { dashboardFixture } from "./dashboard-browser-fixture.mts";
 const { chromium } = await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href);
 const browser = await chromium.launch({ executablePath: process.env.BROWSER_BINARY, headless: true });
 const origin = process.env.WEB_TEST_ORIGIN ?? "http://127.0.0.1:3100";
 const branchId = "123456789012345678901234", eerrId = "11111111-1111-4111-8111-111111111111";
-const metric = (value, unit = "ARS", reason = null) => ({ status: value === null ? "BLOCKED" : "COMPLETE", value, unit, reason });
-const block = (root, value, status = "COMPLETE") => ({ nodeId: root.code, code: root.code, name: root.name, status, value, completeness: { loadedCount: status === "COMPLETE" ? 1 : 0, pendingCount: status === "COMPLETE" ? 0 : 1, totalCount: 1, completenessPercent: status === "COMPLETE" ? "100.00" : "0.00" } });
-function fixture({ year = 2026, month = 9, mode = "complete", role = "ADMIN", signature = "sig-one" } = {}) {
-  const empty = mode === "empty", partial = mode === "partial";
-  const withEerr = empty ? 0 : 1;
-  const branch = { branchId, name: "Sucursal ficticia", active: !partial, temporal: "EXPECTED", eerrId: empty ? null : eerrId, revision: empty ? null : 2, loadStatus: partial ? "PARCIAL" : "CARGADO", analysisStatus: empty ? "NO_EERR" : partial ? "PARTIAL" : "COMPLETE", reason: empty ? "NO_EERR" : partial ? "PARTIAL" : null, blocks: empty ? null : [block(ROOTS[0], "9007199254740993.10"), block(ROOTS[1], "0.00"), block(ROOTS[2], partial ? null : "5.00", partial ? "PENDING" : "COMPLETE")], metrics: null, breakEvenSales: null };
-  const value = partial ? "10.00" : month === 7 ? "7.00" : month === 8 ? "8.00" : "9007199254740993.10";
-  const completeBranch = { ...branch, branchId: "complete", name: "Sucursal completa", active: true, eerrId: "22222222-2222-4222-8222-222222222222", analysisStatus: "COMPLETE", reason: null, blocks: [block(ROOTS[0], "10.00"), block(ROOTS[1], "0.00"), block(ROOTS[2], "5.00")] };
-  return { year, month, timezone: "America/Argentina/Buenos_Aires", calculationVersion: 2,
-    scope: { type: role === "ADMIN" ? "GLOBAL" : "ACCESSIBLE", label: role === "ADMIN" ? "Consolidado global" : "Consolidado de mis sucursales accesibles", authorizedCount: partial ? 2 : 1, expectedCount: partial ? 2 : 1 },
-    coverage: { expected: partial ? 2 : 1, withEerr: partial ? 2 : withEerr, withoutEerr: empty ? 1 : 0, complete: mode === "complete" || partial ? 1 : 0, partial: partial ? 1 : 0, pending: 0, empty: 0, uninitialized: 0, inactiveWithHistory: partial ? 1 : 0, inactiveWithoutHistory: 0, excludedNotStarted: 0 },
-    consolidated: { status: mode === "complete" ? "COMPLETE" : "PARTIAL", definitive: mode === "complete", includedCount: empty ? 0 : 1, expectedCount: partial ? 2 : 1, label: mode === "complete" ? "Consolidado definitivo" : `Subtotal de ${empty ? 0 : 1} de ${partial ? 2 : 1} sucursales esperadas`, income: metric(empty ? null : value, "ARS", empty ? "NO_COMPLETE_SOURCES" : null), costs: metric(empty ? null : "0.00"), expenses: metric(empty ? null : "5.00"), grossMargin: metric(mode === "complete" ? "9007199254740993.10" : null, "ARS", partial ? "INCOMPLETE_SCOPE" : null), grossMarginPercent: metric(mode === "complete" ? "100.0000" : null, "PERCENT"), netResult: metric(mode === "complete" ? "9007199254740988.10" : null), netResultPercent: metric(mode === "complete" ? "99.9999" : null, "PERCENT"), breakEvenSales: metric(mode === "complete" ? "5.00" : null, "ARS", partial ? "INCOMPLETE_SCOPE" : null), targetSales: null, breakEvenAssumption: mode === "complete" ? "Supone que se mantiene la mezcla observada de ventas y costos variables." : null },
-    branches: [...(partial ? [completeBranch] : []), branch, { branchId: "later", name: "Sucursal próxima", active: true, temporal: "NOT_STARTED", eerrId: null, revision: null, loadStatus: null, analysisStatus: "EXCLUDED", reason: "NOT_STARTED", blocks: null, metrics: null, breakEvenSales: null }], sources: [], sourceSignature: signature };
-}
 const sizes = [[1920,1080],[1600,900],[1440,900],[1280,720],[1024,768],[768,1024],[390,844]];
 try {
   for (const [width, height] of sizes) {
@@ -42,7 +28,7 @@ try {
       if (url.pathname === "/auth/me") body = { user: { id: "fixture", name: "Persona", email: "persona@example.invalid", isAdmin: role === "ADMIN", branchAccesses: role === "ADMIN" ? [] : [{ branchId, role }], mustChangePassword: false } };
       else if (url.pathname === "/branches") body = [{ id: branchId, name: "Sucursal ficticia", active: true, startDate: "2025-01-01T12:00:00Z" }];
       else if (url.pathname === "/eerr") body = [];
-      else if (url.pathname === "/analytics/dashboard") { reads++; requested.push(`${url.searchParams.get("year")}-${url.searchParams.get("month")}`); if (delay) await new Promise((resolve) => setTimeout(resolve, delay)); if (fail) { status = fail; body = { message: "Error simulado" }; } else body = fixture({ year: Number(url.searchParams.get("year")), month: Number(url.searchParams.get("month")), mode, role, signature }); }
+      else if (url.pathname === "/analytics/dashboard") { reads++; requested.push(`${url.searchParams.get("year")}-${url.searchParams.get("month")}`); if (delay) await new Promise((resolve) => setTimeout(resolve, delay)); if (fail) { status = fail; body = { message: "Error simulado" }; } else body = dashboardFixture({ year: Number(url.searchParams.get("year")), month: Number(url.searchParams.get("month")), mode, role, signature }); }
       else if (url.pathname === `/eerr/${eerrId}`) body = { id: eerrId, branchId, year: 2026, month: 9 };
       else if (url.pathname === `/eerr/${eerrId}/structure`) body = { id: eerrId, revision: 2, progress: { total: 0, loaded: 0, pending: 0, status: "SIN_CARGAR" }, structure: null };
       else if (url.pathname === `/eerr/${eerrId}/analysis`) body = { initialized: false, sourceRevision: 2, blocks: [], categories: [], metrics: {}, projections: {} };
