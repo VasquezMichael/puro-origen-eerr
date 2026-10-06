@@ -35,7 +35,8 @@ test("URL válida, ausente e inválida; la normalización produce formato canón
 });
 test("selector tiene labels, año y mes y validación", () => {
   const html = render(PeriodPicker, { period: { year: 2026, month: 9 }, onSelect() {}, onRefresh() {}, loading: false });
-  assert.match(html, /Año del Dashboard/); assert.match(html, /Mes del Dashboard/); assert.match(html, /Ver período/); assert.match(html, /Actualizar/);
+  assert.match(html, /Año del Dashboard/); assert.match(html, /Mes del Dashboard/); assert.match(html, /Aplicar período/); assert.match(html, /Actualizar/);
+  assert.match(html, /<button type="submit" disabled="">Aplicar período<\/button>/);
   assert.equal(model.validPeriod(2026, 9), true); assert.equal(model.validPeriod(2026.5, 9), false);
 });
 test("alcance global y autorizado provienen del contrato", () => {

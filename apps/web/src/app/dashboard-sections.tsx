@@ -3,18 +3,20 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { ROOTS } from "@puro-origen/domain";
 import type { DashboardBranch, DashboardResponse } from "@puro-origen/shared-types";
-import { branchStatus, formatDashboardMetric, metricReason, scopeLabel, type Period, MONTHS, validPeriod } from "./dashboard-model";
+import { branchStatus, formatDashboardMetric, metricReason, scopeLabel, type Period, MONTHS, validPeriod, periodKey } from "./dashboard-model";
 import styles from "./dashboard.module.css";
 
 export function PeriodPicker({ period, onSelect, onRefresh, loading }: { period: Period; onSelect: (period: Period) => void; onRefresh: () => void; loading: boolean }) {
   const [year, setYear] = useState(String(period.year));
   const [month, setMonth] = useState(String(period.month));
+  const [submitting, setSubmitting] = useState(false);
   const selectedYear = Number(year), selectedMonth = Number(month);
   const valid = /^(?:[1-9][0-9]{0,3})$/.test(year) && validPeriod(selectedYear, selectedMonth);
-  return <form className={styles.period} onSubmit={(event) => { event.preventDefault(); if (valid) onSelect({ year: selectedYear, month: selectedMonth }); }}>
+  const canApply = valid && !submitting && !loading && periodKey({ year: selectedYear, month: selectedMonth }) !== periodKey(period);
+  return <form className={styles.period} onSubmit={(event) => { event.preventDefault(); if (canApply) { setSubmitting(true); onSelect({ year: selectedYear, month: selectedMonth }); } }}>
     <label>Año<input aria-label="Año del Dashboard" type="number" min="1" max="9999" step="1" value={year} onChange={(event) => setYear(event.target.value)} /></label>
     <label>Mes<select aria-label="Mes del Dashboard" value={month} onChange={(event) => setMonth(event.target.value)}>{MONTHS.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></label>
-    <button type="submit" disabled={!valid}>Ver período</button>
+    <button type="submit" disabled={!canApply}>Aplicar período</button>
     <button type="button" onClick={onRefresh} disabled={loading}>Actualizar</button>
     {!valid && <span role="alert">Ingresá un año entre 1 y 9999 y un mes válido.</span>}
   </form>;

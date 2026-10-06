@@ -425,7 +425,10 @@ gráficos, semáforos, exportación y cierre no se incorporan en EP-06A.1.
 
 Inicio muestra selector de año y mes (inicial en Buenos Aires), cobertura de
 sucursales autorizadas, consolidado o subtotal y estado por sucursal. La URL
-conserva el período al compartirla o recargarla; Actualizar vuelve a consultar.
+conserva el período aplicado al compartirla o recargarla. El selector permite preparar
+otro período sin cambiar los datos visibles: «Aplicar período» modifica la URL y
+carga ese mes. «Actualizar» vuelve a consultar el período ya aplicado sin cambiar
+la selección pendiente ni la URL.
 El alcance global se rotula solo cuando la API lo indica. Admin, Editor y Lector
 ven únicamente su respuesta autorizada, sin acciones financieras de edición.
 

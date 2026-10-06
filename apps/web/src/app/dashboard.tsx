@@ -30,6 +30,7 @@ export function Dashboard({ user }: { user: SessionUser }) {
   const [refresh, setRefresh] = useState(0);
   const [visible, setVisible] = useState<DashboardSnapshot | null>(null);
   const generation = useRef(0);
+  const refreshing = useRef(false);
   const requestKey = `${key}:${refresh}`;
   useEffect(() => {
     if (!queryIsCanonical(new URLSearchParams(query), period)) router.replace(`/?year=${period.year}&month=${period.month}`, { scroll: false });
@@ -43,19 +44,21 @@ export function Dashboard({ user }: { user: SessionUser }) {
         if (data.year !== period.year || data.month !== period.month) throw new Error("El servidor respondió con otro período.");
         setVisible({ request: requestKey, signature: data.sourceSignature, data, error: "" });
       })
-      .catch((failure: unknown) => { if (acceptsDashboardResponse(request, generation.current, controller.signal.aborted)) setVisible({ request: requestKey, signature: null, data: null, error: dashboardError(failure) }); });
-    return () => controller.abort();
+      .catch((failure: unknown) => { if (acceptsDashboardResponse(request, generation.current, controller.signal.aborted)) setVisible({ request: requestKey, signature: null, data: null, error: dashboardError(failure) }); })
+      .finally(() => { if (request === generation.current) refreshing.current = false; });
+    return () => { controller.abort(); refreshing.current = false; };
   }, [period.year, period.month, requestKey]);
   const loading = visible?.request !== requestKey;
   const error = loading ? "" : visible.error;
   const data = !loading ? visibleDashboard(visible, requestKey) : null;
   const select = (next: Period) => router.push(`/?year=${next.year}&month=${next.month}`, { scroll: false });
+  const refreshApplied = () => { if (loading || refreshing.current) return; refreshing.current = true; setRefresh((value) => value + 1); };
   return <WorkspaceShell section="dashboard" title="Dashboard" role={roleLabel(user)} isAdmin={user.isAdmin}>
     <div className={styles.dashboard}>
       <header className={styles.heading}><div><p className={styles.eyebrow}>Resumen mensual · {periodLabel(period)}</p><h1>Dashboard</h1><p>Resultados de las sucursales dentro de tu alcance autorizado.</p></div></header>
-      <PeriodPicker key={key} period={period} onSelect={select} onRefresh={() => setRefresh((value) => value + 1)} loading={loading} />
+      <PeriodPicker key={key} period={period} onSelect={select} onRefresh={refreshApplied} loading={loading} />
       <div role="status" aria-live="polite" className={styles.live}>{loading ? `Cargando Dashboard de ${periodLabel(period)}…` : error ? "No se pudo actualizar el Dashboard." : `Dashboard de ${periodLabel(period)} actualizado.`}</div>
-      {error && <section className={styles.feedback} role="alert"><p>{error}</p><button onClick={() => setRefresh((value) => value + 1)}>Reintentar</button></section>}
+      {error && <section className={styles.feedback} role="alert"><p>{error}</p><button onClick={refreshApplied}>Reintentar</button></section>}
       {data && <div><Coverage data={data} /><Consolidated data={data} /><Branches data={data} /></div>}
     </div>
   </WorkspaceShell>;

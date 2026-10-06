@@ -22,13 +22,14 @@ function fixture({ year = 2026, month = 9, mode = "complete", role = "ADMIN", si
     consolidated: { status: mode === "complete" ? "COMPLETE" : "PARTIAL", definitive: mode === "complete", includedCount: empty ? 0 : 1, expectedCount: partial ? 2 : 1, label: mode === "complete" ? "Consolidado definitivo" : `Subtotal de ${empty ? 0 : 1} de ${partial ? 2 : 1} sucursales esperadas`, income: metric(empty ? null : value, "ARS", empty ? "NO_COMPLETE_SOURCES" : null), costs: metric(empty ? null : "0.00"), expenses: metric(empty ? null : "5.00"), grossMargin: metric(mode === "complete" ? "9007199254740993.10" : null, "ARS", partial ? "INCOMPLETE_SCOPE" : null), grossMarginPercent: metric(mode === "complete" ? "100.0000" : null, "PERCENT"), netResult: metric(mode === "complete" ? "9007199254740988.10" : null), netResultPercent: metric(mode === "complete" ? "99.9999" : null, "PERCENT"), breakEvenSales: metric(mode === "complete" ? "5.00" : null, "ARS", partial ? "INCOMPLETE_SCOPE" : null), targetSales: null, breakEvenAssumption: mode === "complete" ? "Supone que se mantiene la mezcla observada de ventas y costos variables." : null },
     branches: [...(partial ? [completeBranch] : []), branch, { branchId: "later", name: "Sucursal próxima", active: true, temporal: "NOT_STARTED", eerrId: null, revision: null, loadStatus: null, analysisStatus: "EXCLUDED", reason: "NOT_STARTED", blocks: null, metrics: null, breakEvenSales: null }], sources: [], sourceSignature: signature };
 }
-const sizes = [[1440,900],[1280,720],[1024,768],[768,1024],[390,844]];
+const sizes = [[1920,1080],[1600,900],[1440,900],[1280,720],[1024,768],[768,1024],[390,844]];
 try {
   for (const [width, height] of sizes) {
     const context = await browser.newContext({ viewport: { width, height }, hasTouch: true });
     const page = await context.newPage();
     await page.clock.setFixedTime(new Date("2026-10-01T01:00:00Z"));
     const errors = []; let mode = "complete", role = "ADMIN", fail = 0, delay = 0, signature = "sig-one", reads = 0, writes = 0;
+    const requested = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.route("**/*", async (route) => {
       const request = route.request(), url = new URL(request.url());
@@ -40,7 +41,8 @@ try {
       let body, status = 200;
       if (url.pathname === "/auth/me") body = { user: { id: "fixture", name: "Persona", email: "persona@example.invalid", isAdmin: role === "ADMIN", branchAccesses: role === "ADMIN" ? [] : [{ branchId, role }], mustChangePassword: false } };
       else if (url.pathname === "/branches") body = [{ id: branchId, name: "Sucursal ficticia", active: true, startDate: "2025-01-01T12:00:00Z" }];
-      else if (url.pathname === "/analytics/dashboard") { reads++; if (delay) await new Promise((resolve) => setTimeout(resolve, delay)); if (fail) { status = fail; body = { message: "Error simulado" }; } else body = fixture({ year: Number(url.searchParams.get("year")), month: Number(url.searchParams.get("month")), mode, role, signature }); }
+      else if (url.pathname === "/eerr") body = [];
+      else if (url.pathname === "/analytics/dashboard") { reads++; requested.push(`${url.searchParams.get("year")}-${url.searchParams.get("month")}`); if (delay) await new Promise((resolve) => setTimeout(resolve, delay)); if (fail) { status = fail; body = { message: "Error simulado" }; } else body = fixture({ year: Number(url.searchParams.get("year")), month: Number(url.searchParams.get("month")), mode, role, signature }); }
       else if (url.pathname === `/eerr/${eerrId}`) body = { id: eerrId, branchId, year: 2026, month: 9 };
       else if (url.pathname === `/eerr/${eerrId}/structure`) body = { id: eerrId, revision: 2, progress: { total: 0, loaded: 0, pending: 0, status: "SIN_CARGAR" }, structure: null };
       else if (url.pathname === `/eerr/${eerrId}/analysis`) body = { initialized: false, sourceRevision: 2, blocks: [], categories: [], metrics: {}, projections: {} };
@@ -49,6 +51,15 @@ try {
     });
     await page.goto(`${origin}/?year=2026&month=9`);
     await page.getByRole("heading", { name: "Consolidado definitivo" }).waitFor();
+    const apply = page.getByRole("button", { name: "Aplicar período" });
+    assert.equal(await apply.isDisabled(), true);
+    await page.getByRole("spinbutton", { name: "Año del Dashboard" }).fill("0");
+    assert.equal(await apply.isDisabled(), true);
+    await page.getByRole("spinbutton", { name: "Año del Dashboard" }).fill("2026");
+    assert.equal(await apply.isDisabled(), true);
+    const centered = await page.evaluate(() => { const dashboard = document.querySelector('main > div'); const main = document.querySelector('main'); if (!dashboard || !main) return null; const a = dashboard.getBoundingClientRect(), b = main.getBoundingClientRect(); return { left: a.left - b.left, right: b.right - a.right, width: a.width }; });
+    assert.ok(centered);
+    if (width >= 1600) { assert.ok(Math.abs(centered.left - centered.right) < 2, JSON.stringify(centered)); assert.ok(centered.width <= 1261); }
     assert.match(await page.locator("main").innerText(), /Consolidado global/);
     assert.match(await page.locator("main").innerText(), /9\.007\.199\.254\.740\.993,10 ARS/);
     assert.match(await page.locator("main").innerText(), /Punto de Equilibrio/);
@@ -88,13 +99,47 @@ try {
     mode = "complete"; await page.reload(); await page.getByRole("link", { name: "Abrir EERR" }).click(); await page.waitForURL(`**/eerr/${eerrId}`);
     await page.goto(`${origin}/?year=bad&month=13`); await page.waitForURL("**/?year=2026&month=9");
     await page.getByRole("heading", { name: "Consolidado definitivo" }).waitFor();
-    await page.getByRole("spinbutton", { name: "Año del Dashboard" }).fill("2025"); await page.getByRole("button", { name: "Ver período" }).click(); await page.waitForURL("**/?year=2025&month=9");
+    await page.getByRole("spinbutton", { name: "Año del Dashboard" }).fill("2025"); await apply.click(); await page.waitForURL("**/?year=2025&month=9");
     await page.reload(); await page.getByRole("heading", { name: "Consolidado definitivo" }).waitFor();
-    delay = 450; await page.getByRole("combobox", { name: "Mes del Dashboard" }).selectOption("8"); await page.getByRole("button", { name: "Ver período" }).click();
-    await page.getByRole("combobox", { name: "Mes del Dashboard" }).selectOption("7"); await page.getByRole("button", { name: "Ver período" }).click();
+    const month = page.getByRole("combobox", { name: "Mes del Dashboard" });
+    await month.selectOption("8");
+    assert.equal(await apply.isEnabled(), true);
+    const beforeRefresh = reads, urlBeforeRefresh = page.url();
+    delay = 450; await page.getByRole("button", { name: "Actualizar" }).click();
+    assert.equal(await apply.isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Actualizar" }).isDisabled(), true);
+    await page.waitForTimeout(50);
+    assert.equal(reads, beforeRefresh + 1);
+    assert.equal(requested.at(-1), "2025-9");
+    assert.equal(page.url(), urlBeforeRefresh);
+    assert.equal(await month.inputValue(), "8");
     await page.getByRole("heading", { name: "Consolidado definitivo" }).waitFor();
-    assert.match(page.url(), /month=7/); assert.match(await page.locator("main").innerText(), /Julio 2025/);
-    await page.waitForTimeout(550); assert.match(await page.locator("main").innerText(), /7,00 ARS/); assert.doesNotMatch(await page.locator("main").innerText(), /8,00 ARS/);
+    await page.getByText("Dashboard de Septiembre 2025 actualizado.").waitFor();
+    assert.equal(await apply.isEnabled(), true);
+    await apply.click(); await page.waitForURL("**/?year=2025&month=8");
+    assert.equal(await apply.isDisabled(), true);
+    await page.getByText("Dashboard de Agosto 2025 actualizado.").waitFor();
+    assert.match(await page.locator("main").innerText(), /8,00 ARS/);
+    await month.selectOption("7"); await page.getByRole("spinbutton", { name: "Año del Dashboard" }).press("Enter");
+    await page.waitForURL("**/?year=2025&month=7");
+    await page.getByText("Dashboard de Julio 2025 actualizado.").waitFor();
+    assert.match(await page.locator("main").innerText(), /7,00 ARS/);
+    await page.goBack(); await page.waitForURL("**/?year=2025&month=8"); await page.getByText("Dashboard de Agosto 2025 actualizado.").waitFor();
+    assert.equal(await month.inputValue(), "8"); assert.match(await page.locator("main").innerText(), /8,00 ARS/);
+    await page.goForward(); await page.waitForURL("**/?year=2025&month=7"); await page.getByText("Dashboard de Julio 2025 actualizado.").waitFor();
+    assert.equal(await month.inputValue(), "7"); assert.match(await page.locator("main").innerText(), /7,00 ARS/);
+    await month.selectOption("8"); await apply.click(); await page.waitForURL("**/?year=2025&month=8");
+    await page.goBack(); await page.waitForURL("**/?year=2025&month=7");
+    await page.getByText("Dashboard de Julio 2025 actualizado.").waitFor();
+    await page.waitForTimeout(550);
+    assert.match(await page.locator("main").innerText(), /7,00 ARS/); assert.doesNotMatch(await page.locator("main").innerText(), /8,00 ARS/);
+    await page.screenshot({ path: join(tmpdir(), `ep06ux1-${width}-final.png`), fullPage: true });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.goto(`${origin}/eerr`); await page.getByRole("heading", { name: "Estados de resultados" }).waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    role = "ADMIN";
+    await page.goto(`${origin}/admin/sucursales`); await page.getByRole("heading", { name: "Sucursales" }).waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.deepEqual(errors, []); assert.equal(writes, 0); assert.ok(reads >= 8);
     await context.close(); console.log(`PASS dashboard ${width}x${height}`);
   }
