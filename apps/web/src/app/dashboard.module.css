@@ -1,0 +1,47 @@
+.dashboard { max-width: 1260px; min-width: 0; }
+.dashboard h1 { font-size: clamp(2rem, 3vw, 2.8rem); line-height: 1.1; margin: 0 0 .45rem; }
+.dashboard h2 { font-size: clamp(1.2rem, 2vw, 1.55rem); line-height: 1.2; margin: 0; }
+.dashboard h3 { font-size: 1rem; margin: 0; overflow-wrap: anywhere; }
+.heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+.heading p:last-child, .explanation, .note { color: #586960; line-height: 1.55; }
+.eyebrow { color: #805c2e; font-weight: 700; font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; margin: 0 0 .4rem; }
+.period { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem; padding: 1rem; border: 1px solid #d8ded5; border-radius: .55rem; background: #fffdf8; }
+.period label { display: grid; gap: .25rem; font-weight: 600; min-width: 105px; }
+.period input, .period select { min-height: 42px; border: 1px solid #bcc8be; border-radius: .4rem; padding: .4rem .6rem; background: white; color: #19342c; font: inherit; }
+.period button { min-height: 42px; }
+.period span[role="alert"] { flex-basis: 100%; color: #922f2f; }
+.live { min-height: 1.5rem; margin: .65rem 0; font-size: .82rem; color: #586960; }
+.feedback { background: #fae9e5; border: 1px solid #d9b7ad; border-radius: .5rem; padding: 1rem; color: #722e2e; }
+.section { background: #fffdf8; border: 1px solid #d8ded5; border-radius: .55rem; padding: clamp(1rem, 2vw, 1.5rem); margin: 0 0 1rem; min-width: 0; }
+.sectionHead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .7rem; }
+.scope, .state { display: inline-block; border-radius: 2rem; background: #e4ebdf; color: #285543; font-weight: 700; font-size: .78rem; padding: .35rem .7rem; }
+.coverage { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem; margin: 1rem 0; }
+.coverage > div, .metric { border: 1px solid #d8ded5; border-radius: .5rem; padding: .85rem; min-width: 0; background: #f8f9f4; }
+.coverage dt, .metric > span { color: #586960; font-size: .8rem; }
+.coverage dd { margin: .25rem 0 0; font-size: 1.55rem; font-weight: 700; }
+.details summary { cursor: pointer; color: #285543; font-weight: 700; padding: .4rem 0; }
+.detailList { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; margin: .5rem 0; }
+.detailList > div { display: flex; gap: .4rem; }
+.detailList dd { margin: 0; font-weight: 700; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; margin-top: 1rem; }
+.metric { display: grid; gap: .35rem; align-content: start; }
+.metric strong { font-size: clamp(1rem, 1.3vw, 1.15rem); line-height: 1.3; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.metric small { color: #586960; }
+.note { font-size: .83rem; margin: 1rem 0 0; }
+.branches { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.branch { min-width: 0; border: 1px solid #d8ded5; border-radius: .5rem; padding: 1rem; }
+.branchHead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; align-items: start; }
+.branch > p { color: #586960; margin: .5rem 0; }
+.branchValues { display: grid; gap: .25rem; border-top: 1px solid #d8ded5; margin: .75rem 0; padding-top: .65rem; }
+.branchValues > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .2rem .6rem; }
+.branchValues dt { color: #586960; }
+.branchValues dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
+.branchValues small { display: block; color: #745019; }
+.reason { font-size: .82rem; }
+.link { display: inline-flex; min-height: 42px; align-items: center; color: #285543 !important; font-weight: 700; text-decoration: underline !important; }
+.help { display: inline-block; position: relative; }
+.help button { border-radius: 50%; min-height: 30px; min-width: 30px; padding: .2rem; margin-left: .2rem; }
+.helpText { display: block; max-width: min(26rem, calc(100vw - 3rem)); padding: .6rem .8rem; border: 1px solid #b9c9b8; border-radius: .4rem; color: #19342c; background: #f0f2ec; overflow-wrap: anywhere; }
+@media (max-width: 1050px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .coverage { grid-template-columns: repeat(2, minmax(0, 1fr)); } .branches { grid-template-columns: 1fr; } }
+@media (max-width: 440px) { .period label { flex: 1 1 110px; } .period button { flex: 1 1 120px; } .metrics { grid-template-columns: 1fr; } }

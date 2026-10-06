@@ -420,3 +420,23 @@ no combina metas locales ni produce Objetivo de Venta consolidado.
 
 La nueva interfaz del Dashboard corresponde a EP-06A.2. Comparaciones, series,
 gráficos, semáforos, exportación y cierre no se incorporan en EP-06A.1.
+
+## EP-06A.2: Dashboard consolidado
+
+Inicio muestra selector de año y mes (inicial en Buenos Aires), cobertura de
+sucursales autorizadas, consolidado o subtotal y estado por sucursal. La URL
+conserva el período al compartirla o recargarla; Actualizar vuelve a consultar.
+El alcance global se rotula solo cuando la API lo indica. Admin, Editor y Lector
+ven únicamente su respuesta autorizada, sin acciones financieras de edición.
+
+La cobertura distingue EERR presentes, faltantes, completos, parciales,
+pendientes, vacíos, sin estructura, históricos inactivos y futuras excluidas.
+Sin EERR se presenta ausencia, no tarjetas de cero. Solo un alcance definitivo
+presenta Margen Bruto, Resultado Neto, porcentajes y Punto de Equilibrio; este
+último supone mantener la mezcla observada de ventas y costos variables. Un
+subtotal muestra exclusivamente Ingresos, Costos y Gastos de EERR completos.
+El Objetivo de Venta no se consolida porque cada meta es local. Las cifras
+provienen de strings de la API y no se recalculan en el navegador.
+
+Comparaciones, series, gráficos, semáforos y exportaciones siguen diferidos a
+EP-06B/C.

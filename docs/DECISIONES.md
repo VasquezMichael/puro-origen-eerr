@@ -541,3 +541,19 @@ EP-05B; EP-06 conserva dashboard y comparación.
   costos variables observada. Las metas locales no producen Objetivo consolidado.
 - Admin ve alcance global; Editor/Lector solo sucursales asignadas y el alcance
   se denomina «Consolidado de mis sucursales accesibles». GET no escribe.
+
+## EP-06A.2: presentación mensual confirmada
+
+- Dashboard continúa como inicio autenticado en el shell compartido. El período
+  inicial se obtiene en Buenos Aires; año y mes explícitos se conservan en la URL.
+  Una URL inválida vuelve al mes actual del negocio sin consultar un período
+  inválido. Actualizar y cambios de período reemplazan la respuesta completa.
+- Cobertura precede a importes. Sin EERR no equivale a cero. Un consolidado
+  definitivo presenta bases, derivados y equilibrio; un subtotal presenta solo
+  bases de EERR completos y explica las fuentes faltantes. La web no recalcula
+  importes, porcentajes, población ni permisos.
+- El alcance global depende del contrato, no de la etiqueta de rol del shell.
+  Los históricos inactivos se identifican; inactivos sin EERR no cuentan como
+  faltantes por ausencia de fecha de baja. Las metas permanecen locales, sin
+  Objetivo de Venta consolidado. EP-06B/C conserva comparaciones, gráficos y
+  semáforos.
