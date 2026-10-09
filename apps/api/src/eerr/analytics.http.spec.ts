@@ -496,4 +496,357 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     await get().expect(400);
     expect(reads).toBe(0);
   });
+
+  const comparisonGet = (path: string) =>
+    request(app.getHttpServer())
+      .get(`/analytics/${path}`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`);
+  const comparisonPeriods =
+    'year=2026&month=9&referenceYear=2026&referenceMonth=8';
+
+  it('compares periods with exact differences and percentage points', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    rows.push({
+      ...rows[0]!,
+      _id: randomUUID(),
+      year: 2026,
+      month: 8,
+      revision: 3,
+      structure: storedStructure(structure('50.00', '10.00', '5.00')),
+    });
+    const body = (
+      await comparisonGet(
+        `branches/${b1}/period-comparison?${comparisonPeriods}`,
+      ).expect(200)
+    ).body;
+    expect(body.orientation).toBe('CURRENT_MINUS_REFERENCE');
+    expect(body.current.branch).toMatchObject({
+      revision: 1,
+      status: 'COMPLETE',
+    });
+    expect(body.reference.branch).toMatchObject({
+      revision: 3,
+      status: 'COMPLETE',
+    });
+    expect(body.metrics.income).toMatchObject({
+      absoluteDifference: '50.00',
+      relativeVariation: '100.0000',
+    });
+    expect(body.metrics.grossMarginPercent).toMatchObject({
+      percentagePointDifference: '-20.0000',
+      relativeVariation: null,
+    });
+    expect(body.current.sourceSignature).not.toBe(
+      body.reference.sourceSignature,
+    );
+    expect(reads).toBe(4);
+    expect(writes).toBe(0);
+  });
+
+  it('requires explicit reference and supports prior December and manual reference', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    await comparisonGet(
+      `branches/${b1}/period-comparison?year=2026&month=9`,
+    ).expect(400);
+    rows.push({ ...rows[0]!, _id: randomUUID(), year: 2025, month: 12 });
+    const body = (
+      await comparisonGet(
+        `branches/${b1}/period-comparison?year=2026&month=1&referenceYear=2025&referenceMonth=12`,
+      ).expect(200)
+    ).body;
+    expect(body.reference.period).toEqual({ year: 2025, month: 12 });
+    expect(body.current.branch.status).toBe('NO_EERR');
+    expect(body.metrics.income).toMatchObject({
+      absoluteDifference: null,
+      reason: 'CURRENT_NO_EERR',
+    });
+  });
+
+  it('returns authorized ordered table including inactive history and absence', async () => {
+    rows.push({ ...rows[0]!, _id: randomUUID(), branchId: b3 });
+    const body = (await comparisonGet('branches?year=2026&month=9').expect(200))
+      .body;
+    expect(
+      body.branches.map((branch: { branchId: string }) => branch.branchId),
+    ).toEqual([b1, b2, b3, b4]);
+    expect(body.branches[2]).toMatchObject({
+      active: false,
+      status: 'COMPLETE',
+    });
+    expect(body.branches[3]).toMatchObject({
+      eerrId: null,
+      status: 'EXCLUDED',
+    });
+    expect(body.sourceSignature).toMatch(/^[a-f\d]{64}$/);
+    expect(reads).toBe(2);
+    expect(writes).toBe(0);
+  });
+
+  it('reverses branch orientation and rejects identical or unauthorized ids', async () => {
+    const path = (a: string, b: string) =>
+      `branches/compare?year=2026&month=9&branchId=${a}&referenceBranchId=${b}`;
+    const forward = (await comparisonGet(path(b1, b2)).expect(200)).body;
+    const backward = (await comparisonGet(path(b2, b1)).expect(200)).body;
+    expect(forward.metrics.income.absoluteDifference).toBe('50.00');
+    expect(backward.metrics.income.absoluteDifference).toBe('-50.00');
+    await comparisonGet(path(b1, b1)).expect(400);
+    viewer = {
+      ...viewer,
+      isAdmin: false,
+      branchAccesses: [{ branchId: b1, role: BranchRole.READER }],
+    };
+    const denied = await comparisonGet(path(b1, b2)).expect(404);
+    expect(JSON.stringify(denied.body)).not.toContain('Norte');
+    expect(JSON.stringify(denied.body)).not.toContain('50.00');
+  });
+
+  it.each([BranchRole.EDITOR, BranchRole.READER])(
+    '%s sees only authorized scope',
+    async (role) => {
+      branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+      viewer = {
+        ...viewer,
+        isAdmin: false,
+        branchAccesses: [{ branchId: b1, role }],
+      };
+      const table = (
+        await comparisonGet('branches?year=2026&month=9').expect(200)
+      ).body;
+      expect(table.scope.type).toBe('ACCESSIBLE');
+      expect(table.branches).toHaveLength(1);
+      expect(JSON.stringify(table)).not.toContain(b2);
+      rows.push({ ...rows[0]!, _id: randomUUID(), year: 2026, month: 8 });
+      const consolidated = (
+        await comparisonGet(`consolidated/compare?${comparisonPeriods}`).expect(
+          200,
+        )
+      ).body;
+      expect(consolidated.scope.type).toBe('ACCESSIBLE');
+      expect(consolidated.metrics.income.absoluteDifference).toBe('0.00');
+      expect(JSON.stringify(consolidated)).not.toContain(b2);
+    },
+  );
+
+  it('blocks financial comparison on subtotal and reports population changes', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    branches[1]!.startDate = new Date('2025-01-01T03:00:00Z');
+    rows.push({ ...rows[0]!, _id: randomUUID(), year: 2026, month: 8 });
+    const body = (
+      await comparisonGet(`consolidated/compare?${comparisonPeriods}`).expect(
+        200,
+      )
+    ).body;
+    expect(body.current.consolidated.definitive).toBe(true);
+    expect(body.reference.consolidated.definitive).toBe(false);
+    expect(body.metrics.income).toMatchObject({
+      absoluteDifference: null,
+      reason: 'REFERENCE_SUBTOTAL',
+    });
+    expect(body.population.changedExistence).toContain(b2);
+    expect(writes).toBe(0);
+  });
+
+  it('rechecks both periods and returns stable 409 after second change', async () => {
+    rows.push({ ...rows[0]!, _id: randomUUID(), year: 2026, month: 8 });
+    afterRead = () => {
+      if (reads === 2) rows[2]!.revision++;
+    };
+    const body = (
+      await comparisonGet(`consolidated/compare?${comparisonPeriods}`).expect(
+        200,
+      )
+    ).body;
+    expect(
+      body.reference.sources.find(
+        (source: { branchId: string }) => source.branchId === b1,
+      ).revision,
+    ).toBe(2);
+    expect(reads).toBe(8);
+    reads = 0;
+    afterRead = () => {
+      if (reads === 2 || reads === 6) rows[2]!.revision++;
+    };
+    expect(
+      (
+        await comparisonGet(`consolidated/compare?${comparisonPeriods}`).expect(
+          409,
+        )
+      ).body.code,
+    ).toBe('ANALYTICS_SOURCES_CHANGED');
+    expect(reads).toBe(8);
+  });
+
+  it.each([
+    'branches?year=2026&month=9&extra=1',
+    `branches/compare?year=2026&month=9&branchId=${b1}&referenceBranchId=${b2}&extra=1`,
+    `branches/not-an-id/period-comparison?${comparisonPeriods}`,
+    'consolidated/compare?year=2026&month=9&referenceYear=2026&referenceMonth=13',
+  ])('validates strictly %s', async (path) => {
+    await comparisonGet(path).expect(400);
+  });
+
+  it('keeps absent and partial sources null, never turns them into zero', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    const path = `branches/${b1}/period-comparison?${comparisonPeriods}`;
+    expect(
+      (await comparisonGet(path).expect(200)).body.metrics.income.reason,
+    ).toBe('REFERENCE_NO_EERR');
+    rows.push({
+      ...rows[0]!,
+      _id: randomUUID(),
+      year: 2026,
+      month: 8,
+      structure: storedStructure(structure('100.00', null, '0.00')),
+    });
+    expect(
+      (await comparisonGet(path).expect(200)).body.metrics.income,
+    ).toMatchObject({
+      current: '100.00',
+      reference: null,
+      reason: 'REFERENCE_PENDING',
+    });
+    const table = (
+      await comparisonGet('branches?year=2026&month=8').expect(200)
+    ).body;
+    expect(table.branches[0]).toMatchObject({
+      status: 'PENDING',
+      metrics: { income: '100.00', costs: null },
+    });
+    rows[0]!.structure = storedStructure(structure(null, '40.00', '20.00'));
+    expect(
+      (await comparisonGet(path).expect(200)).body.metrics.income.reason,
+    ).toBe('CURRENT_PENDING');
+    rows[0]!.structure = storedStructure(structure('0.00', '0.00', '0.00'));
+    rows[2]!.structure = storedStructure(structure('0.00', '0.00', '0.00'));
+    expect(
+      (await comparisonGet(path).expect(200)).body.metrics.income,
+    ).toMatchObject({
+      current: '0.00',
+      reference: '0.00',
+      absoluteDifference: '0.00',
+      relativeVariation: null,
+      reason: 'REFERENCE_NOT_POSITIVE',
+    });
+  });
+
+  it('compares negative net result without favorability or invented variation', async () => {
+    rows[0]!.structure = storedStructure(structure('50.00', '40.00', '20.00'));
+    rows[1]!.structure = storedStructure(structure('50.00', '40.00', '30.00'));
+    const body = (
+      await comparisonGet(
+        `branches/compare?year=2026&month=9&branchId=${b1}&referenceBranchId=${b2}`,
+      ).expect(200)
+    ).body;
+    expect(body.metrics.netResult).toMatchObject({
+      current: '-10.00',
+      reference: '-20.00',
+      absoluteDifference: '10.00',
+      relativeVariation: null,
+      reason: 'REFERENCE_NOT_POSITIVE',
+    });
+    expect(JSON.stringify(body)).not.toContain('favorable');
+  });
+
+  it('distinguishes empty and uninitialized reference documents', async () => {
+    const path = `branches/compare?year=2026&month=9&branchId=${b1}&referenceBranchId=${b2}`;
+    const empty = structure('50.00', '10.00', '5.00');
+    empty.nodes = empty.nodes.slice(0, 3);
+    rows[1]!.structure = storedStructure(empty);
+    expect(
+      (await comparisonGet(path).expect(200)).body.metrics.income,
+    ).toMatchObject({ absoluteDifference: null, reason: 'REFERENCE_EMPTY' });
+    rows[1]!.structure = null;
+    expect(
+      (await comparisonGet(path).expect(200)).body.metrics.income,
+    ).toMatchObject({
+      absoluteDifference: null,
+      reason: 'REFERENCE_UNINITIALIZED',
+    });
+  });
+
+  it('blocks a partially loaded reference without using its subtotal', async () => {
+    const partial = structure('50.00', '10.00', '5.00');
+    partial.nodes.push({
+      nodeId: randomUUID(),
+      code: randomUUID(),
+      parentId: partial.nodes[0]!.nodeId,
+      position: 1,
+      name: 'Pendiente',
+      kind: 'ITEM',
+      amount: {
+        state: 'SIN_CARGAR',
+        input: null,
+        value: null,
+        currency: 'ARS',
+        scale: 2,
+      },
+    });
+    rows[1]!.structure = storedStructure(partial);
+    const body = (
+      await comparisonGet(
+        `branches/compare?year=2026&month=9&branchId=${b1}&referenceBranchId=${b2}`,
+      ).expect(200)
+    ).body;
+    expect(body.reference.status).toBe('PARTIAL');
+    expect(body.metrics.income).toMatchObject({
+      reference: null,
+      absoluteDifference: null,
+      reason: 'REFERENCE_PARTIAL',
+    });
+  });
+
+  it('detects source revision and membership changes on both signatures', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    rows.push({ ...rows[0]!, _id: randomUUID(), year: 2026, month: 8 });
+    const path = `branches/${b1}/period-comparison?${comparisonPeriods}`;
+    const first = (await comparisonGet(path).expect(200)).body;
+    rows[2]!.revision++;
+    const revised = (await comparisonGet(path).expect(200)).body;
+    expect(revised.current.sourceSignature).toBe(first.current.sourceSignature);
+    expect(revised.reference.sourceSignature).not.toBe(
+      first.reference.sourceSignature,
+    );
+    branches[0]!.startDate = new Date('2026-08-01T03:00:00Z');
+    const population = (await comparisonGet(path).expect(200)).body;
+    expect(population.reference.sourceSignature).not.toBe(
+      revised.reference.sourceSignature,
+    );
+  });
+
+  it('changes reference signature when an EERR appears and disappears', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    const path = `branches/${b1}/period-comparison?${comparisonPeriods}`;
+    const absent = (await comparisonGet(path).expect(200)).body.reference
+      .sourceSignature;
+    const reference = { ...rows[0]!, _id: randomUUID(), year: 2026, month: 8 };
+    rows.push(reference);
+    const present = (await comparisonGet(path).expect(200)).body.reference
+      .sourceSignature;
+    expect(present).not.toBe(absent);
+    rows.pop();
+    expect(
+      (await comparisonGet(path).expect(200)).body.reference.sourceSignature,
+    ).toBe(absent);
+  });
+
+  it('marks invalid stored structure without exposing raw document', async () => {
+    const broken = storedStructure(structure('100.00', '40.00', '20.00'));
+    broken.nodes[0]!.code = 'invalid';
+    rows[0]!.structure = broken;
+    const body = (await comparisonGet('branches?year=2026&month=9').expect(200))
+      .body;
+    expect(body.branches[0]).toMatchObject({
+      status: 'INVALID',
+      reason: 'INVALID',
+    });
+    expect(body.branches[0].metrics.income).toBeNull();
+    expect(JSON.stringify(body)).not.toContain('invalid');
+    const consolidated = (
+      await comparisonGet(`consolidated/compare?${comparisonPeriods}`).expect(
+        200,
+      )
+    ).body;
+    expect(consolidated.current.invalidSources).toContain(b1);
+    expect(consolidated.metrics.income.absoluteDifference).toBeNull();
+  });
 });

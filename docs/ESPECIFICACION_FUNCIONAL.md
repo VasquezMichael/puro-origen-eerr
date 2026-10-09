@@ -443,3 +443,9 @@ provienen de strings de la API y no se recalculan en el navegador.
 
 Comparaciones, series, gráficos, semáforos y exportaciones siguen diferidos a
 EP-06B/C.
+
+## EP-06B.1: comparaciones financieras disponibles por API
+
+Se puede comparar una sucursal entre dos meses, dos sucursales autorizadas en un mes, consultar la tabla mensual de sucursales y comparar dos consolidados. La futura interfaz inicia con el mes anterior como referencia y permite elegir otro; la API siempre recibe ambos períodos explícitos. La resta orientada es actual menos referencia. Para importes hay diferencia absoluta y variación relativa solo con referencia positiva; para porcentajes hay diferencia en puntos porcentuales. Los resultados no califican como favorables o desfavorables.
+
+Cada lado informa existencia, revisión, estado de carga y fuente. Ausencias y fuentes incompletas no se equiparan a cero. Un consolidado subtotal conserva cobertura pero bloquea diferencias financieras definitivas. Se muestran cambios de población sin inferir sus causas. Editor y Lector ven solo su alcance; Administrador, el global. EP-06B.2 presentará la interfaz. Series y gráficos quedan fuera; semáforos se difieren a EP-06C.

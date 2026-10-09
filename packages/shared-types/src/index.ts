@@ -3,7 +3,108 @@ import type { SalesGoalValue } from "@puro-origen/domain";
 import type {
   AggregateCalculation,
   AnalysisCalculation,
+  ComparisonMetric,
+  ComparisonReason,
 } from "@puro-origen/calculation-engine";
+import type { EerrPeriod } from "@puro-origen/domain";
+
+export type {
+  ComparisonMetric,
+  ComparisonReason,
+} from "@puro-origen/calculation-engine";
+export type ComparisonMetricName =
+  | "income"
+  | "costs"
+  | "grossMargin"
+  | "grossMarginPercent"
+  | "expenses"
+  | "netResult"
+  | "netResultPercent"
+  | "breakEvenSales";
+export type ComparisonMetrics = Record<ComparisonMetricName, ComparisonMetric>;
+export type ComparisonSourceStatus =
+  DashboardBranch["analysisStatus"] | "INVALID";
+export type ComparisonBranch = {
+  branchId: string;
+  name: string;
+  active: boolean;
+  temporal: DashboardBranch["temporal"];
+  eerrId: string | null;
+  revision: number | null;
+  loadStatus: DashboardBranch["loadStatus"];
+  status: ComparisonSourceStatus;
+  reason: string | null;
+  metrics: Record<ComparisonMetricName, string | null>;
+};
+export type ComparisonScope = DashboardResponse["scope"];
+export type BranchTableResponse = {
+  period: EerrPeriod;
+  timezone: string;
+  calculationVersion: number;
+  scope: ComparisonScope;
+  coverage: DashboardResponse["coverage"];
+  branches: ComparisonBranch[];
+  sources: DashboardResponse["sources"];
+  sourceSignature: string;
+};
+export type BranchPeriodComparisonResponse = {
+  orientation: "CURRENT_MINUS_REFERENCE";
+  timezone: string;
+  current: {
+    period: EerrPeriod;
+    branch: ComparisonBranch;
+    sourceSignature: string;
+  };
+  reference: {
+    period: EerrPeriod;
+    branch: ComparisonBranch;
+    sourceSignature: string;
+  };
+  scope: ComparisonScope;
+  calculationVersion: number;
+  metrics: ComparisonMetrics;
+};
+export type TwoBranchComparisonResponse = {
+  orientation: "CURRENT_MINUS_REFERENCE";
+  timezone: string;
+  period: EerrPeriod;
+  current: ComparisonBranch;
+  reference: ComparisonBranch;
+  scope: ComparisonScope;
+  sourceSignature: string;
+  calculationVersion: number;
+  metrics: ComparisonMetrics;
+};
+export type ConsolidatedPeriodComparisonResponse = {
+  orientation: "CURRENT_MINUS_REFERENCE";
+  timezone: string;
+  current: {
+    period: EerrPeriod;
+    coverage: DashboardResponse["coverage"];
+    consolidated: DashboardResponse["consolidated"];
+    invalidSources: string[];
+    sources: DashboardResponse["sources"];
+    sourceSignature: string;
+  };
+  reference: {
+    period: EerrPeriod;
+    coverage: DashboardResponse["coverage"];
+    consolidated: DashboardResponse["consolidated"];
+    invalidSources: string[];
+    sources: DashboardResponse["sources"];
+    sourceSignature: string;
+  };
+  scope: ComparisonScope;
+  calculationVersion: number;
+  population: {
+    inBoth: string[];
+    onlyCurrent: string[];
+    onlyReference: string[];
+    changedExistence: string[];
+    changedCompleteness: string[];
+  };
+  metrics: ComparisonMetrics;
+};
 export type AnalysisResponse = AnalysisCalculation & {
   eerrId: string;
   sourceRevision: number;

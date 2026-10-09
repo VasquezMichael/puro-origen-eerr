@@ -1,3 +1,4 @@
+import { divideRounded, fixed } from "./decimal.js";
 import {
   assertStructure,
   compareNodes,
@@ -103,21 +104,12 @@ const emptyAccumulator = (): Accumulator => ({
 });
 const maximumCellCents = BigInt(MONEY.max.replace(".", ""));
 
-/** Redondeo HALF_UP en la magnitud: también respeta empates negativos. */
-function divideRounded(numerator: bigint, denominator: bigint): bigint {
-  if (denominator <= 0n) throw new Error("Denominador inválido");
-  const magnitude = numerator < 0n ? -numerator : numerator;
-  const quotient = magnitude / denominator;
-  const rounded =
-    quotient + (2n * (magnitude % denominator) >= denominator ? 1n : 0n);
-  return numerator < 0n ? -rounded : rounded;
-}
-
-function fixed(value: bigint, scale: number): string {
-  const factor = 10n ** BigInt(scale);
-  const magnitude = value < 0n ? -value : value;
-  return `${value < 0n ? "-" : ""}${magnitude / factor}.${(magnitude % factor).toString().padStart(scale, "0")}`;
-}
+export { compareMetricValues } from "./comparison.js";
+export type {
+  ComparisonMetric,
+  ComparisonReason,
+  ComparisonUnit,
+} from "./comparison.js";
 
 /** Techo de un racional no negativo, sin conversión a Number. */
 function divideCeiling(numerator: bigint, denominator: bigint): bigint {

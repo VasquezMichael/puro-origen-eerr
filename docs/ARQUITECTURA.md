@@ -434,3 +434,9 @@ interfaz confía en el tipo de alcance y en `definitive` del contrato para decid
 etiquetas y tarjetas; el backend sigue siendo la autoridad de permisos y cálculos.
 El Dashboard se limita al mes elegido. Comparaciones, gráficos y semáforos siguen
 diferidos a EP-06B/C.
+
+## EP-06B.1: motor y consultas comparativas
+
+`packages/domain` calcula el mes anterior exclusivamente con año y mes. `packages/calculation-engine` compara valores decimales canónicos con BigInt, sin fórmulas financieras duplicadas en Nest. `packages/shared-types` define respuestas y razones de comparabilidad. `AnalyticsService` reutiliza snapshots del Dashboard, hace lecturas en lote por período y verifica de nuevo permisos, población y revisiones de ambos períodos; reintenta una vez y luego devuelve 409 estable. Las firmas incluyen versión de cálculo y fuentes ordenadas. No se persiste ninguna comparación.
+
+Los endpoints de sucursal, tabla y consolidado consumen el mismo alcance autorizado. Los datos parciales o ausentes se exponen con estado y motivo, sin producir diferencias financieras definitivas. La interfaz EP-06B.2, series, gráficos y semáforos no forman parte de esta capa.

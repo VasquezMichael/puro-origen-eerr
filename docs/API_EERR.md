@@ -490,3 +490,18 @@ persistida inválida responde 500 con `INVALID_PERSISTED_DATA`. La firma SHA-256
 es determinista sobre período, alcance autorizado, clasificación, fuentes
 ordenadas y versión de cálculo. No autoriza acceso ni sustituye la verificación.
 No hay caché ni derivados almacenados.
+
+## EP-06B.1 -- comparaciones financieras
+
+Las consultas requieren cookie de sesión y aplican el alcance autorizado (Administrador global; Editor y Lector solo sucursales asignadas). `year` y `month` son enteros obligatorios; en comparaciones temporales también `referenceYear` y `referenceMonth`. No se infiere la referencia en API. La futura web EP-06B.2 propondrá el mes anterior y permitirá elegirlo manualmente. La zona del calendario es `America/Argentina/Buenos_Aires`; los períodos son año/mes, sin timestamps.
+
+| Ruta GET | Resultado |
+| --- | --- |
+| `/analytics/branches/:branchId/period-comparison?year=&month=&referenceYear=&referenceMonth=` | Misma sucursal, dos períodos. |
+| `/analytics/branches?year=&month=` | Tabla ordenada de sucursales autorizadas, sin ranking. |
+| `/analytics/branches/compare?year=&month=&branchId=&referenceBranchId=` | Dos sucursales distintas del mismo período. |
+| `/analytics/consolidated/compare?year=&month=&referenceYear=&referenceMonth=` | Dos consolidados, cobertura y cambios de población. |
+
+La orientación `CURRENT_MINUS_REFERENCE` significa actual menos referencia. Las ocho métricas son ingresos, costos, margen bruto, margen bruto %, gastos generales, resultado neto, resultado neto % y punto de equilibrio. Cada métrica expone `current`, `reference`, `absoluteDifference` (ARS con dos decimales), `percentagePointDifference` (solo porcentajes, cuatro decimales), `relativeVariation` (cuatro decimales), `unit`, `status` y `reason`. La variación relativa solo existe para referencia monetaria positiva; referencia cero o negativa devuelve `REFERENCE_NOT_POSITIVE` sin porcentaje ficticio. El cálculo utiliza BigInt y ROUND_HALF_UP.
+
+Fuentes ausentes, sin inicializar, vacías, pendientes, parciales o inválidas bloquean la comparación. La tabla expone las métricas disponibles de cada fuente parcial, pero la comparación financiera sigue bloqueada. Un consolidado subtotal entrega cobertura e `invalidSources`, pero no diferencias financieras definitivas. Las respuestas incluyen `timezone`, `scope`, `calculationVersion`, revisiones de fuente y `sourceSignature` por período cuando hay dos. La segunda validación cubre permisos y ambos conjuntos; si cambian dos veces responde 409 `ANALYTICS_SOURCES_CHANGED`. Un ID ajeno devuelve 404 genérico. No hay escrituras ni comparación de Objetivo de Venta, metas o ítems; series y gráficos están fuera de alcance y semáforos corresponden a EP-06C.

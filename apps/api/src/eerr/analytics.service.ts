@@ -4,6 +4,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -12,16 +13,28 @@ import {
   aggregateEerr,
   calculateEerr,
   CALCULATION_VERSION,
+  compareMetricValues,
 } from '@puro-origen/calculation-engine';
 import type {
   AnalysisCalculation,
   AggregateSource,
 } from '@puro-origen/calculation-engine';
-import { dashboardPopulation, EERR_TIME_ZONE } from '@puro-origen/domain';
+import {
+  dashboardPopulation,
+  EERR_TIME_ZONE,
+  ROOTS,
+} from '@puro-origen/domain';
 import type { EerrPeriod } from '@puro-origen/domain';
 import type {
   DashboardBranch,
   DashboardResponse,
+  ComparisonBranch,
+  ComparisonMetricName,
+  ComparisonMetrics,
+  BranchTableResponse,
+  BranchPeriodComparisonResponse,
+  TwoBranchComparisonResponse,
+  ConsolidatedPeriodComparisonResponse,
 } from '@puro-origen/shared-types';
 import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import { BranchesService } from '../branches/branches.service.js';
@@ -49,6 +62,21 @@ type Row = {
 const MAX_BRANCHES = 200;
 const fullFields = '_id branchId revision structure loadStatus';
 const revisionFields = '_id branchId revision';
+const metricNames: ComparisonMetricName[] = [
+  'income',
+  'costs',
+  'grossMargin',
+  'grossMarginPercent',
+  'expenses',
+  'netResult',
+  'netResultPercent',
+  'breakEvenSales',
+];
+const percentageNames = new Set<ComparisonMetricName>([
+  'grossMarginPercent',
+  'netResultPercent',
+]);
+type Snapshot = { response: DashboardResponse; invalid: Set<string> };
 
 @Injectable()
 export class AnalyticsService {
@@ -81,6 +109,304 @@ export class AnalyticsService {
       code: 'ANALYTICS_SOURCES_CHANGED',
       message:
         'Cambiaron las fuentes del Dashboard; actualizá y volvé a intentar',
+    });
+  }
+
+  async branchTable(
+    period: EerrPeriod,
+    viewer: Viewer,
+  ): Promise<BranchTableResponse> {
+    const [snapshot] = await this.snapshots([period], viewer);
+    const response = snapshot!;
+    return {
+      period,
+      timezone: response.response.timezone,
+      calculationVersion: CALCULATION_VERSION,
+      scope: response.response.scope,
+      coverage: response.response.coverage,
+      branches: response.response.branches.map((branch) =>
+        this.comparisonBranch(branch, response.invalid, true),
+      ),
+      sources: response.response.sources,
+      sourceSignature: response.response.sourceSignature,
+    };
+  }
+
+  async branchPeriods(
+    branchId: string,
+    current: EerrPeriod,
+    reference: EerrPeriod,
+    viewer: Viewer,
+  ): Promise<BranchPeriodComparisonResponse> {
+    const [currentSnapshot, referenceSnapshot] = await this.snapshots(
+      [current, reference],
+      viewer,
+    );
+    const currentBranch = this.authorizedBranch(currentSnapshot!, branchId);
+    const referenceBranch = this.authorizedBranch(referenceSnapshot!, branchId);
+    return {
+      orientation: 'CURRENT_MINUS_REFERENCE',
+      timezone: EERR_TIME_ZONE,
+      current: {
+        period: current,
+        branch: currentBranch,
+        sourceSignature: currentSnapshot!.response.sourceSignature,
+      },
+      reference: {
+        period: reference,
+        branch: referenceBranch,
+        sourceSignature: referenceSnapshot!.response.sourceSignature,
+      },
+      scope: currentSnapshot!.response.scope,
+      calculationVersion: CALCULATION_VERSION,
+      metrics: this.comparisonMetrics(currentBranch, referenceBranch),
+    };
+  }
+
+  async twoBranches(
+    currentId: string,
+    referenceId: string,
+    period: EerrPeriod,
+    viewer: Viewer,
+  ): Promise<TwoBranchComparisonResponse> {
+    if (currentId.toLowerCase() === referenceId.toLowerCase())
+      throw new BadRequestException('Las sucursales deben ser diferentes');
+    const [snapshot] = await this.snapshots([period], viewer);
+    const current = this.authorizedBranch(snapshot!, currentId);
+    const reference = this.authorizedBranch(snapshot!, referenceId);
+    return {
+      orientation: 'CURRENT_MINUS_REFERENCE',
+      timezone: EERR_TIME_ZONE,
+      period,
+      current,
+      reference,
+      scope: snapshot!.response.scope,
+      sourceSignature: snapshot!.response.sourceSignature,
+      calculationVersion: CALCULATION_VERSION,
+      metrics: this.comparisonMetrics(current, reference),
+    };
+  }
+
+  async consolidatedPeriods(
+    current: EerrPeriod,
+    reference: EerrPeriod,
+    viewer: Viewer,
+  ): Promise<ConsolidatedPeriodComparisonResponse> {
+    const [a, b] = await this.snapshots([current, reference], viewer);
+    const currentResponse = a!.response;
+    const referenceResponse = b!.response;
+    const currentIds = new Set(
+      currentResponse.branches
+        .filter((branch) => branch.temporal === 'EXPECTED')
+        .map((branch) => branch.branchId),
+    );
+    const referenceIds = new Set(
+      referenceResponse.branches
+        .filter((branch) => branch.temporal === 'EXPECTED')
+        .map((branch) => branch.branchId),
+    );
+    const currentById = new Map(
+      currentResponse.branches.map((branch) => [branch.branchId, branch]),
+    );
+    const referenceById = new Map(
+      referenceResponse.branches.map((branch) => [branch.branchId, branch]),
+    );
+    const inBoth = [...currentIds].filter((id) => referenceIds.has(id)).sort();
+    const definitive =
+      currentResponse.consolidated.definitive &&
+      referenceResponse.consolidated.definitive;
+    const metrics = Object.fromEntries(
+      metricNames.map((name) => [
+        name,
+        compareMetricValues(
+          definitive ? currentResponse.consolidated[name].value : null,
+          definitive ? referenceResponse.consolidated[name].value : null,
+          percentageNames.has(name) ? 'PERCENT' : 'ARS',
+          !currentResponse.consolidated.definitive
+            ? 'CURRENT_SUBTOTAL'
+            : !referenceResponse.consolidated.definitive
+              ? 'REFERENCE_SUBTOTAL'
+              : 'CURRENT_NOT_CALCULABLE',
+        ),
+      ]),
+    ) as ComparisonMetrics;
+    return {
+      orientation: 'CURRENT_MINUS_REFERENCE',
+      timezone: EERR_TIME_ZONE,
+      current: {
+        period: current,
+        coverage: currentResponse.coverage,
+        consolidated: currentResponse.consolidated,
+        invalidSources: [...a!.invalid].sort(),
+        sources: currentResponse.sources,
+        sourceSignature: currentResponse.sourceSignature,
+      },
+      reference: {
+        period: reference,
+        coverage: referenceResponse.coverage,
+        consolidated: referenceResponse.consolidated,
+        invalidSources: [...b!.invalid].sort(),
+        sources: referenceResponse.sources,
+        sourceSignature: referenceResponse.sourceSignature,
+      },
+      scope: currentResponse.scope,
+      calculationVersion: CALCULATION_VERSION,
+      population: {
+        inBoth,
+        onlyCurrent: [...currentIds]
+          .filter((id) => !referenceIds.has(id))
+          .sort(),
+        onlyReference: [...referenceIds]
+          .filter((id) => !currentIds.has(id))
+          .sort(),
+        changedExistence: inBoth.filter(
+          (id) =>
+            !!currentById.get(id)?.eerrId !== !!referenceById.get(id)?.eerrId,
+        ),
+        changedCompleteness: inBoth.filter(
+          (id) =>
+            currentById.get(id)?.analysisStatus !==
+            referenceById.get(id)?.analysisStatus,
+        ),
+      },
+      metrics,
+    };
+  }
+
+  private authorizedBranch(snapshot: Snapshot, id: string): ComparisonBranch {
+    const branch = snapshot.response.branches.find(
+      (item) => item.branchId === id.toLowerCase(),
+    );
+    if (!branch) throw new NotFoundException('Sucursal no disponible');
+    return this.comparisonBranch(branch, snapshot.invalid);
+  }
+
+  private comparisonBranch(
+    branch: DashboardBranch,
+    invalid: Set<string>,
+    showAvailable = false,
+  ): ComparisonBranch {
+    const complete =
+      branch.analysisStatus === 'COMPLETE' && !invalid.has(branch.branchId);
+    const available =
+      (complete || showAvailable) && !invalid.has(branch.branchId);
+    const block = (code: string) =>
+      available
+        ? (branch.blocks?.find((item) => item.code === code)?.value ?? null)
+        : null;
+    return {
+      branchId: branch.branchId,
+      name: branch.name,
+      active: branch.active,
+      temporal: branch.temporal,
+      eerrId: branch.eerrId,
+      revision: branch.revision,
+      loadStatus: branch.loadStatus,
+      status: invalid.has(branch.branchId) ? 'INVALID' : branch.analysisStatus,
+      reason: invalid.has(branch.branchId) ? 'INVALID' : branch.reason,
+      metrics: {
+        income: block(ROOTS[0].code),
+        costs: block(ROOTS[1].code),
+        expenses: block(ROOTS[2].code),
+        grossMargin: available
+          ? (branch.metrics?.grossMargin.value ?? null)
+          : null,
+        grossMarginPercent: available
+          ? (branch.metrics?.grossMarginPercent.value ?? null)
+          : null,
+        netResult: available ? (branch.metrics?.netResult.value ?? null) : null,
+        netResultPercent: available
+          ? (branch.metrics?.netResultPercent.value ?? null)
+          : null,
+        breakEvenSales: available
+          ? (branch.breakEvenSales?.value ?? null)
+          : null,
+      },
+    };
+  }
+
+  private comparisonMetrics(
+    current: ComparisonBranch,
+    reference: ComparisonBranch,
+  ): ComparisonMetrics {
+    const reason =
+      current.status !== 'COMPLETE'
+        ? `CURRENT_${current.status}`
+        : reference.status !== 'COMPLETE'
+          ? `REFERENCE_${reference.status}`
+          : null;
+    return Object.fromEntries(
+      metricNames.map((name) => [
+        name,
+        compareMetricValues(
+          current.metrics[name],
+          reference.metrics[name],
+          percentageNames.has(name) ? 'PERCENT' : 'ARS',
+          (reason ??
+            (current.metrics[name] === null
+              ? 'CURRENT_NOT_CALCULABLE'
+              : 'REFERENCE_NOT_CALCULABLE')) as Parameters<
+            typeof compareMetricValues
+          >[3],
+        ),
+      ]),
+    ) as ComparisonMetrics;
+  }
+
+  private async snapshots(
+    periods: EerrPeriod[],
+    viewer: Viewer,
+  ): Promise<Snapshot[]> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const principal = await this.principal(viewer.sub);
+      const branches = await this.branches(principal);
+      const rows = await Promise.all(
+        periods.map((period) => this.rows(period, branches, true)),
+      );
+      const initialKeys = periods.map((period, index) =>
+        this.sourceKey(period, principal, branches, rows[index]!),
+      );
+      const snapshots = periods.map((period, index) => {
+        const invalid = new Set<string>();
+        const validRows = rows[index]!.map((row) => {
+          if (!row.structure) return row;
+          try {
+            calculateEerr(publicStructure(row.structure), null);
+            return row;
+          } catch {
+            invalid.add(row.branchId.toString());
+            return { ...row, structure: null };
+          }
+        });
+        return {
+          response: this.build(period, principal, branches, validRows),
+          invalid,
+        };
+      });
+      const checkedPrincipal = await this.principal(viewer.sub);
+      const checkedBranches = await this.branches(checkedPrincipal);
+      const checkedRows = await Promise.all(
+        periods.map((period) => this.rows(period, checkedBranches, false)),
+      );
+      if (
+        periods.every(
+          (period, index) =>
+            initialKeys[index] ===
+            this.sourceKey(
+              period,
+              checkedPrincipal,
+              checkedBranches,
+              checkedRows[index]!,
+            ),
+        )
+      )
+        return snapshots;
+    }
+    throw new ConflictException({
+      statusCode: 409,
+      code: 'ANALYTICS_SOURCES_CHANGED',
+      message:
+        'Cambiaron las fuentes de comparacion; actualiza y vuelve a intentar',
     });
   }
 
