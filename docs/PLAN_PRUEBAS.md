@@ -509,3 +509,7 @@ Mutaciones locales deliberadas comprueban que las aserciones detecten cero
 inventado, subtotal definitivo, derivados parciales, conversión a Number,
 respuesta obsoleta, firma mezclada, alcance global erróneo, control de creación
 para Lector y equilibrio parcial. Todas deben restaurarse antes de integrar.
+
+## EP-06B.1: verificación comparativa
+
+El motor puro cubre diferencias orientadas exactas, cero y referencia negativa, cruces de signo, puntos porcentuales, ROUND_HALF_UP, magnitudes superiores a Number.MAX_SAFE_INTEGER y nulos. Las pruebas HTTP sin AppModule ni MongoDB comprueban validación estricta, permisos, orientación, cobertura, fuentes parciales, firmas de ambos períodos, reintento/409 y ausencia de escrituras. La integración local usa el `mongod` temporal de `test:integration:structure` para consultar ambos períodos, el índice mensual y verificar que GET no altera documentos. No emplea Atlas ni `.env`.

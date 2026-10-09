@@ -557,3 +557,11 @@ EP-05B; EP-06 conserva dashboard y comparación.
   faltantes por ausencia de fecha de baja. Las metas permanecen locales, sin
   Objetivo de Venta consolidado. EP-06B/C conserva comparaciones, gráficos y
   semáforos.
+
+## EP-06B.1: comparaciones financieras
+
+- La referencia inicial de la futura interfaz es el mes calendario anterior (enero pasa a diciembre del año previo); la referencia puede cambiarse manualmente. La API exige ambos períodos explícitos como año y mes del calendario America/Argentina/Buenos_Aires.
+- La orientación es siempre actual menos referencia. Para dinero se entrega diferencia exacta y variación relativa con cuatro decimales y ROUND_HALF_UP solo si la referencia es positiva. Con referencia cero o negativa la diferencia subsiste, pero la variación es null y lleva motivo estable. Los porcentajes se comparan en puntos porcentuales, nunca mediante variación relativa.
+- Ausencia, falta de inicialización, vacío, pendiente, parcialidad o dato inválido no se convierten en cero ni permiten comparación definitiva. El consolidado necesita ambas fuentes definitivas; aun si es subtotal, se muestra cobertura y cambio de población sin atribuir causalidad.
+- Administrador consulta el alcance global; Editor y Lector solo sus sucursales autorizadas. Las consultas son de solo lectura, llevan revisiones y firmas de fuentes y revalidan ambos conjuntos antes de responder.
+- EP-06B.2 queda para interfaz; series y gráficos, fuera de este incremento; semáforos, para EP-06C. No se comparan metas, Objetivo de Venta ni ítems locales.

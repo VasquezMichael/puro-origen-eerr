@@ -3,6 +3,23 @@ export const EERR_TIME_ZONE = 'America/Argentina/Buenos_Aires';
 
 export type EerrPeriod = Readonly<{ year: number; month: number }>;
 
+/** Referencia inicial para comparaciones; conserva año y mes como valores de dominio. */
+export function previousEerrPeriod(period: EerrPeriod): EerrPeriod {
+  if (
+    !Number.isInteger(period.year) ||
+    period.year < 1 ||
+    period.year > 9999 ||
+    !Number.isInteger(period.month) ||
+    period.month < 1 ||
+    period.month > 12 ||
+    (period.year === 1 && period.month === 1)
+  )
+    throw new RangeError('Período anterior fuera del calendario admitido');
+  return period.month === 1
+    ? { year: period.year - 1, month: 12 }
+    : { year: period.year, month: period.month - 1 };
+}
+
 const monthFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: EERR_TIME_ZONE,
   calendar: 'gregory',
@@ -31,6 +48,7 @@ export function eerrCalendarIssue(
   now: Date,
 ): 'FUTURE' | 'BEFORE_START' | null {
   if (comparePeriods(period, businessMonthAt(now)) > 0) return 'FUTURE';
-  if (comparePeriods(period, businessMonthAt(branchStart)) < 0) return 'BEFORE_START';
+  if (comparePeriods(period, businessMonthAt(branchStart)) < 0)
+    return 'BEFORE_START';
   return null;
 }

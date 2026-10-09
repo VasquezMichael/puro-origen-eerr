@@ -2018,7 +2018,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
           id: '123456789012345678901234',
           name: 'Central',
           active: true,
-          startDate: new Date('2026-09-01T03:00:00Z'),
+          startDate: new Date('2025-01-01T03:00:00Z'),
         },
         {
           id: 'abcdefabcdefabcdefabcdef',
@@ -2071,5 +2071,112 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
     await model.updateOne({ _id: second._id }, { $inc: { revision: 1 } });
     const revised = await analytics.dashboard({ year: 2026, month: 9 }, viewer);
     expect(revised.sourceSignature).not.toBe(result.sourceSignature);
+    const august = await model.create({
+      branchId: '123456789012345678901234',
+      year: 2026,
+      month: 8,
+      createdBy: viewer.sub,
+      loadStatus: EerrLoadStatus.CARGADO,
+      structure: storedStructure(makeStructure('25.00', '10.00', '5.00')),
+    });
+    const beforeComparisons = await model.find().sort({ _id: 1 }).lean();
+    const comparison = await analytics.branchPeriods(
+      '123456789012345678901234',
+      { year: 2026, month: 9 },
+      { year: 2026, month: 8 },
+      viewer,
+    );
+    expect(comparison.reference.branch.status).toBe('COMPLETE');
+    expect(comparison.metrics.income.absoluteDifference).toBe('75.00');
+    const table = await analytics.branchTable({ year: 2026, month: 9 }, viewer);
+    expect(table.branches).toHaveLength(2);
+    const pair = await analytics.twoBranches(
+      '123456789012345678901234',
+      'abcdefabcdefabcdefabcdef',
+      { year: 2026, month: 9 },
+      viewer,
+    );
+    expect(pair.metrics.income.absoluteDifference).toBe('50.00');
+    const consolidated = await analytics.consolidatedPeriods(
+      { year: 2026, month: 9 },
+      { year: 2026, month: 8 },
+      viewer,
+    );
+    expect(consolidated.current.coverage.expected).toBe(2);
+    expect(consolidated.reference.coverage.expected).toBe(1);
+    expect(consolidated.population.onlyCurrent).toContain(
+      'abcdefabcdefabcdefabcdef',
+    );
+    expect(await model.find().sort({ _id: 1 }).lean()).toEqual(
+      beforeComparisons,
+    );
+    const restricted = new AnalyticsService(
+      model as unknown as Model<EerrDocument>,
+      {
+        list: async () => [
+          {
+            id: '123456789012345678901234',
+            name: 'Central',
+            active: true,
+            startDate: new Date('2025-01-01T03:00:00Z'),
+          },
+        ],
+      } as unknown as BranchesService,
+      {
+        findActiveById: async () => ({
+          isAdmin: false,
+          branchAccesses: [
+            { branchId: '123456789012345678901234', role: 'READER' },
+          ],
+        }),
+      } as unknown as UsersService,
+    );
+    const scoped = await restricted.branchTable(
+      { year: 2026, month: 9 },
+      viewer,
+    );
+    expect(scoped.scope.type).toBe('ACCESSIBLE');
+    expect(scoped.branches.map((branch) => branch.branchId)).toEqual([
+      '123456789012345678901234',
+    ]);
+    await expect(
+      restricted.twoBranches(
+        '123456789012345678901234',
+        'abcdefabcdefabcdefabcdef',
+        { year: 2026, month: 9 },
+        viewer,
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    let comparisonReads = 0;
+    const concurrentModel = {
+      find: (filter: Record<string, unknown>) => {
+        const query = model.find(filter);
+        const originalExec = query.exec.bind(query);
+        (query as unknown as { exec: () => Promise<unknown> }).exec =
+          async () => {
+            const value = await originalExec();
+            comparisonReads++;
+            if (comparisonReads === 2)
+              await model.updateOne(
+                { _id: august._id },
+                { $inc: { revision: 1 } },
+              );
+            return value;
+          };
+        return query;
+      },
+    } as unknown as Model<EerrDocument>;
+    const concurrent = new AnalyticsService(concurrentModel, branches, users);
+    const retried = await concurrent.consolidatedPeriods(
+      { year: 2026, month: 9 },
+      { year: 2026, month: 8 },
+      viewer,
+    );
+    expect(comparisonReads).toBe(8);
+    expect(
+      retried.reference.sources.find(
+        (source) => source.branchId === '123456789012345678901234',
+      )?.revision,
+    ).toBe(1);
   });
 });

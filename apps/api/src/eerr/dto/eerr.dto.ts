@@ -39,3 +39,30 @@ export class EerrMonthDto {
   @Max(12)
   month!: number;
 }
+
+export class ComparisonPeriodsDto extends EerrMonthDto {
+  @Transform(queryInteger)
+  @IsInt()
+  @Min(1)
+  @Max(9999)
+  referenceYear!: number;
+
+  @Transform(queryInteger)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  referenceMonth!: number;
+}
+
+export class BranchComparisonDto extends EerrMonthDto {
+  @IsMongoId()
+  branchId!: string;
+
+  @IsMongoId()
+  referenceBranchId!: string;
+}
+
+export class BranchParamDto {
+  @IsMongoId()
+  branchId!: string;
+}
