@@ -440,3 +440,9 @@ diferidos a EP-06B/C.
 `packages/domain` calcula el mes anterior exclusivamente con año y mes. `packages/calculation-engine` compara valores decimales canónicos con BigInt, sin fórmulas financieras duplicadas en Nest. `packages/shared-types` define respuestas y razones de comparabilidad. `AnalyticsService` reutiliza snapshots del Dashboard, hace lecturas en lote por período y verifica de nuevo permisos, población y revisiones de ambos períodos; reintenta una vez y luego devuelve 409 estable. Las firmas incluyen versión de cálculo y fuentes ordenadas. No se persiste ninguna comparación.
 
 Los endpoints de sucursal, tabla y consolidado consumen el mismo alcance autorizado. Los datos parciales o ausentes se exponen con estado y motivo, sin producir diferencias financieras definitivas. La interfaz EP-06B.2, series, gráficos y semáforos no forman parte de esta capa.
+
+## EP-06B.2: lectura comparativa en el Dashboard
+
+Inicio conserva el shell y el mes aplicado en la URL. `view=comparisons` abre la vista de comparaciones; sin ese parámetro se muestra Resumen. La web consulta la tabla de sucursales autorizadas al abrir Comparaciones y realiza cada comparación detallada solo tras la acción explícita. La referencia inicial usa `previousEerrPeriod` del dominio y puede editarse. Las respuestas se vinculan a la selección aplicada, se cancelan o ignoran las antiguas y un 409 retira las cifras antes de ofrecer reintento.
+
+La interfaz presenta directamente métricas, diferencias, variación, estados, cobertura y firmas de fuente del contrato. No contiene fórmulas financieras ni persiste preferencias. Las tablas mantienen el desplazamiento horizontal dentro de su región en pantallas pequeñas. Series, gráficos, rankings y semáforos siguen diferidos.

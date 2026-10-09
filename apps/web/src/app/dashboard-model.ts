@@ -13,6 +13,13 @@ export function visibleDashboard(snapshot: DashboardSnapshot | null, requestKey:
 export const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 export const currentPeriod = (now: Date): Period => businessMonthAt(now);
 export const periodKey = ({ year, month }: Period) => `${year}-${month}`;
+export type DashboardView = "summary" | "comparisons";
+export function viewFromQuery(query: URLSearchParams): DashboardView {
+  return query.getAll("view").length === 1 && query.get("view") === "comparisons" ? "comparisons" : "summary";
+}
+export function dashboardHref(period: Period, view: DashboardView): string {
+  return `/?year=${period.year}&month=${period.month}${view === "comparisons" ? "&view=comparisons" : ""}`;
+}
 export function validPeriod(year: number, month: number): boolean {
   return Number.isInteger(year) && year >= 1 && year <= 9999 && Number.isInteger(month) && month >= 1 && month <= 12;
 }
@@ -23,8 +30,10 @@ export function periodFromQuery(query: URLSearchParams, fallback: Period): Perio
   const year = Number(years[0]), month = Number(months[0]);
   return validPeriod(year, month) ? { year, month } : fallback;
 }
-export function queryIsCanonical(query: URLSearchParams, period: Period): boolean {
-  return query.getAll("year").length === 1 && query.getAll("month").length === 1 && query.get("year") === String(period.year) && query.get("month") === String(period.month);
+export function queryIsCanonical(query: URLSearchParams, period: Period, view: DashboardView = "summary"): boolean {
+  return query.getAll("year").length === 1 && query.getAll("month").length === 1 && query.get("year") === String(period.year) && query.get("month") === String(period.month)
+    && (view === "comparisons" ? query.getAll("view").length === 1 && query.get("view") === "comparisons" : !query.has("view"))
+    && [...query.keys()].every((key) => ["year", "month", "view"].includes(key));
 }
 export const periodLabel = ({ year, month }: Period) => `${MONTHS[month - 1]} ${year}`;
 export function formatDashboardMetric(value: string | null, unit: "ARS" | "PERCENT"): string {

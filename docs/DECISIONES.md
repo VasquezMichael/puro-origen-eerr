@@ -565,3 +565,10 @@ EP-05B; EP-06 conserva dashboard y comparación.
 - Ausencia, falta de inicialización, vacío, pendiente, parcialidad o dato inválido no se convierten en cero ni permiten comparación definitiva. El consolidado necesita ambas fuentes definitivas; aun si es subtotal, se muestra cobertura y cambio de población sin atribuir causalidad.
 - Administrador consulta el alcance global; Editor y Lector solo sus sucursales autorizadas. Las consultas son de solo lectura, llevan revisiones y firmas de fuentes y revalidan ambos conjuntos antes de responder.
 - EP-06B.2 queda para interfaz; series y gráficos, fuera de este incremento; semáforos, para EP-06C. No se comparan metas, Objetivo de Venta ni ítems locales.
+
+## EP-06B.2: presentación comparativa
+
+- Resumen es la vista inicial del Dashboard; Comparaciones conserva el período aplicado en la URL y permite regresar con Atrás/Adelante. Cada consulta detallada requiere «Comparar»; editar una selección no cambia el resultado aplicado.
+- La referencia temporal propuesta es el mes anterior, editable incluso en el cruce de año. La orientación visible es analizado menos referencia. Dinero y diferencias monetarias se muestran en ARS; las diferencias entre porcentajes se muestran en pp. La variación relativa se presenta únicamente si la API la entrega con referencia positiva.
+- La tabla incluye todas las sucursales accesibles del período en el orden recibido y permite comparar dos distintas en forma opcional. Ausencia, pendiente y subtotal no equivalen a cero. La cobertura de ambos consolidados precede a sus cifras y la incompletitud impide presentarlos como definitivos.
+- No se califica ningún cambio como favorable o desfavorable. Series, gráficos, rankings y semáforos permanecen fuera de EP-06B.2.

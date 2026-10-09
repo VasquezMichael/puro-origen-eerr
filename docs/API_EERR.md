@@ -493,7 +493,7 @@ No hay caché ni derivados almacenados.
 
 ## EP-06B.1 -- comparaciones financieras
 
-Las consultas requieren cookie de sesión y aplican el alcance autorizado (Administrador global; Editor y Lector solo sucursales asignadas). `year` y `month` son enteros obligatorios; en comparaciones temporales también `referenceYear` y `referenceMonth`. No se infiere la referencia en API. La futura web EP-06B.2 propondrá el mes anterior y permitirá elegirlo manualmente. La zona del calendario es `America/Argentina/Buenos_Aires`; los períodos son año/mes, sin timestamps.
+Las consultas requieren cookie de sesión y aplican el alcance autorizado (Administrador global; Editor y Lector solo sucursales asignadas). `year` y `month` son enteros obligatorios; en comparaciones temporales también `referenceYear` y `referenceMonth`. No se infiere la referencia en API. La web EP-06B.2 propone el mes anterior y permite elegirlo manualmente. La zona del calendario es `America/Argentina/Buenos_Aires`; los períodos son año/mes, sin timestamps.
 
 | Ruta GET | Resultado |
 | --- | --- |
