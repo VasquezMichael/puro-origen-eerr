@@ -42,6 +42,31 @@
 .help { display: inline-block; position: relative; }
 .help button { border-radius: 50%; min-height: 30px; min-width: 30px; padding: .2rem; margin-left: .2rem; }
 .helpText { display: block; max-width: min(26rem, calc(100vw - 3rem)); padding: .6rem .8rem; border: 1px solid #b9c9b8; border-radius: .4rem; color: #19342c; background: #f0f2ec; overflow-wrap: anywhere; }
+.views, .modes { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
+.views a, .modes button { display: inline-flex; align-items: center; min-height: 44px; padding: .55rem .9rem; border: 1px solid #bcc8be; border-radius: .45rem; background: #fffdf8; color: #285543; font-weight: 700; text-decoration: none; }
+.views [aria-current], .modes [aria-current] { background: #285543; color: #fff; border-color: #285543; }
+.views :focus-visible, .modes :focus-visible, .tableScroll:focus-visible, .comparisons :focus-visible { outline: 3px solid #ad6c18; outline-offset: 2px; }
+.comparisons { min-width: 0; }
+.compareControls { display: flex; align-items: end; flex-wrap: wrap; gap: .75rem; padding: 1rem 0; }
+.compareControls label, .referencePicker label { display: grid; gap: .25rem; min-width: 150px; font-weight: 600; }
+.compareControls select, .compareControls input { min-height: 44px; max-width: 100%; padding: .4rem .6rem; border: 1px solid #bcc8be; border-radius: .4rem; background: white; color: #19342c; font: inherit; }
+.compareControls button { min-height: 44px; }
+.referencePicker { display: flex; flex-wrap: wrap; gap: .75rem; }
+.tableScroll { max-width: 100%; overflow-x: auto; margin-top: 1rem; border: 1px solid #d8ded5; border-radius: .5rem; }
+.comparisonTable { width: 100%; min-width: 810px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.comparisonTable caption { text-align: left; padding: .7rem; font-weight: 700; }
+.comparisonTable th, .comparisonTable td { padding: .7rem .8rem; border-bottom: 1px solid #d8ded5; text-align: left; vertical-align: top; white-space: nowrap; }
+.comparisonTable thead { background: #e9eee6; }
+.comparisonTable tbody tr:nth-child(even) { background: #f8f9f4; }
+.comparisonTable small { display: block; max-width: 16rem; white-space: normal; color: #586960; font-size: .78rem; margin-top: .2rem; }
+.comparisonTable a { color: #285543; font-weight: 700; }
+.subsection { border-top: 1px solid #d8ded5; margin-top: 1.5rem; padding-top: 1.2rem; }
+.coveragePair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }
+.coverageSide { min-width: 0; padding: 1rem; border: 1px solid #d8ded5; border-radius: .5rem; background: #f8f9f4; }
+.coverageSide dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(95px, 1fr)); gap: .5rem; }
+.coverageSide dd { margin: 0; font-weight: 700; }
+.coverageSide dt { color: #586960; font-size: .8rem; }
+@media (max-width: 650px) { .coveragePair { grid-template-columns: 1fr; } .views a, .modes button { flex: 1 1 auto; justify-content: center; } .compareControls label, .referencePicker label { flex: 1 1 135px; } }
 @media (max-width: 1050px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .coverage { grid-template-columns: repeat(2, minmax(0, 1fr)); } .branches { grid-template-columns: 1fr; } }
 @media (max-width: 440px) { .period label { flex: 1 1 110px; } .period button { flex: 1 1 120px; } .metrics { grid-template-columns: 1fr; } }

@@ -1,0 +1,29 @@
+import type { BranchPeriodComparisonResponse, BranchTableResponse, ComparisonBranch, ComparisonMetric, ComparisonMetrics, ConsolidatedPeriodComparisonResponse, TwoBranchComparisonResponse } from "@puro-origen/shared-types";
+// Node 24 carga .mts directamente en los recorridos; tsc no emite esta fixture.
+// @ts-expect-error La extensión explícita es necesaria para el script de navegador.
+import { dashboardFixture } from "./dashboard-browser-fixture.mts";
+
+export const ids = ["123456789012345678901234", "234567890123456789012345", "345678901234567890123456"];
+const period = (year: number, month: number) => ({ year, month });
+const source = (branchId: string, name: string, status: ComparisonBranch["status"], eerrId: string | null, income: string | null): ComparisonBranch => ({ branchId, name, active: true, temporal: "EXPECTED", eerrId, revision: eerrId ? 2 : null, loadStatus: status === "COMPLETE" ? "CARGADO" : status === "NO_EERR" ? null : "PARCIAL", status, reason: status === "COMPLETE" ? null : status, metrics: { income, costs: income === null ? null : "0.00", expenses: income === null ? null : "5.00", grossMargin: status === "COMPLETE" ? income : null, grossMarginPercent: status === "COMPLETE" ? "50.0000" : null, netResult: status === "COMPLETE" ? "5.00" : null, netResultPercent: status === "COMPLETE" ? "25.0000" : null, breakEvenSales: status === "COMPLETE" ? "10.00" : null } });
+const branches = [source(ids[0], "Sucursal Norte", "COMPLETE", "11111111-1111-4111-8111-111111111111", "9007199254740993.10"), source(ids[1], "Sucursal Sur", "PARTIAL", "22222222-2222-4222-8222-222222222222", "10.00"), source(ids[2], "Sucursal Sin EERR", "NO_EERR", null, null)];
+export function branchTableFixture(year: number, month: number, role: "ADMIN" | "EDITOR" | "READER" = "ADMIN"): BranchTableResponse {
+  const base = dashboardFixture({ year, month, role });
+  return { period: period(year, month), timezone: base.timezone, calculationVersion: base.calculationVersion, scope: base.scope, coverage: { ...base.coverage, expected: 3, withEerr: 2, withoutEerr: 1, complete: 1, partial: 1 }, branches: role === "ADMIN" ? branches : branches.slice(0, 2), sources: branches.map((branch) => ({ branchId: branch.branchId, eerrId: branch.eerrId, revision: branch.revision })), sourceSignature: `table-${year}-${month}-${role}` };
+}
+const metric = (unit: ComparisonMetric["unit"], status: "complete" | "zero" | "negative" | "blocked" = "complete"): ComparisonMetric => status === "blocked" ? { current: null, reference: null, absoluteDifference: null, percentagePointDifference: null, relativeVariation: null, unit, status: "BLOCKED", reason: "CURRENT_SUBTOTAL" } : unit === "PERCENT" ? { current: "50.0000", reference: "40.0000", absoluteDifference: null, percentagePointDifference: "10.0000", relativeVariation: null, unit, status: "COMPLETE", reason: null } : { current: "9007199254740993.10", reference: status === "zero" ? "0.00" : status === "negative" ? "-1.00" : "10.00", absoluteDifference: "9007199254740983.10", percentagePointDifference: null, relativeVariation: status === "complete" ? "12.5000" : null, unit, status: status === "complete" ? "COMPLETE" : "NOT_CALCULABLE", reason: status === "complete" ? null : "REFERENCE_NOT_POSITIVE" };
+export function metricsFixture(status: "complete" | "zero" | "negative" | "blocked" = "complete"): ComparisonMetrics {
+  return { income: metric("ARS", status), costs: metric("ARS", status), grossMargin: metric("ARS", status), grossMarginPercent: metric("PERCENT", status), expenses: metric("ARS", status), netResult: metric("ARS", status), netResultPercent: metric("PERCENT", status), breakEvenSales: metric("ARS", status) };
+}
+export function branchPeriodFixture(year: number, month: number, referenceYear: number, referenceMonth: number, id = ids[0], status: "complete" | "zero" | "negative" | "blocked" = "complete"): BranchPeriodComparisonResponse {
+  return { orientation: "CURRENT_MINUS_REFERENCE", timezone: "America/Argentina/Buenos_Aires", current: { period: period(year, month), branch: branches.find((branch) => branch.branchId === id)!, sourceSignature: "current" }, reference: { period: period(referenceYear, referenceMonth), branch: branches.find((branch) => branch.branchId === id)!, sourceSignature: "reference" }, scope: branchTableFixture(year, month).scope, calculationVersion: 2, metrics: metricsFixture(status) };
+}
+export function twoBranchFixture(year: number, month: number, currentId: string, referenceId: string): TwoBranchComparisonResponse {
+  return { orientation: "CURRENT_MINUS_REFERENCE", timezone: "America/Argentina/Buenos_Aires", period: period(year, month), current: branches.find((branch) => branch.branchId === currentId)!, reference: branches.find((branch) => branch.branchId === referenceId)!, scope: branchTableFixture(year, month).scope, sourceSignature: "both", calculationVersion: 2, metrics: metricsFixture("blocked") };
+}
+export function consolidatedFixture(year: number, month: number, referenceYear: number, referenceMonth: number, incomplete = false): ConsolidatedPeriodComparisonResponse {
+  const current = dashboardFixture({ year, month, mode: incomplete ? "partial" : "complete" });
+  const reference = dashboardFixture({ year: referenceYear, month: referenceMonth });
+  const side = (base: typeof current) => ({ period: period(base.year, base.month), coverage: base.coverage, consolidated: base.consolidated, invalidSources: [], sources: base.sources, sourceSignature: base.sourceSignature });
+  return { orientation: "CURRENT_MINUS_REFERENCE", timezone: current.timezone, current: side(current), reference: side(reference), scope: current.scope, calculationVersion: 2, population: { inBoth: ids.slice(0, 1), onlyCurrent: [], onlyReference: [], changedExistence: [], changedCompleteness: [] }, metrics: metricsFixture(incomplete ? "blocked" : "complete") };
+}

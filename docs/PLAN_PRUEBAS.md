@@ -513,3 +513,9 @@ para Lector y equilibrio parcial. Todas deben restaurarse antes de integrar.
 ## EP-06B.1: verificación comparativa
 
 El motor puro cubre diferencias orientadas exactas, cero y referencia negativa, cruces de signo, puntos porcentuales, ROUND_HALF_UP, magnitudes superiores a Number.MAX_SAFE_INTEGER y nulos. Las pruebas HTTP sin AppModule ni MongoDB comprueban validación estricta, permisos, orientación, cobertura, fuentes parciales, firmas de ambos períodos, reintento/409 y ausencia de escrituras. La integración local usa el `mongod` temporal de `test:integration:structure` para consultar ambos períodos, el índice mensual y verificar que GET no altera documentos. No emplea Atlas ni `.env`.
+
+## EP-06B.2: interfaz comparativa
+
+Pruebas unitarias web verifican URL de Resumen/Comparaciones, referencia anterior incluso enero, rutas explícitas, orientación y firmas, precisión monetaria, puntos porcentuales, variación entregada y motivos de ausencia, incompletitud y subtotal. `comparison.browser.mjs` usa Chromium y respuestas simuladas tipadas según los contratos para recorrer consulta diferida, selectores pendientes, 409 y reintento, sucursales accesibles, dos sucursales distintas, consolidado parcial y navegación Atrás/Adelante. Revisa capturas y desbordes en 1600×900, 1440×900, 1280×720, 1024×768, 768×1024 y 390×844. El navegador no inicia API ni accede a Atlas. La aceptación visual con datos reales de negocio sigue pendiente.
+
+Se aplicaron y restauraron seis mutaciones manuales en el modelo de presentación: romper el cruce enero/diciembre, aceptar orientación inversa, usar `%` en vez de `pp`, convertir importes a `Number`, convertir ausencia en cero y mostrar una variación no entregada. La prueba unitaria específica detectó las seis. Los recorridos de navegador verifican además selección pendiente, respuesta tardía, misma sucursal en ambos lados y derivados bloqueados por cobertura incompleta.

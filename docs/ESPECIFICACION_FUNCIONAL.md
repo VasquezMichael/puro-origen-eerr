@@ -446,6 +446,12 @@ EP-06B/C.
 
 ## EP-06B.1: comparaciones financieras disponibles por API
 
-Se puede comparar una sucursal entre dos meses, dos sucursales autorizadas en un mes, consultar la tabla mensual de sucursales y comparar dos consolidados. La futura interfaz inicia con el mes anterior como referencia y permite elegir otro; la API siempre recibe ambos períodos explícitos. La resta orientada es actual menos referencia. Para importes hay diferencia absoluta y variación relativa solo con referencia positiva; para porcentajes hay diferencia en puntos porcentuales. Los resultados no califican como favorables o desfavorables.
+Se puede comparar una sucursal entre dos meses, dos sucursales autorizadas en un mes, consultar la tabla mensual de sucursales y comparar dos consolidados. La interfaz inicia con el mes anterior como referencia y permite elegir otro; la API siempre recibe ambos períodos explícitos. La resta orientada es actual menos referencia. Para importes hay diferencia absoluta y variación relativa solo con referencia positiva; para porcentajes hay diferencia en puntos porcentuales. Los resultados no califican como favorables o desfavorables.
 
-Cada lado informa existencia, revisión, estado de carga y fuente. Ausencias y fuentes incompletas no se equiparan a cero. Un consolidado subtotal conserva cobertura pero bloquea diferencias financieras definitivas. Se muestran cambios de población sin inferir sus causas. Editor y Lector ven solo su alcance; Administrador, el global. EP-06B.2 presentará la interfaz. Series y gráficos quedan fuera; semáforos se difieren a EP-06C.
+Cada lado informa existencia, revisión, estado de carga y fuente. Ausencias y fuentes incompletas no se equiparan a cero. Un consolidado subtotal conserva cobertura pero bloquea diferencias financieras definitivas. Se muestran cambios de población sin inferir sus causas. Editor y Lector ven solo su alcance; Administrador, el global. La presentación se describe en EP-06B.2. Series y gráficos quedan fuera; semáforos se difieren a EP-06C.
+
+## EP-06B.2: comparaciones en Inicio
+
+Inicio ofrece Resumen y Comparaciones con el año y mes aplicados en la URL. Comparaciones presenta una sucursal entre dos períodos, una tabla de todas las sucursales accesibles con comparación opcional entre dos distintas, y el consolidado entre períodos. La referencia inicial es el mes anterior y se puede editar; los cambios de selectores solo tienen efecto al pulsar «Comparar».
+
+Las tablas orientan las diferencias como analizado menos referencia: diferencia monetaria absoluta en ARS, porcentajes en puntos porcentuales y variación relativa solo cuando la referencia positiva permite que la API la entregue. Se distinguen fuente ausente, incompleta, subtotal y cero cargado. Ambos lados del consolidado muestran cobertura y un subtotal nunca se anuncia como definitivo. No hay clasificación favorable/desfavorable, ranking, series, gráficos ni semáforos en este incremento.
