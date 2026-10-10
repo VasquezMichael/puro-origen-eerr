@@ -3,6 +3,10 @@
 Estas mejoras quedan registradas para evaluación futura; este documento no las
 incorpora al MVP ni establece prioridad o fecha de implementación.
 
+- Obligatorio antes de la puesta en producción: eliminar dataset demo y verificar
+  base vacía. Usar el procedimiento controlado de `DATASET_DEMO_INTEGRAL.md` y
+  comprobar por separado que no quedan otros datos de prueba.
+
 - Chatbot/IA para consultar y analizar EERR.
 - Interpretación de tendencias y dashboards.
 - Evaluar otras ayudas contextuales mediante tooltips. EP-05UX.1 incorpora solo

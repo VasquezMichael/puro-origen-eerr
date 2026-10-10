@@ -14,6 +14,8 @@
     "prestart:dev": "npm run build --workspace=@puro-origen/domain && npm run build --workspace=@puro-origen/calculation-engine && npm run build --workspace=@puro-origen/shared-types",
     "prestart:debug": "npm run build --workspace=@puro-origen/domain && npm run build --workspace=@puro-origen/calculation-engine && npm run build --workspace=@puro-origen/shared-types",
     "bootstrap:admin": "npm run build && node dist/scripts/bootstrap-admin.js",
+    "demo:dataset": "npm run build && node dist/scripts/demo-dataset.js",
+    "demo:restore": "npm run build && node dist/scripts/demo-restore.js",
     "typecheck": "tsc --noEmit",
     "build": "nest build",
     "deploy": "nest deploy",
