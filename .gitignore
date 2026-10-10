@@ -26,3 +26,6 @@ Thumbs.db
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Copias administrativas locales, potencialmente con datos de negocio
+.local/demo-dataset-backups/

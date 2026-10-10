@@ -1007,8 +1007,10 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
         (n: { nodeId: string }) => n.nodeId === item.nodeId,
       );
       expect(saved.code).toBe(item.code);
-      if (results[0].status === 200) expect(saved.amount).toEqual(item.amount);
-      else {
+      if (results[0].status === 200 || contender === 'archive') {
+        expect(saved.amount).toEqual(item.amount);
+        expect(saved.archive?.state).toBe('ARCHIVED');
+      } else {
         expect(saved.amount.value).toBe('10.00');
         expect(saved.archive).toBeUndefined();
       }
