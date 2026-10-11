@@ -58,4 +58,7 @@ export function matchesComparison(data: BranchPeriodComparisonResponse | TwoBran
   if ("branch" in data.current && "branch" in data.reference) return periodsMatch && data.current.branch.branchId === branchId && data.reference.branch.branchId === branchId;
   return periodsMatch;
 }
+export function itemComparisonOrNull(data: Partial<Pick<BranchPeriodComparisonResponse, "itemComparison">>): BranchPeriodComparisonResponse["itemComparison"] {
+  return data.itemComparison ?? null;
+}
 export const comparisonDescription = (current: Period, reference: Period) => `Diferencia = período analizado (${periodLabel(current)}) menos referencia (${periodLabel(reference)}).`;

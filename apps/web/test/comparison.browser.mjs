@@ -50,6 +50,15 @@ try {
     assert.match(await page.locator("main").innerText(), /\+9\.007\.199\.254\.740\.983,10 ARS/);
     assert.match(await page.locator("main").innerText(), /\+10,0000 pp/);
     assert.match(await page.locator("main").innerText(), /12,5000 %/);
+    const itemTable = page.getByRole("region", { name: "Comparación de ítems con desplazamiento horizontal" });
+    await itemTable.waitFor();
+    assert.match(await itemTable.innerText(), /Ventas renombradas/);
+    assert.match(await itemTable.innerText(), /0,00 ARS/);
+    assert.match(await itemTable.innerText(), /10 tickets/);
+    assert.match(await itemTable.innerText(), /12 tickets/);
+    assert.match(await itemTable.innerText(), /% no calculable \(referencia cero\)/);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    if (width < 810) assert.ok(await itemTable.evaluate(element => element.scrollWidth > element.clientWidth));
     const monthSelect = page.getByRole("combobox", { name: "Sucursal entre períodos: mes de referencia" });
     await monthSelect.selectOption("1");
     assert.equal(requests.length, 1); // el selector pendiente no consulta ni altera el resultado

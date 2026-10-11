@@ -446,3 +446,9 @@ Los endpoints de sucursal, tabla y consolidado consumen el mismo alcance autoriz
 Inicio conserva el shell y el mes aplicado en la URL. `view=comparisons` abre la vista de comparaciones; sin ese parámetro se muestra Resumen. La web consulta la tabla de sucursales autorizadas al abrir Comparaciones y realiza cada comparación detallada solo tras la acción explícita. La referencia inicial usa `previousEerrPeriod` del dominio y puede editarse. Las respuestas se vinculan a la selección aplicada, se cancelan o ignoran las antiguas y un 409 retira las cifras antes de ofrecer reintento.
 
 La interfaz presenta directamente métricas, diferencias, variación, estados, cobertura y firmas de fuente del contrato. No contiene fórmulas financieras ni persiste preferencias. Las tablas mantienen el desplazamiento horizontal dentro de su región en pantallas pequeñas. Series, gráficos, rankings y semáforos siguen diferidos.
+
+## EP-06: comparación temporal de ítems
+
+`AnalyticsService.branchPeriods` reutiliza la lectura doble y la revalidación de permisos, población y revisiones de EP-06B.1. Entrega los dos snapshots autorizados a `compareEerrItems` del motor puro, sin otra consulta ni persistencia. La función indexa ítems por `code`, une ambos conjuntos, ordena de antiguo a reciente y prioriza el orden y nombre del snapshot más reciente. `nodeId` permanece local al EERR. Los ítems históricos ausentes no se eliminan.
+
+El motor deriva `NO_EXISTIA` sin escribirlo; distingue celda pendiente de cero cargado y evita comparar cantidades con unidades diferentes. Reutiliza `compareMetricValues` para la aritmética decimal y porcentual, con valores enteros para cantidades. El contrato tipado está en `shared-types` y la extensión HTTP en [OpenAPI](openapi-analytics-items.yaml). La web agrega una tabla de solo lectura a la comparación temporal existente, con scroll horizontal dentro de su región. Las fórmulas financieras y demás modos de analytics no cambian.

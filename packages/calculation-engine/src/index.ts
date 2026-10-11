@@ -105,6 +105,8 @@ const emptyAccumulator = (): Accumulator => ({
 const maximumCellCents = BigInt(MONEY.max.replace(".", ""));
 
 export { compareMetricValues } from "./comparison.js";
+export { compareEerrItems } from "./item-comparison.js";
+export type { ComparedItem, ItemChange, ItemChangeReason, ItemComparison, ItemPeriodValue, ItemValueState, QuantityValueState, ItemVariation } from "./item-comparison.js";
 export type {
   ComparisonMetric,
   ComparisonReason,

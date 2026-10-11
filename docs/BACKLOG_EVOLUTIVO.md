@@ -38,8 +38,9 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
   separado, junto con las dependencias transitivas deprecadas del soporte XLSX.
 - Revisar periódicamente si conviene migrar de `@protobi/exceljs` al paquete
   oficial, con pruebas de seguridad, compatibilidad y precisión.
-- EP-06: definir equivalencias entre ítems creados independientemente antes de
-  implementar comparaciones entre EERR.
+- EP-06: la comparación temporal de ítems utiliza `code` estable. Evaluar
+  equivalencias explícitas entre conceptos creados independientemente con códigos
+  distintos antes de cualquier fusión histórica; no inferirlas por nombre.
 - EP-06 posterior: series de varios meses, gráficos, rankings y semáforos requieren
   definición y validación propias; EP-06B.2 no los implementa ni clasifica
   variaciones como favorables o desfavorables.
