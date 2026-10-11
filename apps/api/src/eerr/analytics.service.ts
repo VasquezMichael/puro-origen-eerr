@@ -14,6 +14,7 @@ import {
   calculateEerr,
   CALCULATION_VERSION,
   compareMetricValues,
+  compareEerrItems,
 } from '@puro-origen/calculation-engine';
 import type {
   AnalysisCalculation,
@@ -76,7 +77,7 @@ const percentageNames = new Set<ComparisonMetricName>([
   'grossMarginPercent',
   'netResultPercent',
 ]);
-type Snapshot = { response: DashboardResponse; invalid: Set<string> };
+type Snapshot = { response: DashboardResponse; invalid: Set<string>; structures: Map<string, StoredStructure | null> };
 
 @Injectable()
 export class AnalyticsService {
@@ -144,6 +145,8 @@ export class AnalyticsService {
     );
     const currentBranch = this.authorizedBranch(currentSnapshot!, branchId);
     const referenceBranch = this.authorizedBranch(referenceSnapshot!, branchId);
+    const currentStructure = currentSnapshot!.structures.get(branchId);
+    const referenceStructure = referenceSnapshot!.structures.get(branchId);
     return {
       orientation: 'CURRENT_MINUS_REFERENCE',
       timezone: EERR_TIME_ZONE,
@@ -160,6 +163,12 @@ export class AnalyticsService {
       scope: currentSnapshot!.response.scope,
       calculationVersion: CALCULATION_VERSION,
       metrics: this.comparisonMetrics(currentBranch, referenceBranch),
+      itemComparison: currentStructure && referenceStructure
+        ? compareEerrItems(
+            { period: current, structure: publicStructure(currentStructure)! },
+            { period: reference, structure: publicStructure(referenceStructure)! },
+          )
+        : null,
     };
   }
 
@@ -381,6 +390,7 @@ export class AnalyticsService {
         return {
           response: this.build(period, principal, branches, validRows),
           invalid,
+          structures: new Map(validRows.map(row => [row.branchId.toString(), row.structure ?? null])),
         };
       });
       const checkedPrincipal = await this.principal(viewer.sub);

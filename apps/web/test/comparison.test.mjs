@@ -6,6 +6,36 @@ import { renderToStaticMarkup } from "react-dom/server";
 const model = await import("../src/app/comparison-model.ts");
 const dashboard = await import("../src/app/dashboard-model.ts");
 const { Comparisons, TwoBranches } = await import("../src/app/dashboard-comparisons.tsx");
+const { ItemComparisonTable } = await import("../src/app/item-comparison-table.tsx");
+
+test('tabla de ítems diferencia ausente, pendiente, cero y cantidad sin recalcular', () => {
+  const period = month => ({ year: 2026, month });
+  const side = (month, state, value, quantityState, quantityValue) => ({ period: period(month), nodeId: String(month), archived: false, amount: { state, value }, quantity: { state: quantityState, value: quantityValue, unit: 'tickets' } });
+  const variation = { absoluteChange: { status: 'COMPLETE', value: '10.00', reason: null }, percentageChange: { status: 'NOT_CALCULABLE', value: null, reason: 'REFERENCE_ZERO' } };
+  const html = renderToStaticMarkup(React.createElement(ItemComparisonTable, { comparison: { orientation: 'LATER_MINUS_EARLIER', periods: [period(8), period(9)], items: [
+    { code: 'item-1', name: 'Nombre reciente', kind: 'ITEM', inReferenceStructure: true, parentCode: 'cat', rootCode: 'root', path: ['Ingresos', 'Ventas'], periods: [side(8, 'CARGADO', '0.00', 'CARGADO', '10'), side(9, 'CARGADO', '10.00', 'CARGADO', '12')], amountVariation: variation, quantityVariation: { absoluteChange: { status: 'COMPLETE', value: '2', reason: null }, percentageChange: { status: 'COMPLETE', value: '20.0000', reason: null } } },
+    { code: 'item-2', name: 'Histórico', kind: 'ITEM', inReferenceStructure: false, parentCode: 'cat', rootCode: 'root', path: ['Ingresos'], periods: [side(8, 'SIN_CARGAR', null, 'NO_APLICA', null), side(9, 'NO_EXISTIA', null, 'NO_EXISTIA', null)], amountVariation: { absoluteChange: { status: 'BLOCKED', value: null, reason: 'CURRENT_NO_EXISTIA' }, percentageChange: { status: 'NOT_CALCULABLE', value: null, reason: 'CURRENT_NO_EXISTIA' } }, quantityVariation: null },
+  ] } }));
+  for (const text of ['Nombre reciente', 'Ingresos / Ventas', 'Histórico', 'NO_EXISTIA', 'SIN_CARGAR', '0,00 ARS', '10 tickets', '12 tickets', '20,0000 %', 'fuera de la estructura reciente', '% no calculable', 'desplazamiento horizontal']) assert.match(html, new RegExp(text));
+});
+
+test('la web renderiza respuesta moderna, null explícito y legacy sin itemComparison', () => {
+  const period = month => ({ year: 2026, month });
+  const response = { orientation: 'CURRENT_MINUS_REFERENCE', calculationVersion: 2,
+    current: { period: period(9), branch: { branchId: 'a' }, sourceSignature: 'one' },
+    reference: { period: period(8), branch: { branchId: 'a' }, sourceSignature: 'two' } };
+  const modern = { orientation: 'LATER_MINUS_EARLIER', periods: [period(8), period(9)], items: [] };
+  for (const [payload, expected] of [
+    [{ ...response, itemComparison: modern }, 'Ítems e indicadores de cantidad'],
+    [{ ...response, itemComparison: null }, 'La comparación de ítems requiere dos EERR'],
+    [response, 'La comparación de ítems requiere dos EERR'],
+  ]) {
+    assert.equal(model.matchesComparison(payload, period(9), period(8), 'a'), true);
+    const html = renderToStaticMarkup(React.createElement(ItemComparisonTable, { comparison: model.itemComparisonOrNull(payload) }));
+    assert.match(html, new RegExp(expected));
+  }
+  assert.equal(model.itemComparisonOrNull(response), null);
+});
 
 const money = (reference = "10.00", overrides = {}) => ({ current: "11.00", reference, absoluteDifference: "1.00", percentagePointDifference: null, relativeVariation: reference === "10.00" ? "10.0000" : null, unit: "ARS", status: reference === "10.00" ? "COMPLETE" : "NOT_CALCULABLE", reason: reference === "10.00" ? null : "REFERENCE_NOT_POSITIVE", ...overrides });
 test("Resumen es inicial; Comparaciones conserva el período en URL y normaliza parámetros inválidos", () => {

@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { BranchPeriodComparisonResponse, BranchTableResponse, ComparisonBranch, ComparisonMetrics, ConsolidatedPeriodComparisonResponse, TwoBranchComparisonResponse } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "./eerr/api";
 import { MONTHS, periodLabel, scopeLabel, validPeriod, type Period } from "./dashboard-model";
-import { comparisonDescription, comparisonMetrics, comparisonPath, comparisonReason, formatComparisonValue, formatDifference, formatVariation, initialReference, matchesComparison, sourceStatus } from "./comparison-model";
+import { comparisonDescription, comparisonMetrics, comparisonPath, comparisonReason, formatComparisonValue, formatDifference, formatVariation, initialReference, itemComparisonOrNull, matchesComparison, sourceStatus } from "./comparison-model";
 import styles from "./dashboard.module.css";
+import { ItemComparisonTable } from "./item-comparison-table";
 
 type Result = BranchPeriodComparisonResponse | TwoBranchComparisonResponse | ConsolidatedPeriodComparisonResponse;
 type QueryState<T> = { loading: boolean; data: T | null; error: string; applied: string };
@@ -64,7 +65,7 @@ function BranchPeriods({ period, branches }: { period: Period; branches: Compari
     <p>Período analizado: <strong>{periodLabel(period)}</strong>. Referencia inicial: mes anterior, editable.</p>
     <div className={styles.compareControls}><BranchSelect label="Sucursal analizada" branches={branches} value={branch} onChange={setBranch} /><ReferencePicker prefix="Sucursal entre períodos" period={reference} onChange={setReference} /><button type="button" onClick={compare} disabled={!branch || !validPeriod(reference.year, reference.month) || query.state.loading}>Comparar períodos</button></div>
     <QueryFeedback state={query.state} retry={query.retry} />
-    {data && <><p className={styles.note}>{comparisonDescription(data.current.period, data.reference.period)} Fuente analizada: {sourceStatus(data.current.branch.status)}{data.current.branch.revision !== null ? `, revisión ${data.current.branch.revision}` : ""}; referencia: {sourceStatus(data.reference.branch.status)}{data.reference.branch.revision !== null ? `, revisión ${data.reference.branch.revision}` : ""}.</p><MetricTable metrics={data.metrics} current={periodLabel(data.current.period)} reference={periodLabel(data.reference.period)} /></>}
+    {data && <><p className={styles.note}>{comparisonDescription(data.current.period, data.reference.period)} Fuente analizada: {sourceStatus(data.current.branch.status)}{data.current.branch.revision !== null ? `, revisión ${data.current.branch.revision}` : ""}; referencia: {sourceStatus(data.reference.branch.status)}{data.reference.branch.revision !== null ? `, revisión ${data.reference.branch.revision}` : ""}.</p><MetricTable metrics={data.metrics} current={periodLabel(data.current.period)} reference={periodLabel(data.reference.period)} /><ItemComparisonTable comparison={itemComparisonOrNull(data)} /></>}
   </section>;
 }
 function BranchTable({ period, table }: { period: Period; table: BranchTableResponse }) {

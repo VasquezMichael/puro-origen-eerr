@@ -5,6 +5,7 @@ import type {
   AnalysisCalculation,
   ComparisonMetric,
   ComparisonReason,
+  ItemComparison,
 } from "@puro-origen/calculation-engine";
 import type { EerrPeriod } from "@puro-origen/domain";
 
@@ -63,6 +64,7 @@ export type BranchPeriodComparisonResponse = {
   scope: ComparisonScope;
   calculationVersion: number;
   metrics: ComparisonMetrics;
+  itemComparison: ItemComparison | null;
 };
 export type TwoBranchComparisonResponse = {
   orientation: "CURRENT_MINUS_REFERENCE";

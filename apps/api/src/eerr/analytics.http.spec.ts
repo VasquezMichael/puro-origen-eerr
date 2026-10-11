@@ -543,6 +543,31 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     expect(writes).toBe(0);
   });
 
+  it('compara ítems por code entre meses no consecutivos y restringe la sucursal', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    const recent = structure('100.00', '40.00', '20.00');
+    const older = structure('50.00', '10.00', '5.00');
+    older.nodes[3]!.code = recent.nodes[3]!.code;
+    older.nodes[3]!.name = 'Nombre anterior';
+    recent.nodes[3]!.name = 'Nombre reciente';
+    rows[0]!.structure = storedStructure(recent);
+    rows.push({ ...rows[0]!, _id: randomUUID(), month: 6, revision: 2, structure: storedStructure(older) });
+    const query = 'year=2026&month=6&referenceYear=2026&referenceMonth=9';
+    const body = (await comparisonGet(`branches/${b1}/period-comparison?${query}`).expect(200)).body;
+    expect(body.itemComparison).toMatchObject({ orientation: 'LATER_MINUS_EARLIER', periods: [{ year: 2026, month: 6 }, { year: 2026, month: 9 }] });
+    const item = body.itemComparison.items.find((row: { code: string }) => row.code === recent.nodes[3]!.code);
+    expect(item).toMatchObject({ name: 'Nombre reciente', inReferenceStructure: true, amountVariation: {
+      absoluteChange: { status: 'COMPLETE', value: '50.00', reason: null },
+      percentageChange: { status: 'COMPLETE', value: '100.0000', reason: null },
+    } });
+    expect(item.periods[0].nodeId).not.toBe(item.periods[1].nodeId);
+    expect(body.metrics.income.absoluteDifference).toBe('-50.00');
+    expect(writes).toBe(0);
+    viewer = { ...viewer, isAdmin: false, branchAccesses: [{ branchId: b2, role: BranchRole.READER }] };
+    const denied = await comparisonGet(`branches/${b1}/period-comparison?${query}`).expect(404);
+    expect(JSON.stringify(denied.body)).not.toContain('Nombre reciente');
+  });
+
   it('requires explicit reference and supports prior December and manual reference', async () => {
     branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
     await comparisonGet(

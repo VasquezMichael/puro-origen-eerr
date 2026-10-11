@@ -1,0 +1,210 @@
+openapi: 3.1.0
+info:
+  title: Comparación temporal de ítems EERR
+  version: 1.0.0
+  description: Respuesta completa de la comparación temporal de una sucursal. Requiere la cookie de sesión actual.
+paths:
+  /analytics/branches/{branchId}/period-comparison:
+    get:
+      summary: Compara dos períodos de una sucursal autorizada
+      security:
+        - sessionCookie: []
+      description: Las métricas financieras conservan CURRENT_MINUS_REFERENCE. itemComparison siempre se ordena de antiguo a reciente y usa code como identidad transversal. Un ítem ausente de un snapshot devuelve NO_EXISTIA derivado, nunca persistido.
+      parameters:
+        - name: branchId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 9999 }
+        - name: month
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 12 }
+        - name: referenceYear
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 9999 }
+        - name: referenceMonth
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 12 }
+      responses:
+        '200':
+          description: Comparación financiera y de ítems. itemComparison es null si falta una estructura válida en cualquiera de los períodos.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orientation, timezone, scope, calculationVersion, current, reference, metrics, itemComparison]
+                properties:
+                  orientation: { type: string, const: CURRENT_MINUS_REFERENCE }
+                  timezone: { type: string, const: America/Argentina/Buenos_Aires }
+                  scope: { $ref: '#/components/schemas/ComparisonScope' }
+                  calculationVersion: { type: integer, minimum: 1 }
+                  current: { $ref: '#/components/schemas/ComparisonSide' }
+                  reference: { $ref: '#/components/schemas/ComparisonSide' }
+                  metrics: { $ref: '#/components/schemas/ComparisonMetrics' }
+                  itemComparison:
+                    oneOf:
+                      - type: 'null'
+                      - $ref: '#/components/schemas/ItemComparison'
+        '400': { description: Período o identificador inválido }
+        '401': { description: Sesión inválida }
+        '404': { description: Sucursal no disponible en el alcance autorizado }
+        '409': { description: Cambiaron permisos, población o revisiones durante la lectura }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: eerr_session
+  schemas:
+    Period:
+      type: object
+      required: [year, month]
+      properties:
+        year: { type: integer, minimum: 1, maximum: 9999 }
+        month: { type: integer, minimum: 1, maximum: 12 }
+    ComparisonScope:
+      type: object
+      required: [type, authorizedCount, expectedCount, label]
+      properties:
+        type: { type: string, enum: [GLOBAL, ACCESSIBLE] }
+        authorizedCount: { type: integer, minimum: 0 }
+        expectedCount: { type: integer, minimum: 0 }
+        label: { type: string }
+    ComparisonSide:
+      type: object
+      required: [period, branch, sourceSignature]
+      properties:
+        period: { $ref: '#/components/schemas/Period' }
+        branch: { $ref: '#/components/schemas/ComparisonBranch' }
+        sourceSignature: { type: string }
+    ComparisonBranch:
+      type: object
+      required: [branchId, name, active, temporal, eerrId, revision, loadStatus, status, reason, metrics]
+      properties:
+        branchId: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
+        name: { type: string }
+        active: { type: boolean }
+        temporal: { type: string, enum: [EXPECTED, NOT_STARTED, INACTIVE_WITHOUT_HISTORY] }
+        eerrId: { type: [string, 'null'] }
+        revision: { type: [integer, 'null'], minimum: 0 }
+        loadStatus: { type: [string, 'null'], enum: [SIN_CARGAR, PARCIAL, CARGADO, null] }
+        status: { type: string, enum: [COMPLETE, PARTIAL, PENDING, EMPTY, UNINITIALIZED, NO_EERR, EXCLUDED, INVALID] }
+        reason: { type: [string, 'null'] }
+        metrics: { $ref: '#/components/schemas/ComparisonBranchMetrics' }
+    ComparisonBranchMetrics:
+      type: object
+      required: [income, costs, grossMargin, grossMarginPercent, expenses, netResult, netResultPercent, breakEvenSales]
+      properties:
+        income: { type: [string, 'null'] }
+        costs: { type: [string, 'null'] }
+        grossMargin: { type: [string, 'null'] }
+        grossMarginPercent: { type: [string, 'null'] }
+        expenses: { type: [string, 'null'] }
+        netResult: { type: [string, 'null'] }
+        netResultPercent: { type: [string, 'null'] }
+        breakEvenSales: { type: [string, 'null'] }
+    ComparisonMetrics:
+      type: object
+      required: [income, costs, grossMargin, grossMarginPercent, expenses, netResult, netResultPercent, breakEvenSales]
+      properties:
+        income: { $ref: '#/components/schemas/ComparisonMetric' }
+        costs: { $ref: '#/components/schemas/ComparisonMetric' }
+        grossMargin: { $ref: '#/components/schemas/ComparisonMetric' }
+        grossMarginPercent: { $ref: '#/components/schemas/ComparisonMetric' }
+        expenses: { $ref: '#/components/schemas/ComparisonMetric' }
+        netResult: { $ref: '#/components/schemas/ComparisonMetric' }
+        netResultPercent: { $ref: '#/components/schemas/ComparisonMetric' }
+        breakEvenSales: { $ref: '#/components/schemas/ComparisonMetric' }
+    ComparisonMetric:
+      type: object
+      required: [current, reference, absoluteDifference, percentagePointDifference, relativeVariation, unit, status, reason]
+      properties:
+        current: { type: [string, 'null'] }
+        reference: { type: [string, 'null'] }
+        absoluteDifference: { type: [string, 'null'] }
+        percentagePointDifference: { type: [string, 'null'] }
+        relativeVariation: { type: [string, 'null'] }
+        unit: { type: string, enum: [ARS, PERCENT] }
+        status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
+        reason:
+          type: [string, 'null']
+          enum: [CURRENT_NO_EERR, REFERENCE_NO_EERR, CURRENT_UNINITIALIZED, REFERENCE_UNINITIALIZED, CURRENT_EMPTY, REFERENCE_EMPTY, CURRENT_PENDING, REFERENCE_PENDING, CURRENT_PARTIAL, REFERENCE_PARTIAL, CURRENT_INVALID, REFERENCE_INVALID, CURRENT_NOT_CALCULABLE, REFERENCE_NOT_CALCULABLE, CURRENT_SUBTOTAL, REFERENCE_SUBTOTAL, CURRENT_EXCLUDED, REFERENCE_EXCLUDED, REFERENCE_NOT_POSITIVE, null]
+    ItemComparison:
+      type: object
+      required: [orientation, periods, items]
+      properties:
+        orientation: { type: string, const: LATER_MINUS_EARLIER }
+        periods:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { $ref: '#/components/schemas/Period' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ComparedItem' }
+    ComparedItem:
+      type: object
+      required: [code, name, kind, inReferenceStructure, parentCode, rootCode, path, periods, amountVariation, quantityVariation]
+      properties:
+        code: { type: string, format: uuid }
+        name: { type: string, description: Nombre del período más reciente que contiene el concepto }
+        kind: { type: string, const: ITEM }
+        inReferenceStructure: { type: boolean, description: Indica pertenencia al snapshot del período más reciente }
+        parentCode: { type: string, format: uuid }
+        rootCode: { type: string, format: uuid }
+        path:
+          type: array
+          description: Nombres de bloques y categorías del snapshot más reciente que contiene el código
+          items: { type: string }
+        periods:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: { $ref: '#/components/schemas/ItemPeriodValue' }
+        amountVariation: { $ref: '#/components/schemas/ItemVariation' }
+        quantityVariation:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/ItemVariation'
+    ItemPeriodValue:
+      type: object
+      required: [period, nodeId, archived, amount, quantity]
+      properties:
+        period: { $ref: '#/components/schemas/Period' }
+        nodeId: { type: [string, 'null'], description: Identidad interna del snapshot, no clave entre períodos }
+        archived: { type: boolean }
+        amount:
+          type: object
+          required: [state, value]
+          properties:
+            state: { type: string, enum: [NO_EXISTIA, SIN_CARGAR, CARGADO] }
+            value: { type: [string, 'null'], description: ARS decimal canónico de dos posiciones }
+        quantity:
+          type: object
+          required: [state, value, unit]
+          properties:
+            state: { type: string, enum: [NO_EXISTIA, SIN_CARGAR, CARGADO, NO_APLICA] }
+            value: { type: [string, 'null'], pattern: '^[0-9]+$', description: Entero canónico }
+            unit: { type: [string, 'null'] }
+    ItemVariation:
+      type: object
+      required: [absoluteChange, percentageChange]
+      properties:
+        absoluteChange: { $ref: '#/components/schemas/ItemChange' }
+        percentageChange: { $ref: '#/components/schemas/ItemChange' }
+    ItemChange:
+      type: object
+      required: [status, value, reason]
+      description: value es ARS con dos decimales o entero para diferencia absoluta; porcentaje con cuatro decimales para variación porcentual.
+      properties:
+        status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
+        value: { type: [string, 'null'] }
+        reason:
+          type: [string, 'null']
+          enum: [CURRENT_NO_EXISTIA, REFERENCE_NO_EXISTIA, CURRENT_SIN_CARGAR, REFERENCE_SIN_CARGAR, CURRENT_NO_APLICA, REFERENCE_NO_APLICA, UNIT_MISMATCH, REFERENCE_ZERO, INVALID_VALUE, null]
