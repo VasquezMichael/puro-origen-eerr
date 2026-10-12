@@ -37,6 +37,11 @@
 .branchValues dt { color: #586960; }
 .branchValues dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }
 .branchValues small { display: block; color: #745019; }
+.goalReason { font-size: .85rem; }
+.trafficLight { display: inline-block; border-radius: 999px; padding: .1rem .55rem; background: #e9eee9; color: #30453b; font-weight: 700; }
+.trafficLight[data-light="RED"] { background: #f9dfdf; color: #862525; }
+.trafficLight[data-light="YELLOW"] { background: #fff0be; color: #725000; }
+.trafficLight[data-light="GREEN"] { background: #d9efdf; color: #245d37; }
 .reason { font-size: .82rem; }
 .link { display: inline-flex; min-height: 42px; align-items: center; color: #285543 !important; font-weight: 700; text-decoration: underline !important; }
 .help { display: inline-block; position: relative; }

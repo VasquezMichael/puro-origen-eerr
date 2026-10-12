@@ -111,6 +111,27 @@ describe('dataset demostrativo integral', () => {
       'TARGET_MARGIN_UNATTAINABLE',
     );
     expect(results.perEerr[4]!.projections.targetSales.status).toBe('COMPLETE');
+    expect(results.perEerr[0]!.projections).toMatchObject({
+      targetSales: { status: 'NOT_CALCULABLE', reason: 'TARGET_MARGIN_UNATTAINABLE' },
+      targetDifference: { status: 'NOT_CALCULABLE', reason: 'TARGET_MARGIN_UNATTAINABLE' },
+      targetCompliance: { status: 'NOT_CALCULABLE', reason: 'TARGET_MARGIN_UNATTAINABLE' },
+      trafficLight: { value: 'NEUTRAL', reason: 'TARGET_MARGIN_UNATTAINABLE' },
+    });
+    expect(results.perEerr[2]!.projections).toMatchObject({
+      targetSales: { value: '1310025.53' },
+      targetDifference: { value: '-9979.68' },
+      trafficLight: { value: 'YELLOW' },
+    });
+    expect(results.perEerr[3]!.projections).toMatchObject({
+      targetSales: { value: '1332554.80' },
+      targetDifference: { value: '7464.40' },
+      trafficLight: { value: 'GREEN' },
+    });
+    expect(results.perEerr[4]!.projections).toMatchObject({
+      targetSales: { value: '1749794.20' },
+      targetDifference: { value: '50221.50' },
+      trafficLight: { value: 'GREEN' },
+    });
   });
   it('calcula resultados y comparaciones con el motor existente', () => {
     const result = expectedDemoResults();

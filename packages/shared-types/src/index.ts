@@ -23,6 +23,10 @@ export type ComparisonMetricName =
   | "netResultPercent"
   | "breakEvenSales";
 export type ComparisonMetrics = Record<ComparisonMetricName, ComparisonMetric>;
+export type LocalGoalIndicators = Pick<AnalysisCalculation["projections"],
+  "targetSales" | "targetDifference" | "targetCompliance" | "trafficLight">;
+export type GoalComparisonMetrics = Record<
+  "targetSales" | "targetDifference" | "targetCompliance", ComparisonMetric>;
 export type ComparisonSourceStatus =
   DashboardBranch["analysisStatus"] | "INVALID";
 export type ComparisonBranch = {
@@ -36,6 +40,7 @@ export type ComparisonBranch = {
   status: ComparisonSourceStatus;
   reason: string | null;
   metrics: Record<ComparisonMetricName, string | null>;
+  goalIndicators?: LocalGoalIndicators | null;
 };
 export type ComparisonScope = DashboardResponse["scope"];
 export type BranchTableResponse = {
@@ -64,6 +69,7 @@ export type BranchPeriodComparisonResponse = {
   scope: ComparisonScope;
   calculationVersion: number;
   metrics: ComparisonMetrics;
+  goalComparison?: GoalComparisonMetrics;
   itemComparison: ItemComparison | null;
 };
 export type TwoBranchComparisonResponse = {
@@ -132,6 +138,7 @@ export type DashboardBranch = {
   blocks: AnalysisCalculation["blocks"] | null;
   metrics: AnalysisCalculation["metrics"] | null;
   breakEvenSales: AnalysisCalculation["projections"]["breakEvenSales"] | null;
+  goalIndicators?: LocalGoalIndicators | null;
 };
 export type DashboardResponse = {
   year: number;

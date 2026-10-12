@@ -28,6 +28,9 @@ function fixture(revision, mode) {
     salesGoal: null,
     projections: { breakEvenSales: metric(pending || empty || zero ? null : "50.00", "ARS", pending || empty ? reason : zero ? "ZERO_REVENUE" : null),
       targetSales: metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
+      targetDifference: { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: "GOAL_NOT_CONFIGURED" },
+      targetCompliance: { status: "NOT_CALCULABLE", value: null, unit: "PERCENT", reason: "GOAL_NOT_CONFIGURED" },
+      trafficLight: { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: "GOAL_NOT_CONFIGURED" },
       targetReference: { ...metric(null, "ARS", "GOAL_NOT_CONFIGURED"), type: null } } };
 }
 function structure() { return { id, revision: 2, progress: { total: 1, loaded: 1, pending: 0, status: "CARGADO" }, structure: { schemaVersion: 1, structureVersion: 1, nodes: [

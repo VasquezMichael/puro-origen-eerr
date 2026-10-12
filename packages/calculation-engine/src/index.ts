@@ -22,7 +22,8 @@ export type MetricReason =
   | "ZERO_REVENUE"
   | "NON_POSITIVE_CONTRIBUTION_MARGIN"
   | "GOAL_NOT_CONFIGURED"
-  | "TARGET_MARGIN_UNATTAINABLE";
+  | "TARGET_MARGIN_UNATTAINABLE"
+  | "NON_POSITIVE_TARGET";
 export type Completeness = {
   loadedCount: number;
   pendingCount: number;
@@ -52,6 +53,21 @@ export type MetricResult = {
 export type ReferenceResult = MetricResult & {
   type: SalesGoalValue["mode"] | null;
 };
+export type TrafficLightResult = {
+  status: MetricStatus;
+  value: "RED" | "YELLOW" | "GREEN" | "NEUTRAL";
+  reason: MetricReason | null;
+};
+type BaseProjections = {
+  breakEvenSales: MetricResult;
+  targetSales: MetricResult;
+  targetReference: ReferenceResult;
+};
+export type GoalIndicators = {
+  targetDifference: MetricResult;
+  targetCompliance: MetricResult;
+  trafficLight: TrafficLightResult;
+};
 export type AnalysisCalculation = {
   calculationVersion: typeof CALCULATION_VERSION;
   initialized: boolean;
@@ -64,11 +80,7 @@ export type AnalysisCalculation = {
     netResult: MetricResult;
     netResultPercent: MetricResult;
   };
-  projections: {
-    breakEvenSales: MetricResult;
-    targetSales: MetricResult;
-    targetReference: ReferenceResult;
-  };
+  projections: BaseProjections & GoalIndicators;
 };
 
 export type AggregateReason =
@@ -150,7 +162,7 @@ function projections(
   contribution: bigint,
   expenses: bigint,
   goal: SalesGoalValue | null,
-): AnalysisCalculation["projections"] {
+): BaseProjections {
   const reason =
     scopes === null
       ? "UNINITIALIZED"
@@ -189,7 +201,7 @@ function projections(
     if (denominator <= 0n)
       return {
         breakEvenSales,
-        targetSales: blocked("ARS", "TARGET_MARGIN_UNATTAINABLE"),
+        targetSales: { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: "TARGET_MARGIN_UNATTAINABLE" },
         targetReference: blockedReference("TARGET_MARGIN_UNATTAINABLE"),
       };
     targetCents = divideCeiling(expenses * income * 1000000n, denominator);
@@ -273,6 +285,53 @@ function monetary(value: bigint): MetricResult {
     value: fixed(value, 2),
     unit: "ARS",
     reason: null,
+  };
+}
+/** Deriva indicadores locales solo de ventas y proyecciones ya calculadas. */
+export function calculateGoalIndicators(
+  income: MetricResult,
+  breakEvenSales: MetricResult,
+  targetSales: MetricResult,
+): GoalIndicators {
+  const reason = income.reason ?? targetSales.reason ?? breakEvenSales.reason;
+  const unavailable = (unit: MetricResult["unit"], why: MetricReason): MetricResult => ({
+    status: "NOT_CALCULABLE", value: null, unit, reason: why,
+  });
+  const neutral = (why: MetricReason): TrafficLightResult => ({
+    status: "NOT_CALCULABLE", value: "NEUTRAL", reason: why,
+  });
+  if (income.value === null || targetSales.value === null) {
+    const why = reason ?? "PENDING_INPUTS";
+    return {
+      targetDifference: unavailable("ARS", why),
+      targetCompliance: unavailable("PERCENT", why),
+      trafficLight: neutral(why),
+    };
+  }
+  const incomeCents = aggregateCents(income.value);
+  const targetCents = targetSales.value.startsWith("-")
+    ? -aggregateCents(targetSales.value.slice(1))
+    : aggregateCents(targetSales.value);
+  const targetDifference = monetary(incomeCents - targetCents);
+  if (targetCents <= 0n) return {
+    targetDifference,
+    targetCompliance: unavailable("PERCENT", "NON_POSITIVE_TARGET"),
+    trafficLight: neutral("NON_POSITIVE_TARGET"),
+  };
+  const targetCompliance = percentage(incomeCents, targetCents);
+  if (breakEvenSales.value === null) return {
+    targetDifference, targetCompliance,
+    trafficLight: neutral(breakEvenSales.reason ?? "PENDING_INPUTS"),
+  };
+  const breakEvenCentsValue = aggregateCents(breakEvenSales.value);
+  return {
+    targetDifference, targetCompliance,
+    trafficLight: {
+      status: "COMPLETE",
+      value: incomeCents * 10n < breakEvenCentsValue * 7n
+        ? "RED" : incomeCents < targetCents ? "YELLOW" : "GREEN",
+      reason: null,
+    },
   };
 }
 function totalsMetrics(income: bigint, cost: bigint, expense: bigint) {
@@ -400,6 +459,7 @@ export function calculateEerr(
   goal: SalesGoalValue | null = null,
 ): AnalysisCalculation {
   if (structure === null) {
+    const baseProjections = projections(null, 0n, 0n, 0n, goal);
     return {
       calculationVersion: CALCULATION_VERSION,
       initialized: false,
@@ -412,7 +472,14 @@ export function calculateEerr(
         netResult: blocked("ARS", "UNINITIALIZED"),
         netResultPercent: blocked("PERCENT", "UNINITIALIZED"),
       },
-      projections: projections(null, 0n, 0n, 0n, goal),
+      projections: {
+        ...baseProjections,
+        ...calculateGoalIndicators(
+          blocked("ARS", "UNINITIALIZED"),
+          baseProjections.breakEvenSales,
+          baseProjections.targetSales,
+        ),
+      },
     };
   }
   if (
@@ -484,19 +551,23 @@ export function calculateEerr(
     ? blocked("ARS", grossReason)
     : totals.grossMargin;
   const netResult = netReason ? blocked("ARS", netReason) : totals.netResult;
+  const baseProjections = projections(
+    [income, cost, expense], incomeCents, grossCents, expenseCents, goal,
+  );
   return {
     calculationVersion: CALCULATION_VERSION,
     initialized: true,
     currency: MONEY.currency,
     blocks,
     categories,
-    projections: projections(
-      [income, cost, expense],
-      incomeCents,
-      grossCents,
-      expenseCents,
-      goal,
-    ),
+    projections: {
+      ...baseProjections,
+      ...calculateGoalIndicators(
+        income.status === "COMPLETE" ? monetary(incomeCents) : blocked("ARS", income.status === "EMPTY" ? "EMPTY_INPUT" : "PENDING_INPUTS"),
+        baseProjections.breakEvenSales,
+        baseProjections.targetSales,
+      ),
+    },
     metrics: {
       grossMargin,
       grossMarginPercent: grossReason

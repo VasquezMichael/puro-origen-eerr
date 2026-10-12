@@ -5,7 +5,34 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 const model = await import("../src/app/comparison-model.ts");
 const dashboard = await import("../src/app/dashboard-model.ts");
-const { Comparisons, TwoBranches } = await import("../src/app/dashboard-comparisons.tsx");
+const { Comparisons, GoalComparison, TwoBranches } = await import("../src/app/dashboard-comparisons.tsx");
+const comparisonFixture = await import("./comparison-browser-fixture.mts");
+
+test("fixture limita indicadores de metas a la comparación temporal", () => {
+  const { ids, branchTableFixture, branchPeriodFixture, twoBranchFixture } = comparisonFixture;
+  const table = branchTableFixture(2026, 9);
+  assert.ok(table.branches.every((branch) => !("goalIndicators" in branch)));
+  const temporal = branchPeriodFixture(2026, 9, 2026, 8);
+  assert.equal(temporal.current.branch.goalIndicators.targetSales.value, "20.00");
+  assert.equal(temporal.reference.branch.goalIndicators.trafficLight.value, "YELLOW");
+  const betweenBranches = twoBranchFixture(2026, 9, ids[0], ids[1]);
+  assert.equal("goalIndicators" in betweenBranches.current, false);
+  assert.equal("goalIndicators" in betweenBranches.reference, false);
+});
+
+test("comparación temporal presenta metas y semáforos sin calcular variación de color", () => {
+  const metric = (current, reference, unit) => ({ current, reference, unit, absoluteDifference: unit === "ARS" ? "10.00" : null,
+    percentagePointDifference: unit === "PERCENT" ? "5.0000" : null, relativeVariation: null, status: "COMPLETE", reason: null });
+  const side = (month, value) => ({ period: { year: 2026, month }, branch: { goalIndicators: { trafficLight: { status: "COMPLETE", value, reason: null } } } });
+  const data = { current: side(9, "GREEN"), reference: side(8, "YELLOW"), goalComparison: {
+    targetSales: metric("200.00", "190.00", "ARS"),
+    targetDifference: metric("10.00", "0.00", "ARS"),
+    targetCompliance: metric("105.0000", "100.0000", "PERCENT"),
+  } };
+  const html = renderToStaticMarkup(React.createElement(GoalComparison, { data }));
+  for (const fragment of [/Metas locales por período/, /Objetivo de Venta/, /Diferencia contra objetivo/, /Cumplimiento/, /Verde/, /Amarillo/, /sin variación numérica/]) assert.match(html, fragment);
+  assert.match(renderToStaticMarkup(React.createElement(GoalComparison, { data: { ...data, goalComparison: undefined } })), /no incluye comparación/);
+});
 const { ItemComparisonTable } = await import("../src/app/item-comparison-table.tsx");
 
 test('tabla de ítems diferencia ausente, pendiente, cero y cantidad sin recalcular', () => {

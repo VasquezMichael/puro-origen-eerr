@@ -1,11 +1,12 @@
 import { ROOTS } from "@puro-origen/domain";
-import type { AggregateMetric, AggregateReason, ScopeResult } from "@puro-origen/calculation-engine";
+import type { AggregateMetric, AggregateReason, MetricResult, ScopeResult } from "@puro-origen/calculation-engine";
 import type { DashboardBranch, DashboardResponse } from "@puro-origen/shared-types";
 
 const branchId = "123456789012345678901234";
 const eerrId = "11111111-1111-4111-8111-111111111111";
 
 const metric = (value: string | null, unit: "ARS" | "PERCENT" = "ARS", reason: AggregateReason | null = null): AggregateMetric => ({ status: value === null ? "BLOCKED" : "COMPLETE", value, unit, reason });
+const localMetric = (value: string, unit: MetricResult["unit"] = "ARS"): MetricResult => ({ status: "COMPLETE", value, unit, reason: null });
 const block = (root: (typeof ROOTS)[number], value: string | null, status: ScopeResult["status"] = "COMPLETE"): ScopeResult => ({ nodeId: root.code, code: root.code, name: root.name, status, value, completeness: { loadedCount: status === "COMPLETE" ? 1 : 0, pendingCount: status === "COMPLETE" ? 0 : 1, totalCount: 1, completenessPercent: status === "COMPLETE" ? "100.00" : "0.00" } });
 
 export function dashboardFixture({ year = 2026, month = 9, mode = "complete", role = "ADMIN", signature = "sig-one", includeNotStarted = true }: {
@@ -13,9 +14,10 @@ export function dashboardFixture({ year = 2026, month = 9, mode = "complete", ro
 } = {}): DashboardResponse {
   const empty = mode === "empty", partial = mode === "partial";
   const withEerr = empty ? 0 : 1;
-  const branch: DashboardBranch = { branchId, name: "Sucursal ficticia", active: !partial, temporal: "EXPECTED", eerrId: empty ? null : eerrId, revision: empty ? null : 2, loadStatus: partial ? "PARCIAL" : empty ? null : "CARGADO", analysisStatus: empty ? "NO_EERR" : partial ? "PARTIAL" : "COMPLETE", reason: empty ? "NO_EERR" : partial ? "PARTIAL" : null, blocks: empty ? null : [block(ROOTS[0], "9007199254740993.10"), block(ROOTS[1], "0.00"), block(ROOTS[2], partial ? null : "5.00", partial ? "PENDING" : "COMPLETE")], metrics: null, breakEvenSales: null };
+  const branch: DashboardBranch = { branchId, name: "Sucursal ficticia", active: !partial, temporal: "EXPECTED", eerrId: empty ? null : eerrId, revision: empty ? null : 2, loadStatus: partial ? "PARCIAL" : empty ? null : "CARGADO", analysisStatus: empty ? "NO_EERR" : partial ? "PARTIAL" : "COMPLETE", reason: empty ? "NO_EERR" : partial ? "PARTIAL" : null, blocks: empty ? null : [block(ROOTS[0], "9007199254740993.10"), block(ROOTS[1], "0.00"), block(ROOTS[2], partial ? null : "5.00", partial ? "PENDING" : "COMPLETE")], metrics: null, breakEvenSales: null,
+    goalIndicators: empty ? null : { targetSales: { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: "TARGET_MARGIN_UNATTAINABLE" }, targetDifference: { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: "TARGET_MARGIN_UNATTAINABLE" }, targetCompliance: { status: "NOT_CALCULABLE", value: null, unit: "PERCENT", reason: "TARGET_MARGIN_UNATTAINABLE" }, trafficLight: { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: "TARGET_MARGIN_UNATTAINABLE" } } };
   const value = partial ? "10.00" : month === 7 ? "7.00" : month === 8 ? "8.00" : "9007199254740993.10";
-  const completeBranch: DashboardBranch = { ...branch, branchId: "complete", name: "Sucursal completa", active: true, eerrId: "22222222-2222-4222-8222-222222222222", analysisStatus: "COMPLETE", reason: null, blocks: [block(ROOTS[0], "10.00"), block(ROOTS[1], "0.00"), block(ROOTS[2], "5.00")] };
+  const completeBranch: DashboardBranch = { ...branch, branchId: "complete", name: "Sucursal completa", active: true, eerrId: "22222222-2222-4222-8222-222222222222", analysisStatus: "COMPLETE", reason: null, blocks: [block(ROOTS[0], "10.00"), block(ROOTS[1], "0.00"), block(ROOTS[2], "5.00")], goalIndicators: { targetSales: localMetric("15.00"), targetDifference: localMetric("-5.00"), targetCompliance: localMetric("66.6667", "PERCENT"), trafficLight: { status: "COMPLETE", value: "YELLOW", reason: null } } };
   const notStarted: DashboardBranch = { branchId: "later", name: "Sucursal próxima", active: true, temporal: "NOT_STARTED", eerrId: null, revision: null, loadStatus: null, analysisStatus: "EXCLUDED", reason: "NOT_STARTED", blocks: null, metrics: null, breakEvenSales: null };
   return { year, month, timezone: "America/Argentina/Buenos_Aires", calculationVersion: 2,
     scope: { type: role === "ADMIN" ? "GLOBAL" : "ACCESSIBLE", label: role === "ADMIN" ? "Consolidado global" : "Consolidado de mis sucursales accesibles", authorizedCount: (partial ? 2 : 1) + Number(includeNotStarted), expectedCount: partial ? 2 : 1 },

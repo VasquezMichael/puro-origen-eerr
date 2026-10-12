@@ -36,6 +36,7 @@ import type {
   BranchPeriodComparisonResponse,
   TwoBranchComparisonResponse,
   ConsolidatedPeriodComparisonResponse,
+  GoalComparisonMetrics,
 } from '@puro-origen/shared-types';
 import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import { BranchesService } from '../branches/branches.service.js';
@@ -46,6 +47,7 @@ import {
   publicStructure,
   type StoredStructure,
 } from './schemas/structure.schema.js';
+import { publicSalesGoal, type StoredSalesGoal } from './schemas/sales-goal.schema.js';
 
 type Viewer = NonNullable<AuthenticatedRequest['user']>;
 type Principal = {
@@ -59,9 +61,10 @@ type Row = {
   revision?: number;
   structure?: StoredStructure | null;
   loadStatus?: DashboardBranch['loadStatus'];
+  salesGoal?: StoredSalesGoal | null;
 };
 const MAX_BRANCHES = 200;
-const fullFields = '_id branchId revision structure loadStatus';
+const fullFields = '_id branchId revision structure loadStatus salesGoal';
 const revisionFields = '_id branchId revision';
 const metricNames: ComparisonMetricName[] = [
   'income',
@@ -143,8 +146,8 @@ export class AnalyticsService {
       [current, reference],
       viewer,
     );
-    const currentBranch = this.authorizedBranch(currentSnapshot!, branchId);
-    const referenceBranch = this.authorizedBranch(referenceSnapshot!, branchId);
+    const currentBranch = this.authorizedBranch(currentSnapshot!, branchId, true);
+    const referenceBranch = this.authorizedBranch(referenceSnapshot!, branchId, true);
     const currentStructure = currentSnapshot!.structures.get(branchId);
     const referenceStructure = referenceSnapshot!.structures.get(branchId);
     return {
@@ -163,6 +166,7 @@ export class AnalyticsService {
       scope: currentSnapshot!.response.scope,
       calculationVersion: CALCULATION_VERSION,
       metrics: this.comparisonMetrics(currentBranch, referenceBranch),
+      goalComparison: this.goalComparison(currentBranch, referenceBranch),
       itemComparison: currentStructure && referenceStructure
         ? compareEerrItems(
             { period: current, structure: publicStructure(currentStructure)! },
@@ -282,18 +286,19 @@ export class AnalyticsService {
     };
   }
 
-  private authorizedBranch(snapshot: Snapshot, id: string): ComparisonBranch {
+  private authorizedBranch(snapshot: Snapshot, id: string, includeGoals = false): ComparisonBranch {
     const branch = snapshot.response.branches.find(
       (item) => item.branchId === id.toLowerCase(),
     );
     if (!branch) throw new NotFoundException('Sucursal no disponible');
-    return this.comparisonBranch(branch, snapshot.invalid);
+    return this.comparisonBranch(branch, snapshot.invalid, false, includeGoals);
   }
 
   private comparisonBranch(
     branch: DashboardBranch,
     invalid: Set<string>,
     showAvailable = false,
+    includeGoals = false,
   ): ComparisonBranch {
     const complete =
       branch.analysisStatus === 'COMPLETE' && !invalid.has(branch.branchId);
@@ -313,6 +318,7 @@ export class AnalyticsService {
       loadStatus: branch.loadStatus,
       status: invalid.has(branch.branchId) ? 'INVALID' : branch.analysisStatus,
       reason: invalid.has(branch.branchId) ? 'INVALID' : branch.reason,
+      ...(includeGoals ? { goalIndicators: invalid.has(branch.branchId) ? null : branch.goalIndicators } : {}),
       metrics: {
         income: block(ROOTS[0].code),
         costs: block(ROOTS[1].code),
@@ -362,6 +368,20 @@ export class AnalyticsService {
     ) as ComparisonMetrics;
   }
 
+  private goalComparison(
+    current: ComparisonBranch,
+    reference: ComparisonBranch,
+  ): GoalComparisonMetrics {
+    const names = ['targetSales', 'targetDifference', 'targetCompliance'] as const;
+    return Object.fromEntries(names.map((name) => [name, compareMetricValues(
+      current.goalIndicators?.[name].value ?? null,
+      reference.goalIndicators?.[name].value ?? null,
+      name === 'targetCompliance' ? 'PERCENT' : 'ARS',
+      current.goalIndicators?.[name].value === null || !current.goalIndicators
+        ? 'CURRENT_NOT_CALCULABLE' : 'REFERENCE_NOT_CALCULABLE',
+    )])) as GoalComparisonMetrics;
+  }
+
   private async snapshots(
     periods: EerrPeriod[],
     viewer: Viewer,
@@ -380,7 +400,7 @@ export class AnalyticsService {
         const validRows = rows[index]!.map((row) => {
           if (!row.structure) return row;
           try {
-            calculateEerr(publicStructure(row.structure), null);
+            calculateEerr(publicStructure(row.structure), publicSalesGoal(row.salesGoal));
             return row;
           } catch {
             invalid.add(row.branchId.toString());
@@ -564,7 +584,7 @@ export class AnalyticsService {
         temporal === 'EXPECTED' ? 'NO_EERR' : 'EXCLUDED';
       if (temporal === 'EXPECTED' && row) {
         try {
-          analysis = calculateEerr(publicStructure(row.structure), null);
+          analysis = calculateEerr(publicStructure(row.structure), publicSalesGoal(row.salesGoal));
         } catch {
           throw this.invalidSource();
         }
@@ -602,6 +622,12 @@ export class AnalyticsService {
         blocks: analysis?.blocks ?? null,
         metrics: analysis?.metrics ?? null,
         breakEvenSales: analysis?.projections.breakEvenSales ?? null,
+        goalIndicators: analysis ? {
+          targetSales: analysis.projections.targetSales,
+          targetDifference: analysis.projections.targetDifference,
+          targetCompliance: analysis.projections.targetCompliance,
+          trafficLight: analysis.projections.trafficLight,
+        } : null,
       });
     }
     const calculation = aggregateEerr(aggregateSources);

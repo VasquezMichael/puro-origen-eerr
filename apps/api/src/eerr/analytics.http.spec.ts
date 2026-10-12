@@ -463,7 +463,7 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
   });
 
   it('metas locales no crean objetivo consolidado; suma grande es exacta', async () => {
-    rows[0]!.salesGoal = { mode: 'NET_MARGIN_PERCENT', value: '50.0000' };
+    rows[0]!.salesGoal = { mode: 'NET_MARGIN_PERCENT', value: { toString: () => '50.0000' }, updatedAt: new Date('2026-09-01T03:00:00Z'), updatedBy: actor };
     rows[0]!.structure = storedStructure(
       structure('999999999999.99', '0.00', '0.00'),
     );
@@ -473,6 +473,8 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     const body = (await get().expect(200)).body;
     expect(body.consolidated.income.value).toBe('1999999999999.98');
     expect(body.consolidated.targetSales).toBeNull();
+    expect(body.branches[0].goalIndicators.targetSales.status).toBe('COMPLETE');
+    expect(body.branches[0].goalIndicators.targetCompliance.reason).toBe('NON_POSITIVE_TARGET');
   });
 
   it.each([
@@ -503,6 +505,28 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
       .set('Cookie', `${SESSION_COOKIE}=offline`);
   const comparisonPeriods =
     'year=2026&month=9&referenceYear=2026&referenceMonth=8';
+
+  it('expone metas locales en Dashboard y comparación temporal sin crear meta consolidada', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    const goal = { mode: 'NET_MARGIN_PERCENT', value: { toString: () => '50.0000' }, updatedAt: new Date('2026-09-01T03:00:00Z'), updatedBy: actor };
+    rows[0]!.salesGoal = goal;
+    rows.push({ ...rows[0]!, _id: randomUUID(), month: 8, revision: 3,
+      structure: storedStructure(structure('50.00', '10.00', '5.00')) });
+    const dashboard = (await get().expect(200)).body;
+    expect(dashboard.branches[0].goalIndicators).toMatchObject({
+      targetSales: { value: '200.00' },
+      targetDifference: { value: '-100.00' },
+      targetCompliance: { value: '50.0000' },
+      trafficLight: { value: 'YELLOW' },
+    });
+    expect(dashboard.consolidated.targetSales).toBeNull();
+    const comparison = (await comparisonGet(`branches/${b1}/period-comparison?${comparisonPeriods}`).expect(200)).body;
+    expect(comparison.current.branch.goalIndicators.targetSales.value).toBe('200.00');
+    expect(comparison.reference.branch.goalIndicators.trafficLight.value).toBe('GREEN');
+    expect(comparison.goalComparison.targetSales).toMatchObject({ current: '200.00', reference: '16.67' });
+    expect(comparison.metrics.netResult.absoluteDifference).toBe('5.00');
+    expect(writes).toBe(0);
+  });
 
   it('compares periods with exact differences and percentage points', async () => {
     branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
@@ -614,6 +638,8 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     const backward = (await comparisonGet(path(b2, b1)).expect(200)).body;
     expect(forward.metrics.income.absoluteDifference).toBe('50.00');
     expect(backward.metrics.income.absoluteDifference).toBe('-50.00');
+    expect(forward.current.goalIndicators).toBeUndefined();
+    expect(forward.goalComparison).toBeUndefined();
     await comparisonGet(path(b1, b1)).expect(400);
     viewer = {
       ...viewer,

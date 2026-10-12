@@ -19,6 +19,7 @@ export function projectionExplanation(reason: Projection["reason"], reference = 
     case "ZERO_DENOMINATOR": return reference
       ? "No puede calcularse el porcentaje porque el Objetivo de Venta es cero."
       : "No puede calcularse porque el denominador es cero.";
+    case "NON_POSITIVE_TARGET": return "El Objetivo de Venta debe ser positivo para calcular el cumplimiento.";
     default: return "Resultado no disponible.";
   }
 }
@@ -55,6 +56,10 @@ export function ProjectionsSection({ analysis, canEdit, disabled, onConfigure, o
   const contribution = analysis.metrics.grossMarginPercent;
   const contributionPercent = contribution.status === "COMPLETE" && contribution.unit === "PERCENT"
     ? contribution.value : null;
+  const legacyReason = projections.targetSales.reason;
+  const targetDifference = projections.targetDifference ?? { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: legacyReason } as Projection;
+  const targetCompliance = projections.targetCompliance ?? { status: "NOT_CALCULABLE", value: null, unit: "PERCENT", reason: legacyReason } as Projection;
+  const trafficLight = projections.trafficLight ?? { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: legacyReason };
   return <section className={styles.projections} aria-labelledby="projections-title">
     <div className={styles.projectionsHeading}>
       <div><p className={styles.eyebrow}>Estimaciones del período</p><h3 id="projections-title">Proyecciones</h3></div>
@@ -72,6 +77,18 @@ export function ProjectionsSection({ analysis, canEdit, disabled, onConfigure, o
         description="Venta mínima estimada para alcanzar la meta configurada."
         help={projections.targetSales.reason === "TARGET_MARGIN_UNATTAINABLE"
           ? <UnattainableHelp contributionPercent={contributionPercent} /> : undefined} />
+      <ProjectionMetric label="Diferencia contra objetivo" metric={targetDifference}
+        description="Ingresos reales menos Objetivo de Venta; un importe negativo indica que falta vender." />
+      <ProjectionMetric label="Cumplimiento del objetivo" metric={targetCompliance}
+        description="Ingresos reales como porcentaje del Objetivo de Venta." />
+      <div className={styles.projectionMetric}>
+        <h4>Semáforo</h4>
+        <strong className={styles.trafficLight} data-light={trafficLight.value}>
+          {trafficLight.value === "RED" ? "Rojo" : trafficLight.value === "YELLOW" ? "Amarillo" : trafficLight.value === "GREEN" ? "Verde" : "Neutral"}
+        </strong>
+        {trafficLight.reason ? <p>{projectionExplanation(trafficLight.reason)}</p>
+          : !projections.trafficLight && <p>La respuesta todavía no incluye este indicador.</p>}
+      </div>
       <ProjectionMetric label={referenceLabel} metric={projections.targetReference} reference
         description="Referencia informativa calculada sobre el Objetivo de Venta mostrado." />
     </div>

@@ -65,6 +65,13 @@ export function metricReason(reason: string | null): string {
     case "NON_POSITIVE_CONTRIBUTION_MARGIN": return "No calculable porque el margen de contribución no es positivo.";
     case "EMPTY_INPUT": return "Faltan ítems en un bloque requerido.";
     case "PENDING_INPUTS": return "Quedan importes sin cargar.";
+    case "GOAL_NOT_CONFIGURED": return "No hay meta configurada para este EERR.";
+    case "TARGET_MARGIN_UNATTAINABLE": return "La meta iguala o supera el margen de contribución actual.";
+    case "NON_POSITIVE_TARGET": return "El Objetivo de Venta debe ser positivo.";
+    case "UNINITIALIZED": return "El EERR no tiene estructura preparada.";
     default: return "Dato no disponible.";
   }
+}
+export function trafficLightLabel(value: "RED" | "YELLOW" | "GREEN" | "NEUTRAL"): string {
+  return value === "RED" ? "Rojo" : value === "YELLOW" ? "Amarillo" : value === "GREEN" ? "Verde" : "Neutral";
 }
