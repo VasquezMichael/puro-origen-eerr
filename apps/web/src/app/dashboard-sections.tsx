@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { ROOTS } from "@puro-origen/domain";
 import type { DashboardBranch, DashboardResponse } from "@puro-origen/shared-types";
-import { branchStatus, formatDashboardMetric, metricReason, scopeLabel, trafficLightLabel, type Period, MONTHS, validPeriod, periodKey } from "./dashboard-model";
+import { branchStatus, formatDashboardMetric, marginFromInput, marginInput, metricReason, scopeLabel, trafficLightLabel, type Period, MONTHS, validPeriod, periodKey } from "./dashboard-model";
 import styles from "./dashboard.module.css";
 
 export function PeriodPicker({ period, onSelect, onRefresh, loading, hideRefresh = false }: { period: Period; onSelect: (period: Period) => void; onRefresh: () => void; loading: boolean; hideRefresh?: boolean }) {
@@ -19,6 +19,17 @@ export function PeriodPicker({ period, onSelect, onRefresh, loading, hideRefresh
     <button type="submit" disabled={!canApply}>Aplicar período</button>
     {!hideRefresh && <button type="button" onClick={onRefresh} disabled={loading}>Actualizar</button>}
     {!valid && <span role="alert">Ingresá un año entre 1 y 9999 y un mes válido.</span>}
+  </form>;
+}
+
+export function MarginPicker({ margin, onApply, loading }: { margin: string; onApply: (margin: string) => void; loading: boolean }) {
+  const [draft, setDraft] = useState(() => marginInput(margin));
+  const parsed = marginFromInput(draft);
+  return <form className={styles.period} onSubmit={(event) => { event.preventDefault(); if (parsed && parsed !== margin && !loading) onApply(parsed); }}>
+    <label>Margen objetivo consolidado<input aria-label="Margen objetivo consolidado en porcentaje" inputMode="decimal" value={draft} onChange={(event) => setDraft(event.target.value)} />%</label>
+    <button type="submit" disabled={!parsed || parsed === margin || loading}>Aplicar simulación</button>
+    {parsed === null && <span role="alert">Ingresá un porcentaje no negativo con hasta dos decimales.</span>}
+    <span className={styles.note}>Simulación transitoria: no cambia metas de sucursal ni guarda datos.</span>
   </form>;
 }
 
@@ -62,6 +73,7 @@ export function Consolidated({ data }: { data: DashboardResponse }) {
   const value = data.consolidated, c = data.coverage;
   if (c.withEerr === 0) return <section className={styles.section} aria-labelledby="summary-title"><p className={styles.eyebrow}>Lectura mensual</p><h2 id="summary-title">Sin EERR para este período</h2><p>{c.expected === 0 ? "No hay sucursales esperadas en este alcance y período." : "Todavía no existen EERR para las sucursales esperadas."} La ausencia de registros no equivale a importe cero.</p><Link className={styles.link} href="/eerr">Ir a Estados de resultados →</Link></section>;
   const definitive = value.definitive;
+  const hasGoal = value.targetNetMargin !== undefined && !!value.targetSales && !!value.targetDifference && !!value.targetCompliance && !!value.trafficLight;
   const excluded = data.branches.filter((branch) => branch.temporal === "EXPECTED" && branch.analysisStatus !== "COMPLETE");
   return <section className={styles.section} aria-labelledby="summary-title"><p className={styles.eyebrow}>Lectura mensual</p><h2 id="summary-title">{definitive ? "Consolidado definitivo" : `Subtotal de ${value.includedCount} de ${value.expectedCount} sucursales esperadas`}</h2>
     <p className={styles.explanation}>{definitive ? "Todas las fuentes esperadas están completas. Los porcentajes fueron recalculados sobre los totales." : "Solo se suman las bases de EERR completos. Los faltantes y las fuentes parciales no se tratan como cero; los resultados derivados aún no están disponibles."}</p>
@@ -71,7 +83,16 @@ export function Consolidated({ data }: { data: DashboardResponse }) {
       <MetricCard title="Gastos Generales" metric={value.expenses} />
       {definitive && <><MetricCard title="Resultado Neto" metric={value.netResult} /><MetricCard title="Resultado Neto %" metric={value.netResultPercent} /><MetricCard title="Punto de Equilibrio" metric={value.breakEvenSales} /></>}
     </div> : <p className={styles.note}>{metricReason(value.income.reason)}</p>}
-    {definitive ? <p className={styles.note}>El Punto de Equilibrio supone que se mantiene la mezcla observada entre ventas y costos variables. No hay Objetivo de Venta consolidado: las metas pertenecen a cada sucursal.</p> : <><p className={styles.note}>{metricReason(value.grossMargin.reason)} Margen Bruto, Resultado Neto, porcentajes y Punto de Equilibrio permanecen sin valor hasta completar la cobertura.</p>{excluded.length > 0 && <p className={styles.note}>Fuentes excluidas del subtotal: {excluded.map((branch) => `${branch.name} (${branchStatus(branch)})`).join("; ")}.</p>}</>}
+    {!hasGoal
+      ? <p className={styles.note}>Objetivo consolidado no disponible en esta respuesta histórica.</p>
+      : <><h3 className={styles.goalHeading}>Objetivo consolidado transitorio · {marginInput(value.targetNetMargin)} %</h3>
+    <div className={styles.metrics}>
+      <MetricCard title="Objetivo de Venta" metric={value.targetSales} />
+      <MetricCard title="Diferencia contra objetivo" metric={value.targetDifference} />
+      <MetricCard title="Cumplimiento" metric={value.targetCompliance} />
+      <div className={styles.metric}><span>Semáforo</span><strong><span className={styles.trafficLight} data-light={value.trafficLight.value}>{trafficLightLabel(value.trafficLight.value)}</span></strong>{value.trafficLight.reason && <small>{metricReason(value.trafficLight.reason)}</small>}</div>
+    </div></>}
+    {definitive ? <p className={styles.note}>El Punto de Equilibrio supone que se mantiene la mezcla observada entre ventas y costos variables.{hasGoal ? " La meta consolidada se calcula sobre bases agregadas; es independiente de las metas locales." : ""}</p> : <><p className={styles.note}>{metricReason(value.grossMargin.reason)} Margen Bruto, Resultado Neto, porcentajes y Punto de Equilibrio permanecen sin valor hasta completar la cobertura.</p>{excluded.length > 0 && <p className={styles.note}>Fuentes excluidas del subtotal: {excluded.map((branch) => `${branch.name} (${branchStatus(branch)})`).join("; ")}.</p>}</>}
   </section>;
 }
 

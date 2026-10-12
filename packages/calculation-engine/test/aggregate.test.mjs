@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ROOTS } from "@puro-origen/domain";
-import { aggregateEerr, calculateEerr } from "../dist/index.js";
+import { aggregateEerr, calculateConsolidatedGoal, calculateEerr, DEFAULT_CONSOLIDATED_TARGET_NET_MARGIN } from "../dist/index.js";
 
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 function analysis(income, costs, expenses) {
@@ -89,4 +89,82 @@ test("un único bloque con subtotal mayor al entero seguro tampoco pasa por Numb
     initializedAt: "2026-09-15T12:00:00Z", initializedBy: id(99), nodes });
   assert.equal(single.blocks[0].value, "99999999999999.01");
   assert.equal(aggregateEerr([source("a", single)]).income.value, "99999999999999.01");
+});
+
+test("objetivo consolidado v3 suma bases, redondea al centavo y no usa metas locales", () => {
+  const sourceA = analysis("100.00", "40.00", "20.00");
+  const sourceB = analysis("50.00", "10.00", "5.00");
+  const aggregate = aggregateEerr([source("a", sourceA), source("b", sourceB)]);
+  const standard = calculateConsolidatedGoal(aggregate, DEFAULT_CONSOLIDATED_TARGET_NET_MARGIN);
+  assert.deepEqual([standard.targetNetMargin, standard.targetSales.value, standard.targetDifference.value, standard.targetCompliance.value, standard.trafficLight.value], ["0.2000", "93.75", "56.25", "160.0000", "GREEN"]);
+  const custom = calculateConsolidatedGoal(aggregate, "0.2500");
+  assert.equal(custom.targetSales.value, "100.00");
+  assert.equal(custom.targetDifference.value, "50.00");
+  assert.equal(aggregate.targetSales, null);
+  assert.equal(sourceA.projections.targetSales.reason, "GOAL_NOT_CONFIGURED");
+  assert.equal(calculateConsolidatedGoal(aggregate, "0.5500").targetSales.value, "166.67");
+});
+
+test("semáforo consolidado respeta rojo, límite 70 %, amarillo, verde y objetivo cero", () => {
+  const goal = (income, costs, expenses, margin = "0.2000") => calculateConsolidatedGoal(aggregateEerr([source("a", analysis(income, costs, expenses))]), margin);
+  assert.equal(goal("10.00", "0.00", "20.00").trafficLight.value, "RED");
+  assert.equal(goal("14.00", "0.00", "20.00").trafficLight.value, "YELLOW");
+  assert.equal(goal("20.00", "0.00", "20.00").trafficLight.value, "YELLOW");
+  assert.equal(goal("25.00", "0.00", "20.00").trafficLight.value, "GREEN");
+  assert.deepEqual([goal("20.00", "0.00", "20.00").targetDifference.value, goal("20.00", "0.00", "20.00").targetCompliance.value], ["-5.00", "80.0000"]);
+  assert.deepEqual([goal("25.00", "0.00", "20.00").targetDifference.value, goal("25.00", "0.00", "20.00").targetCompliance.value], ["0.00", "100.0000"]);
+  assert.equal(goal("30.00", "0.00", "20.00").targetDifference.value, "5.00");
+  assert.equal(goal("30.00", "0.00", "20.00").targetCompliance.value, "120.0000");
+  const zero = goal("50.00", "0.00", "0.00");
+  assert.deepEqual([zero.targetDifference.value, zero.targetCompliance.reason, zero.trafficLight.value, zero.trafficLight.reason], ["50.00", "NON_POSITIVE_TARGET", "NEUTRAL", "NON_POSITIVE_TARGET"]);
+});
+
+test("margen mayor o igual a uno y cobertura parcial quedan neutrales", () => {
+  const full = aggregateEerr([source("a", analysis("100.00", "40.00", "20.00"))]);
+  for (const margin of ["1.0000", "1.5000"]) {
+    const goal = calculateConsolidatedGoal(full, margin);
+    assert.deepEqual([goal.targetSales.status, goal.targetSales.reason, goal.trafficLight.value], ["NOT_CALCULABLE", "TARGET_MARGIN_UNATTAINABLE", "NEUTRAL"]);
+  }
+  assert.equal(calculateConsolidatedGoal(full, "0.0000").targetSales.value, "60.00");
+  assert.equal(calculateConsolidatedGoal(full, "0.9999").targetSales.value, "600000.00");
+  const partial = aggregateEerr([source("a", analysis("100.00", "40.00", "20.00")), source("b", analysis("50.00", null, "5.00"))]);
+  const goal = calculateConsolidatedGoal(partial, "0.2000");
+  assert.equal(partial.income.value, "100.00");
+  assert.deepEqual([goal.targetSales.value, goal.targetDifference.value, goal.targetCompliance.value, goal.trafficLight.reason], [null, null, null, "INCOMPLETE_SCOPE"]);
+  for (const [income, costs, expectedReason] of [["0.00", "0.00", "ZERO_REVENUE"], ["100.00", "100.00", "NON_POSITIVE_CONTRIBUTION_MARGIN"]]) {
+    const base = aggregateEerr([source("a", analysis(income, costs, "10.00"))]);
+    const projection = calculateConsolidatedGoal(base, "0.2000");
+    assert.deepEqual([projection.targetSales.value, projection.trafficLight.value, projection.trafficLight.reason], [null, "NEUTRAL", expectedReason]);
+  }
+});
+
+test("margen inválido prevalece sobre ingresos cero, contribución no positiva y cobertura parcial", () => {
+  const cases = [
+    ["100.00", "40.00", "1.0000"],
+    ["0.00", "0.00", "1.0000"],
+    ["100.00", "100.00", "1.0000"],
+    ["0.00", "0.00", "1.5000"],
+  ];
+  for (const [income, costs, margin] of cases) {
+    const base = aggregateEerr([source("a", analysis(income, costs, "20.00"))]);
+    const goal = calculateConsolidatedGoal(base, margin);
+    for (const name of ["targetSales", "targetDifference", "targetCompliance"])
+      assert.deepEqual([goal[name].status, goal[name].value, goal[name].reason], ["NOT_CALCULABLE", null, "TARGET_MARGIN_UNATTAINABLE"]);
+    assert.deepEqual([goal.trafficLight.status, goal.trafficLight.value, goal.trafficLight.reason], ["NOT_CALCULABLE", "NEUTRAL", "TARGET_MARGIN_UNATTAINABLE"]);
+  }
+  const partial = aggregateEerr([source("a", analysis("100.00", null, "20.00"))]);
+  assert.equal(calculateConsolidatedGoal(partial, "1.0000").targetSales.reason, "TARGET_MARGIN_UNATTAINABLE");
+  assert.equal(calculateConsolidatedGoal(partial, "0.2000").targetSales.reason, "NO_COMPLETE_SOURCES");
+});
+
+test("dataset demo consolidado: agosto y septiembre a 20 y 25 por ciento", () => {
+  const months = [
+    ["4200093.30", "1768989.30", "1736700.00", "4382111.63", "4674252.40"],
+    ["4710071.35", "2061271.45", "1762650.00", "4779901.82", "5098561.94"],
+  ];
+  for (const [income, costs, expenses, at20, at25] of months) {
+    const base = aggregateEerr([source("demo", analysis(income, costs, expenses))]);
+    assert.equal(calculateConsolidatedGoal(base, "0.2000").targetSales.value, at20);
+    assert.equal(calculateConsolidatedGoal(base, "0.2500").targetSales.value, at25);
+  }
 });

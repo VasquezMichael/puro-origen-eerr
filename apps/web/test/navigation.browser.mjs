@@ -13,7 +13,7 @@ const browser = await chromium.launch({
   headless: true,
 });
 const origin = "http://127.0.0.1:3100";
-const dashboardUrl = `${origin}/?year=2026&month=9`;
+const dashboardUrl = `${origin}/?year=2026&month=9&targetMargin=0.20`;
 const id = "11111111-1111-4111-8111-111111111111",
   branchId = "123456789012345678901234";
 let passes = 0;
@@ -152,7 +152,7 @@ try {
         assert.ok(Number.isInteger(year) && year >= 1 && year <= 9999);
         assert.ok(Number.isInteger(month) && month >= 1 && month <= 12);
         dashboardReads++;
-        body = dashboardFixture({ year, month, mode: "empty", role: admin ? "ADMIN" : role, includeNotStarted: false });
+        body = dashboardFixture({ year, month, mode: "empty", role: admin ? "ADMIN" : role, includeNotStarted: false, targetMargin: url.searchParams.get("targetNetMargin") ?? "0.20" });
       } else if (path === "/branches" && method === "GET") body = branches;
       else if (path.startsWith("/branches") && method !== "GET") {
         const input = request.postDataJSON();

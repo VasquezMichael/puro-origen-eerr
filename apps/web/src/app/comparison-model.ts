@@ -1,6 +1,6 @@
 import { previousEerrPeriod } from "@puro-origen/domain";
 import type { BranchPeriodComparisonResponse, ComparisonMetric, ComparisonMetricName, ComparisonReason, ComparisonSourceStatus, ConsolidatedPeriodComparisonResponse, TwoBranchComparisonResponse } from "@puro-origen/shared-types";
-import { formatDashboardMetric, periodLabel, type Period } from "./dashboard-model";
+import { DEFAULT_TARGET_MARGIN, formatDashboardMetric, periodLabel, type Period } from "./dashboard-model";
 
 export const initialReference = (period: Period): Period => previousEerrPeriod(period);
 export const comparisonMetrics: readonly { name: ComparisonMetricName; label: string }[] = [
@@ -45,11 +45,11 @@ export function formatDifference(metric: ComparisonMetric): string {
 export function formatVariation(metric: ComparisonMetric): string {
   return formatDashboardMetric(metric.relativeVariation, "PERCENT");
 }
-export function comparisonPath(kind: "branch-period" | "two-branches" | "consolidated", period: Period, reference: Period, branchId?: string, referenceBranchId?: string): string {
+export function comparisonPath(kind: "branch-period" | "two-branches" | "consolidated", period: Period, reference: Period, branchId?: string, referenceBranchId?: string, targetMargin = DEFAULT_TARGET_MARGIN): string {
   const base = `year=${period.year}&month=${period.month}`;
   if (kind === "branch-period") return `/analytics/branches/${encodeURIComponent(branchId!)}/period-comparison?${base}&referenceYear=${reference.year}&referenceMonth=${reference.month}`;
   if (kind === "two-branches") return `/analytics/branches/compare?${base}&branchId=${encodeURIComponent(branchId!)}&referenceBranchId=${encodeURIComponent(referenceBranchId!)}`;
-  return `/analytics/consolidated/compare?${base}&referenceYear=${reference.year}&referenceMonth=${reference.month}`;
+  return `/analytics/consolidated/compare?${base}&referenceYear=${reference.year}&referenceMonth=${reference.month}&targetNetMargin=${targetMargin}`;
 }
 export function matchesComparison(data: BranchPeriodComparisonResponse | TwoBranchComparisonResponse | ConsolidatedPeriodComparisonResponse, period: Period, reference: Period, branchId?: string, referenceBranchId?: string): boolean {
   if (data.orientation !== "CURRENT_MINUS_REFERENCE" || !data.calculationVersion) return false;
@@ -60,5 +60,11 @@ export function matchesComparison(data: BranchPeriodComparisonResponse | TwoBran
 }
 export function itemComparisonOrNull(data: Partial<Pick<BranchPeriodComparisonResponse, "itemComparison">>): BranchPeriodComparisonResponse["itemComparison"] {
   return data.itemComparison ?? null;
+}
+export function matchesConsolidatedMargin(data: ConsolidatedPeriodComparisonResponse, margin: string): boolean {
+  const current = data.current.consolidated.targetNetMargin;
+  const reference = data.reference.consolidated.targetNetMargin;
+  if (data.calculationVersion < 3 && current === undefined && reference === undefined) return true;
+  return current === reference && current === margin.padEnd(margin.indexOf(".") + 5, "0");
 }
 export const comparisonDescription = (current: Period, reference: Period) => `Diferencia = período analizado (${periodLabel(current)}) menos referencia (${periodLabel(reference)}).`;

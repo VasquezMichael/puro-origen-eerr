@@ -4,6 +4,8 @@ import {
   BranchComparisonDto,
   BranchParamDto,
   ComparisonPeriodsDto,
+  ConsolidatedComparisonDto,
+  DashboardQueryDto,
   EerrMonthDto,
 } from './dto/eerr.dto.js';
 import { AnalyticsService } from './analytics.service.js';
@@ -14,10 +16,10 @@ export class AnalyticsController {
 
   @Get('dashboard')
   dashboard(
-    @Query() period: EerrMonthDto,
+    @Query() period: DashboardQueryDto,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.analytics.dashboard(period, request.user!);
+    return this.analytics.dashboard(period, request.user!, period.targetNetMargin);
   }
 
   @Get('branches')
@@ -43,13 +45,14 @@ export class AnalyticsController {
 
   @Get('consolidated/compare')
   compareConsolidated(
-    @Query() query: ComparisonPeriodsDto,
+    @Query() query: ConsolidatedComparisonDto,
     @Req() request: AuthenticatedRequest,
   ) {
     return this.analytics.consolidatedPeriods(
       query,
       { year: query.referenceYear, month: query.referenceMonth },
       request.user!,
+      query.targetNetMargin,
     );
   }
 

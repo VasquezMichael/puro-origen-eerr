@@ -481,13 +481,18 @@ EP-05B; EP-06 conserva dashboard y comparación.
   de IVA. La relación Costos/Ingresos observada estima la tasa variable; gastos
   semivariables no se descomponen todavía.
 - Con I=Ingresos, C=Costos y G=Gastos, y contribución I−C positiva, el Punto de
-  Equilibrio es `G×I/(I−C)`. Meta porcentual d sobre ventas: `G×I/((I−C)−I×d)`;
-  meta monetaria A: `(G+A)×I/(I−C)`. El resultado en ambos casos es el mínimo
-  de ventas requerido: se redondea hacia arriba al centavo con racional exacto.
+  Equilibrio es `G×I/(I−C)`: proyecta la tasa variable C/I. La meta monetaria A
+  conserva `(G+A)×I/(I−C)`. Para Margen Neto Objetivo d sobre ventas, la regla
+  funcional confirmada es `(C+G)/(1−d)`, aunque usa un supuesto distinto al del
+  Punto de Equilibrio. Los objetivos monetarios se redondean hacia arriba al
+  centavo con racional exacto.
 - Cada EERR tiene cero o una meta, porcentaje `0.0000 ≤ d < 100.0000` o monto
   ARS `0.00..999999999999.99`. Los valores viajan como strings; se rechaza la
   precisión de entrada excesiva y se completa la escala contractual sin pérdida.
-  La meta porcentual inalcanzable puede guardarse y produce motivo explícito.
+  Todo margen válido menor que 100 % es calculable si los datos base permiten
+  proyectar. Un valor de 100 % o más recibe `TARGET_MARGIN_UNATTAINABLE` en el
+  motor; la API no permite persistirlo. El motivo sigue admitido para respuestas
+  antiguas.
 - La modalidad alternativa es solo referencia: con meta porcentual, `d×objetivo`
   en ARS; con meta monetaria, `100×A/objetivo` en porcentaje. Utiliza el objetivo
   ya redondeado; se redondea con HALF_UP a dos o cuatro decimales. Objetivo cero
@@ -498,8 +503,8 @@ EP-05B; EP-06 conserva dashboard y comparación.
   escribe. Los resultados se calculan siempre bajo demanda.
 - Proyecciones requieren los tres bloques con ítems activos y carga completa,
   Ingresos positivos y contribución positiva. Pendientes, vacíos, cero ingresos,
-  contribución no positiva, meta ausente e inalcanzable producen valor null y
-  motivos distintos. Cero cargado en gastos y meta cero son válidos.
+  contribución no positiva y meta ausente producen valor null y motivos distintos.
+  Cero cargado en gastos y meta cero son válidos.
 
 ## EP-05B.2: presentación y edición web confirmadas
 
@@ -583,5 +588,12 @@ EP-05B; EP-06 conserva dashboard y comparación.
 ## EP-06: metas locales, cumplimiento y semáforo
 
 - Cada EERR conserva su meta local por margen o resultado. Sobre el Objetivo de Venta ya calculado, la diferencia es ingresos menos objetivo y el cumplimiento es ingresos dividido por objetivo por 100. Un objetivo no calculable conserva su motivo; uno no positivo impide el cumplimiento.
-- El semáforo local es rojo bajo el 70 % del Punto de Equilibrio, amarillo desde ese límite y por debajo del Objetivo de Venta, y verde desde un Objetivo de Venta positivo. Con objetivo cero o negativo, el cumplimiento es `NOT_CALCULABLE` y el semáforo es `NEUTRAL`, ambos con motivo `NON_POSITIVE_TARGET`; la diferencia absoluta sigue siendo calculable. Si faltan datos o una proyección necesaria, es neutral con motivo. El caso de margen inalcanzable conserva `TARGET_MARGIN_UNATTAINABLE`.
+- El semáforo local es rojo bajo el 70 % del Punto de Equilibrio, amarillo desde ese límite y por debajo del Objetivo de Venta, y verde desde un Objetivo de Venta positivo. Con objetivo cero o negativo, el cumplimiento es `NOT_CALCULABLE` y el semáforo es `NEUTRAL`, ambos con motivo `NON_POSITIVE_TARGET`; la diferencia absoluta sigue siendo calculable. Si faltan datos o una proyección necesaria, es neutral con motivo. `TARGET_MARGIN_UNATTAINABLE` se conserva para márgenes de al menos 100 % recibidos por el motor y respuestas anteriores, no para un margen válido que supere la contribución observada.
 - Dashboard presenta metas y semáforo por sucursal; la comparación temporal presenta ambos períodos y sus diferencias numéricas, sin variación del color. El consolidado y la comparación entre sucursales no reciben objetivos ni semáforos en este incremento.
+
+## EP-06: objetivo consolidado transitorio
+
+- El consolidado usa un margen neto objetivo propio, por defecto `0.20` (20 %), editable como simulación de la consulta. No se guarda, no modifica EERR ni toma como entrada las metas locales.
+- Sobre bases completas agregadas, el Objetivo de Venta aplica la misma regla v3 individual: `(costos + gastos) / (1 - margen)`, redondeado hacia arriba al centavo. Diferencia, cumplimiento y semáforo reutilizan los indicadores del motor. No se suman ni promedian derivados o metas locales; `calculationVersion` permanece en 3.
+- Margen de al menos 100 % entrega `TARGET_MARGIN_UNATTAINABLE` antes de evaluar ingresos, contribución o cobertura; es un valor numérico inválido para la simulación, no una query mal formada. Objetivo no positivo conserva diferencia absoluta, pero deja cumplimiento no calculable y semáforo neutral con `NON_POSITIVE_TARGET`. Con margen válido, un subtotal conserva las bases disponibles y cobertura, sin indicadores definitivos; no interpreta pendientes como cero.
+- Dashboard y comparación temporal consolidada aceptan el mismo margen decimal opcional. En la comparación se aplica a ambos meses y se comparan solo métricas numéricas; los colores se muestran por lado. La web conserva el margen aplicado en URL y solicita datos solo al aplicarlo explícitamente.

@@ -32,7 +32,7 @@ function analysis(revision, currentGoal, scenario) {
   const unattainable = scenario === "unattainable" || scenario === "unattainable-no-percent";
   const reason = blocked ? "PENDING_INPUTS" : unattainable ? "TARGET_MARGIN_UNATTAINABLE" : null;
   const referenceUnit = currentGoal?.mode === "NET_PROFIT_AMOUNT" ? "PERCENT" : "ARS";
-  return { eerrId: id, sourceRevision: revision, calculationVersion: 2, initialized: true, currency: "ARS",
+  return { eerrId: id, sourceRevision: revision, calculationVersion: unattainable ? 2 : 3, initialized: true, currency: "ARS",
     blocks: ROOTS.map(({ code, name }, index) => scope(`b${index + 1}`, code, name, ["100.00", "40.00", "20.00"][index])),
     categories: [{ ...scope("cat", "cat-code", "Ventas", "100.00"), parentNodeId: "b1", parentCode: ROOTS[0].code, depth: 1, position: 0 }],
     metrics: { grossMargin: metric("60.00"), grossMarginPercent: metric(scenario === "unattainable-no-percent" ? null : "60.0000", "PERCENT", scenario === "unattainable-no-percent" ? "PENDING_INPUTS" : null),
@@ -175,13 +175,13 @@ try {
     await page.screenshot({ path: join(tmpdir(), `ep05b2-${width}-monto.png`), fullPage: true });
     currentGoal = goal("NET_MARGIN_PERCENT", "65.0000");
     scenario = "unattainable"; await page.reload(); await projections.waitFor();
-    assert.match(await projections.innerText(), /El margen deseado iguala o supera/);
+    assert.match(await projections.innerText(), /Esta versión del análisis no pudo calcular/);
     const help = projections.getByRole("button", { name: "¿Por qué esta meta es inalcanzable?" });
     const tooltip = page.getByRole("tooltip");
     await help.scrollIntoViewIfNeeded();
     const beforeHelp = { revision: row.revision, goal: JSON.stringify(currentGoal), writes: writes.length, reads };
     await help.hover(); await tooltip.waitFor();
-    assert.match(await tooltip.innerText(), /margen de contribución actual del 60,00 %/);
+    assert.match(await tooltip.innerText(), /margen de contribución del 60,00 %/);
     let box = await tooltip.boundingBox();
     assert.ok(box && box.x >= 0 && box.y >= 0 && box.x + box.width <= width + 1 && box.y + box.height <= height + 1);
     await page.screenshot({ path: join(tmpdir(), `ep05ux1-${width}-ayuda.png`), fullPage: true });
@@ -208,11 +208,11 @@ try {
     assert.equal(JSON.stringify(currentGoal), beforeHelp.goal);
     assert.equal(writes.length, beforeHelp.writes);
     assert.equal(reads, beforeHelp.reads);
-    assert.match(await projections.innerText(), /El margen deseado iguala o supera/);
+    assert.match(await projections.innerText(), /Esta versión del análisis no pudo calcular/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
     scenario = "unattainable-no-percent"; await page.reload(); await projections.waitFor();
     await projections.getByRole("button", { name: "¿Por qué esta meta es inalcanzable?" }).focus();
-    assert.match(await page.getByRole("tooltip").innerText(), /Con la estructura vigente, el margen neto puede aproximarse/);
+    assert.match(await page.getByRole("tooltip").innerText(), /una meta de margen menor al 100 % es calculable/);
     assert.doesNotMatch(await page.getByRole("tooltip").innerText(), /actual del [0-9]/);
     currentGoal = goal("NET_PROFIT_AMOUNT", "2000.00");
     scenario = "pending"; await page.reload(); await projections.waitFor();

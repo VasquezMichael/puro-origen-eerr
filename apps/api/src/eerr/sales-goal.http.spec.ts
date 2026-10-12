@@ -202,6 +202,37 @@ describe('EP-05B.1 HTTP: meta por EERR', () => {
     expect((await get().expect(200)).body.salesGoal).toBeNull();
   });
 
+  it('propaga la meta porcentual corregida al análisis individual sin escribir desde GET', async () => {
+    const roots = ROOTS.map((root, position) => ({
+      nodeId: randomUUID(), code: root.code, parentId: null, position,
+      name: root.name, kind: 'BLOCK' as const,
+    }));
+    const nodes = roots.flatMap((root, index) => [root, {
+      nodeId: randomUUID(), code: randomUUID(), parentId: root.nodeId, position: 0,
+      name: `Ítem ${index}`, kind: 'ITEM' as const,
+      amount: { state: 'CARGADO' as const, input: null,
+        value: ['100.00', '60.00', '20.00'][index]!, currency: 'ARS' as const, scale: 2 as const },
+    }]);
+    store.state.rows[0]!.structure = storedStructure({
+      schemaVersion: 1, structureVersion: 1,
+      initializedAt: '2026-09-15T12:00:00Z', initializedBy: fixtureUser,
+      nodes,
+    });
+    await put({ expectedRevision: 1, goal: { mode: 'NET_MARGIN_PERCENT', value: '55' } }).expect(200);
+    const writes = store.writes;
+    const body = (await get().expect(200)).body;
+    expect(body.calculationVersion).toBe(3);
+    expect(body.projections).toMatchObject({
+      breakEvenSales: { value: '50.00' },
+      targetSales: { status: 'COMPLETE', value: '177.78', reason: null },
+      targetReference: { value: '97.78' },
+      targetDifference: { value: '-77.78' },
+      targetCompliance: { value: '56.2493' },
+      trafficLight: { value: 'YELLOW' },
+    });
+    expect(store.writes).toBe(writes);
+  });
+
   it('rechaza revisión obsoleta, doble envío y contrato inválido', async () => {
     const body = {
       expectedRevision: 1,

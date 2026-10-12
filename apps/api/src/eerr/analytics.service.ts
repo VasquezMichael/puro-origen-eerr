@@ -12,6 +12,8 @@ import type { Model } from 'mongoose';
 import {
   aggregateEerr,
   calculateEerr,
+  calculateConsolidatedGoal,
+  DEFAULT_CONSOLIDATED_TARGET_NET_MARGIN,
   CALCULATION_VERSION,
   compareMetricValues,
   compareEerrItems,
@@ -82,6 +84,12 @@ const percentageNames = new Set<ComparisonMetricName>([
 ]);
 type Snapshot = { response: DashboardResponse; invalid: Set<string>; structures: Map<string, StoredStructure | null> };
 
+const appliedMargin = (value?: string): string => {
+  if (value === undefined) return DEFAULT_CONSOLIDATED_TARGET_NET_MARGIN;
+  const [integer, fractional = ''] = value.split('.');
+  return `${integer}.${fractional.padEnd(4, '0')}`;
+};
+
 @Injectable()
 export class AnalyticsService {
   constructor(
@@ -93,12 +101,13 @@ export class AnalyticsService {
   async dashboard(
     period: EerrPeriod,
     viewer: Viewer,
+    targetNetMargin?: string,
   ): Promise<DashboardResponse> {
     for (let attempt = 0; attempt < 2; attempt++) {
       const principal = await this.principal(viewer.sub);
       const branches = await this.branches(principal);
       const rows = await this.rows(period, branches, true);
-      const response = this.build(period, principal, branches, rows);
+      const response = this.build(period, principal, branches, rows, appliedMargin(targetNetMargin));
       const checkedPrincipal = await this.principal(viewer.sub);
       const checkedBranches = await this.branches(checkedPrincipal);
       const checkedRows = await this.rows(period, checkedBranches, false);
@@ -204,8 +213,9 @@ export class AnalyticsService {
     current: EerrPeriod,
     reference: EerrPeriod,
     viewer: Viewer,
+    targetNetMargin?: string,
   ): Promise<ConsolidatedPeriodComparisonResponse> {
-    const [a, b] = await this.snapshots([current, reference], viewer);
+    const [a, b] = await this.snapshots([current, reference], viewer, appliedMargin(targetNetMargin));
     const currentResponse = a!.response;
     const referenceResponse = b!.response;
     const currentIds = new Set(
@@ -264,6 +274,16 @@ export class AnalyticsService {
       },
       scope: currentResponse.scope,
       calculationVersion: CALCULATION_VERSION,
+      goalComparison: Object.fromEntries((['targetSales', 'targetDifference', 'targetCompliance'] as const).map((name) => [name,
+        compareMetricValues(
+          currentResponse.consolidated[name].value,
+          referenceResponse.consolidated[name].value,
+          name === 'targetCompliance' ? 'PERCENT' : 'ARS',
+          !currentResponse.consolidated.definitive ? 'CURRENT_SUBTOTAL'
+            : !referenceResponse.consolidated.definitive ? 'REFERENCE_SUBTOTAL'
+              : currentResponse.consolidated[name].value === null ? 'CURRENT_NOT_CALCULABLE' : 'REFERENCE_NOT_CALCULABLE',
+        ),
+      ])) as GoalComparisonMetrics,
       population: {
         inBoth,
         onlyCurrent: [...currentIds]
@@ -385,6 +405,7 @@ export class AnalyticsService {
   private async snapshots(
     periods: EerrPeriod[],
     viewer: Viewer,
+    targetNetMargin = DEFAULT_CONSOLIDATED_TARGET_NET_MARGIN,
   ): Promise<Snapshot[]> {
     for (let attempt = 0; attempt < 2; attempt++) {
       const principal = await this.principal(viewer.sub);
@@ -408,7 +429,7 @@ export class AnalyticsService {
           }
         });
         return {
-          response: this.build(period, principal, branches, validRows),
+          response: this.build(period, principal, branches, validRows, targetNetMargin),
           invalid,
           structures: new Map(validRows.map(row => [row.branchId.toString(), row.structure ?? null])),
         };
@@ -539,6 +560,7 @@ export class AnalyticsService {
     principal: Principal,
     branches: Branch[],
     rows: Row[],
+    targetNetMargin = DEFAULT_CONSOLIDATED_TARGET_NET_MARGIN,
   ): DashboardResponse {
     const key = this.sourceKey(period, principal, branches, rows);
     const byId = new Map(rows.map((row) => [row.branchId.toString(), row]));
@@ -647,6 +669,7 @@ export class AnalyticsService {
       coverage,
       consolidated: {
         ...calculation,
+        ...calculateConsolidatedGoal(calculation, targetNetMargin),
         label: calculation.definitive
           ? 'Consolidado definitivo'
           : `Subtotal de ${calculation.includedCount} de ${coverage.expected} sucursales esperadas`,

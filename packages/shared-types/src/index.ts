@@ -2,6 +2,7 @@ import type { EerrStructure } from "@puro-origen/domain";
 import type { SalesGoalValue } from "@puro-origen/domain";
 import type {
   AggregateCalculation,
+  ConsolidatedGoalCalculation,
   AnalysisCalculation,
   ComparisonMetric,
   ComparisonReason,
@@ -112,6 +113,7 @@ export type ConsolidatedPeriodComparisonResponse = {
     changedCompleteness: string[];
   };
   metrics: ComparisonMetrics;
+  goalComparison: GoalComparisonMetrics;
 };
 export type AnalysisResponse = AnalysisCalculation & {
   eerrId: string;
@@ -164,7 +166,7 @@ export type DashboardResponse = {
     inactiveWithoutHistory: number;
     excludedNotStarted: number;
   };
-  consolidated: AggregateCalculation & {
+  consolidated: Omit<AggregateCalculation, "targetSales"> & ConsolidatedGoalCalculation & {
     label: string;
     breakEvenAssumption: string | null;
   };

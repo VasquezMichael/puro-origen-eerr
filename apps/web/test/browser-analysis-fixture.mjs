@@ -4,7 +4,7 @@ import { ROOTS } from "../../../packages/domain/dist/index.js";
 export function emptyAnalysis(row, id) {
   const complete = { loadedCount: 0, pendingCount: 0, totalCount: 0, completenessPercent: null };
   return {
-    eerrId: id, sourceRevision: row.revision, calculationVersion: 2,
+    eerrId: id, sourceRevision: row.revision, calculationVersion: 3,
     initialized: !!row.structure, currency: "ARS",
     blocks: row.structure ? ROOTS.map(({ code, name }, index) => ({
       nodeId: `fixture-block-${index}`, code, name, status: "EMPTY", value: null, completeness: complete,

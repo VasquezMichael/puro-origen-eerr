@@ -345,16 +345,19 @@ para EP-05B; dashboard, comparación y consolidación para EP-06.
 El análisis calcula un Punto de Equilibrio sin requerir meta. La meta principal
 opcional por EERR puede ser margen neto deseado sobre ventas (porcentaje) o ganancia
 neta deseada (ARS). El Objetivo de Venta usa la modalidad elegida y presenta la
-otra como referencia informativa, basada en el objetivo redondeado. Las cifras son
-estimaciones según la tasa observada de costos variables y gastos mayormente fijos;
-no constituyen una clasificación individual de cada gasto. Todos los montos son
-netos de IVA. Las metas persisten en históricos, no se clonan ni importan.
+otra como referencia informativa, basada en el objetivo redondeado. Punto de
+Equilibrio y meta por resultado conservan la tasa observada Costos/Ingresos para
+proyectar costos variables. La meta porcentual de Margen Neto Objetivo usa
+`(Costos + Gastos)/(1 − margen objetivo)`, según la regla funcional confirmada;
+emplea un supuesto diferente. Estas estimaciones no clasifican individualmente
+cada gasto. Todos los montos son netos de IVA. Las metas persisten en históricos,
+no se clonan ni importan.
 
 Admin y Editor asignado pueden establecer, cambiar o eliminar la meta en EERR
 inicializados; Lector solo consulta. Los mínimos se redondean siempre al centavo
 superior. Si faltan cargas, un bloque está vacío, no hay ingresos, la contribución
-no es positiva o el margen objetivo es inalcanzable, la proyección muestra motivo
-explícito y ningún importe.
+no es positiva, la proyección muestra motivo explícito y ningún importe. Un margen
+válido menor que 100 % no se bloquea por superar la contribución observada.
 
 ## EP-05B.2: proyecciones en el Cuadro de resultados
 
@@ -390,13 +393,11 @@ del EERR a EP-07.
 
 ## EP-05UX.1: ayuda de meta porcentual inalcanzable
 
-Cuando el Objetivo de Venta informa que la meta porcentual iguala o supera el
-margen de contribución actual, el motivo permanece visible y un botón informativo
-“?” explica que la meta debe ser menor. Si el análisis entrega el Margen Bruto
-porcentual completo, la ayuda muestra ese porcentaje ya calculado por la API:
-con Costos variables, representa el margen de contribución usado por la
-proyección. Si no está disponible, usa el texto general. La web solo formatea
-el valor recibido; no recalcula la relación ni modifica la meta.
+La ayuda histórica de `TARGET_MARGIN_UNATTAINABLE` permanece disponible para
+respuestas de versiones anteriores o una entrada inválida recibida por el motor.
+La regla actual solo produce ese motivo para una meta de al menos 100 %; un margen
+válido mayor que la contribución observada sí produce un Objetivo de Venta. La web
+solo presenta la respuesta recibida; no recalcula la relación ni modifica la meta.
 
 La ayuda se abre con mouse, foco, teclado o toque y se cierra con Escape,
 pérdida de foco o interacción exterior. También puede consultarla el Lector.
@@ -416,7 +417,7 @@ parcial y sin inicializar, y devuelve únicamente el subtotal de bases de EERR
 completos, con alcance visible. Márgenes, porcentajes y equilibrio consolidados
 quedan sin valor. Cero cargado no es dato ausente. En consolidado completo la API
 suma Ingresos/Costos/Gastos exactos y recalcula derivados y Punto de Equilibrio;
-no combina metas locales ni produce Objetivo de Venta consolidado.
+no combina metas locales. El Objetivo de Venta consolidado posterior usa un margen propio y transitorio sobre estas bases definitivas, sin persistencia.
 
 La nueva interfaz del Dashboard corresponde a EP-06A.2. Comparaciones, series,
 gráficos, semáforos, exportación y cierre no se incorporan en EP-06A.1.
@@ -438,7 +439,7 @@ Sin EERR se presenta ausencia, no tarjetas de cero. Solo un alcance definitivo
 presenta Margen Bruto, Resultado Neto, porcentajes y Punto de Equilibrio; este
 último supone mantener la mezcla observada de ventas y costos variables. Un
 subtotal muestra exclusivamente Ingresos, Costos y Gastos de EERR completos.
-El Objetivo de Venta no se consolida porque cada meta es local. Las cifras
+En EP-06A.2 no se consolidaba el Objetivo de Venta. Las cifras
 provienen de strings de la API y no se recalculan en el navegador.
 
 Comparaciones, series, gráficos, semáforos y exportaciones siguen diferidos a
@@ -455,3 +456,9 @@ Cada lado informa existencia, revisión, estado de carga y fuente. Ausencias y f
 Inicio ofrece Resumen y Comparaciones con el año y mes aplicados en la URL. Comparaciones presenta una sucursal entre dos períodos, una tabla de todas las sucursales accesibles con comparación opcional entre dos distintas, y el consolidado entre períodos. La referencia inicial es el mes anterior y se puede editar; los cambios de selectores solo tienen efecto al pulsar «Comparar».
 
 Las tablas orientan las diferencias como analizado menos referencia: diferencia monetaria absoluta en ARS, porcentajes en puntos porcentuales y variación relativa solo cuando la referencia positiva permite que la API la entregue. Se distinguen fuente ausente, incompleta, subtotal y cero cargado. Ambos lados del consolidado muestran cobertura y un subtotal nunca se anuncia como definitivo. No hay clasificación favorable/desfavorable, ranking, series, gráficos ni semáforos en este incremento.
+
+## EP-06: simulación de objetivo consolidado
+
+El consolidado aplica un margen neto objetivo propio y transitorio de 20 % por defecto. La persona puede editarlo como porcentaje y aplicarlo explícitamente; el margen aplicado queda en la URL para conservarlo al actualizar, navegar Atrás/Adelante o compartir la vista. No se guarda ni altera metas locales o EERR. La API recibe la fracción decimal (`0.20`) y devuelve objetivo, diferencia contra ingresos, cumplimiento y semáforo. La web solo formatea esos resultados.
+
+El objetivo se calcula con la regla v3 `(Costos agregados + Gastos agregados)/(1 − margen)` sobre bases completas, con techo al centavo. Con cobertura parcial se muestran subtotales de bases pero ningún objetivo definitivo. La comparación temporal consolidada utiliza el mismo margen transitorio en ambos meses, compara las tres cifras numéricas y muestra el semáforo de cada mes sin atribuir una variación a los colores. Las metas locales nunca se suman ni se promedian para construir esta simulación.

@@ -367,9 +367,12 @@ Las demás escrituras actualizan campos específicos y la preservan; clonar toma
 El motor puro recibe snapshot y meta del mismo documento leído por AnalysisService.
 Calcula contribución, punto de equilibrio, objetivo y referencia con enteros BigInt
 y racionales exactos; los mínimos monetarios se redondean al centavo superior.
-La referencia usa el objetivo ya redondeado y aplica HALF_UP. El resultado se
-identifica con `sourceRevision` y `calculationVersion: 2`; no hay cálculo financiero
-en la web.
+La referencia usa el objetivo ya redondeado y aplica HALF_UP. El Punto de
+Equilibrio y la meta por resultado conservan la relación Costos/Ingresos; la meta
+por margen usa `(Costos + Gastos)/(1 − margen objetivo)`, por decisión funcional.
+El resultado se identifica con `sourceRevision` y `calculationVersion: 3`
+(la versión 2 usaba la relación Costos/Ingresos también en la meta por margen);
+no hay cálculo financiero en la web.
 
 ## EP-05B.2: proyecciones y edición de meta en el workspace
 
@@ -455,4 +458,4 @@ El motor deriva `NO_EXISTIA` sin escribirlo; distingue celda pendiente de cero c
 
 ## EP-06: indicadores de meta local
 
-`calculateEerr` deriva diferencia, cumplimiento y semáforo desde los ingresos y las proyecciones existentes mediante aritmética decimal exacta. `AnalyticsService` lee la meta persistida junto con cada EERR y reutiliza el mismo cálculo para Dashboard y comparación temporal. La revisión de cada fuente protege también cambios de meta concurrentes. La web solo presenta estos resultados y sus motivos. `aggregateEerr` sigue sin objetivo consolidado; tampoco se calculan diferencias de metas entre sucursales.
+`calculateEerr` deriva diferencia, cumplimiento y semáforo desde los ingresos y las proyecciones existentes mediante aritmética decimal exacta. `AnalyticsService` lee la meta persistida junto con cada EERR y reutiliza el mismo cálculo para Dashboard y comparación temporal. La revisión de cada fuente protege también cambios de meta concurrentes. La web solo presenta estos resultados y sus motivos. `aggregateEerr` sigue sin usar metas locales; `calculateConsolidatedGoal` recibe sus bases agregadas definitivas y un margen transitorio para derivar objetivo e indicadores con la misma fórmula v3 y el mismo semáforo. El margen llega por query y no se persiste. La comparación consolidada aplica un margen idéntico a ambos períodos. No se calculan diferencias de metas entre sucursales.
