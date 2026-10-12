@@ -15,7 +15,7 @@ export function projectionExplanation(reason: Projection["reason"], reference = 
     case "ZERO_REVENUE": return "No puede calcularse porque los ingresos son cero.";
     case "NON_POSITIVE_CONTRIBUTION_MARGIN": return "Los costos variables igualan o superan los ingresos.";
     case "GOAL_NOT_CONFIGURED": return "Configurá una meta para calcular el Objetivo de Venta.";
-    case "TARGET_MARGIN_UNATTAINABLE": return "El margen deseado iguala o supera el margen de contribución actual.";
+    case "TARGET_MARGIN_UNATTAINABLE": return "Esta versión del análisis no pudo calcular la meta de margen.";
     case "ZERO_DENOMINATOR": return reference
       ? "No puede calcularse el porcentaje porque el Objetivo de Venta es cero."
       : "No puede calcularse porque el denominador es cero.";
@@ -92,13 +92,14 @@ export function ProjectionsSection({ analysis, canEdit, disabled, onConfigure, o
       <ProjectionMetric label={referenceLabel} metric={projections.targetReference} reference
         description="Referencia informativa calculada sobre el Objetivo de Venta mostrado." />
     </div>
-    <p className={styles.estimateNote}>Estimación basada en la relación actual entre costos variables y ventas.</p>
+    <p className={styles.estimateNote}>El Punto de Equilibrio y la meta por resultado usan la relación actual entre costos variables y ventas. La meta porcentual usa costos y gastos del período.</p>
     <details className={styles.assumptions}><summary>Supuestos de estas proyecciones</summary>
       <ul>
         <li>Ingresos, Costos y Gastos se consideran netos de IVA.</li>
         <li>Costos representa costos variables asociados a las ventas.</li>
         <li>Gastos Generales se consideran mayormente fijos.</li>
-        <li>La estimación utiliza la relación actual entre Costos e Ingresos.</li>
+        <li>Punto de Equilibrio y meta por resultado utilizan la relación actual entre Costos e Ingresos.</li>
+        <li>La meta por margen usa Costos y Gastos del período divididos por uno menos el margen objetivo.</li>
         <li>Los gastos semivariables no se descomponen en esta versión.</li>
       </ul>
     </details>

@@ -250,7 +250,11 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
       grossMarginPercent: { value: '66.6667' },
       netResult: { value: '75.00' },
       breakEvenSales: { value: '37.50' },
-      targetSales: null,
+      targetNetMargin: '0.2000',
+      targetSales: { value: '93.75' },
+      targetDifference: { value: '56.25' },
+      targetCompliance: { value: '160.0000' },
+      trafficLight: { value: 'GREEN' },
     });
     expect(response.body.consolidated.breakEvenAssumption).toContain(
       'mezcla observada',
@@ -259,6 +263,66 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     expect(response.body.sources).toHaveLength(4);
     expect(response.body.sourceSignature).toMatch(/^[a-f\d]{64}$/);
     expect(reads).toBe(2);
+    expect(writes).toBe(0);
+  });
+
+  it('aplica margen transitorio explícito sin cambiar metas locales ni escribir', async () => {
+    const before = (await get().expect(200)).body;
+    const custom = (await get('?year=2026&month=9&targetNetMargin=0.25').expect(200)).body;
+    expect(custom.consolidated).toMatchObject({ targetNetMargin: '0.2500', targetSales: { value: '100.00' }, targetDifference: { value: '50.00' }, targetCompliance: { value: '150.0000' }, trafficLight: { value: 'GREEN' } });
+    expect(custom.branches).toEqual(before.branches);
+    expect(custom.coverage).toEqual(before.coverage);
+    expect(writes).toBe(0);
+  });
+
+  it.each([
+    ['0', '0.0000', '75.00'],
+    ['0.2', '0.2000', '93.75'],
+    ['0.20', '0.2000', '93.75'],
+    ['0.2000', '0.2000', '93.75'],
+  ])('normaliza margen consolidado %s sin escribir', async (margin, normalized, target) => {
+    const body = (await get(`?year=2026&month=9&targetNetMargin=${margin}`).expect(200)).body;
+    expect(body.consolidated).toMatchObject({ targetNetMargin: normalized, targetSales: { status: 'COMPLETE', value: target } });
+    expect(writes).toBe(0);
+  });
+
+  it.each(['abc', '', '20%', '1,2', '1e-1', '-0.20', '0.12345', '1000.00'])(
+    'rechaza margen consolidado inválido %s', async (margin) => {
+      await get(`?year=2026&month=9&targetNetMargin=${encodeURIComponent(margin)}`).expect(400);
+      expect(writes).toBe(0);
+    },
+  );
+
+  it.each(['1', '1.0', '1.00', '1.5'])('margen %s llega al motor y conserva motivo controlado', async (margin) => {
+    const body = (await get(`?year=2026&month=9&targetNetMargin=${margin}`).expect(200)).body;
+    expect(body.consolidated).toMatchObject({
+      targetNetMargin: margin === '1.5' ? '1.5000' : '1.0000',
+      targetSales: { status: 'NOT_CALCULABLE', value: null, reason: 'TARGET_MARGIN_UNATTAINABLE' },
+      targetDifference: { status: 'NOT_CALCULABLE', value: null, reason: 'TARGET_MARGIN_UNATTAINABLE' },
+      targetCompliance: { value: null, reason: 'TARGET_MARGIN_UNATTAINABLE' },
+      trafficLight: { value: 'NEUTRAL', reason: 'TARGET_MARGIN_UNATTAINABLE' },
+    });
+    expect(writes).toBe(0);
+  });
+
+  it.each([
+    ['0.00', '0.00', '1', 'TARGET_MARGIN_UNATTAINABLE'],
+    ['100.00', '100.00', '1', 'TARGET_MARGIN_UNATTAINABLE'],
+    ['0.00', '0.00', '1.5', 'TARGET_MARGIN_UNATTAINABLE'],
+    ['0.00', '0.00', '0.20', 'ZERO_REVENUE'],
+    ['100.00', '100.00', '0.20', 'NON_POSITIVE_CONTRIBUTION_MARGIN'],
+  ])('prioriza margen %s/%s con objetivo %s', async (income, costs, margin, reason) => {
+    rows[0]!.structure = storedStructure(structure(income, costs, '20.00'));
+    rows.pop();
+    branches.splice(1, 1);
+    const body = (await get(`?year=2026&month=9&targetNetMargin=${margin}`).expect(200)).body;
+    expect(body.consolidated).toMatchObject({
+      definitive: true,
+      targetSales: { value: null, reason },
+      targetDifference: { value: null, reason },
+      targetCompliance: { value: null, reason },
+      trafficLight: { value: 'NEUTRAL', reason },
+    });
     expect(writes).toBe(0);
   });
 
@@ -293,7 +357,7 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
       grossMargin: { value: null, reason: 'INCOMPLETE_SCOPE' },
       netResult: { value: null },
       breakEvenSales: { value: null },
-      targetSales: null,
+      targetSales: { value: null, reason: 'INCOMPLETE_SCOPE' },
     });
     expect(body.consolidated.label).toBe(
       'Subtotal de 1 de 2 sucursales esperadas',
@@ -462,7 +526,7 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     expect((await get().expect(500)).body.code).toBe('INVALID_PERSISTED_DATA');
   });
 
-  it('metas locales no crean objetivo consolidado; suma grande es exacta', async () => {
+  it('metas locales no modifican objetivo consolidado; suma grande es exacta', async () => {
     rows[0]!.salesGoal = { mode: 'NET_MARGIN_PERCENT', value: { toString: () => '50.0000' }, updatedAt: new Date('2026-09-01T03:00:00Z'), updatedBy: actor };
     rows[0]!.structure = storedStructure(
       structure('999999999999.99', '0.00', '0.00'),
@@ -472,7 +536,8 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     );
     const body = (await get().expect(200)).body;
     expect(body.consolidated.income.value).toBe('1999999999999.98');
-    expect(body.consolidated.targetSales).toBeNull();
+    expect(body.consolidated.targetSales.value).toBe('0.00');
+    expect(body.consolidated.trafficLight).toMatchObject({ value: 'NEUTRAL', reason: 'NON_POSITIVE_TARGET' });
     expect(body.branches[0].goalIndicators.targetSales.status).toBe('COMPLETE');
     expect(body.branches[0].goalIndicators.targetCompliance.reason).toBe('NON_POSITIVE_TARGET');
   });
@@ -506,24 +571,26 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
   const comparisonPeriods =
     'year=2026&month=9&referenceYear=2026&referenceMonth=8';
 
-  it('expone metas locales en Dashboard y comparación temporal sin crear meta consolidada', async () => {
+  it('expone metas locales en Dashboard y comparación temporal con meta consolidada independiente', async () => {
     branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
     const goal = { mode: 'NET_MARGIN_PERCENT', value: { toString: () => '50.0000' }, updatedAt: new Date('2026-09-01T03:00:00Z'), updatedBy: actor };
     rows[0]!.salesGoal = goal;
     rows.push({ ...rows[0]!, _id: randomUUID(), month: 8, revision: 3,
       structure: storedStructure(structure('50.00', '10.00', '5.00')) });
     const dashboard = (await get().expect(200)).body;
+    expect(dashboard.calculationVersion).toBe(3);
     expect(dashboard.branches[0].goalIndicators).toMatchObject({
-      targetSales: { value: '200.00' },
-      targetDifference: { value: '-100.00' },
-      targetCompliance: { value: '50.0000' },
+      targetSales: { value: '120.00' },
+      targetDifference: { value: '-20.00' },
+      targetCompliance: { value: '83.3333' },
       trafficLight: { value: 'YELLOW' },
     });
-    expect(dashboard.consolidated.targetSales).toBeNull();
+    expect(dashboard.consolidated.targetSales.value).toBe('93.75');
     const comparison = (await comparisonGet(`branches/${b1}/period-comparison?${comparisonPeriods}`).expect(200)).body;
-    expect(comparison.current.branch.goalIndicators.targetSales.value).toBe('200.00');
+    expect(comparison.calculationVersion).toBe(3);
+    expect(comparison.current.branch.goalIndicators.targetSales.value).toBe('120.00');
     expect(comparison.reference.branch.goalIndicators.trafficLight.value).toBe('GREEN');
-    expect(comparison.goalComparison.targetSales).toMatchObject({ current: '200.00', reference: '16.67' });
+    expect(comparison.goalComparison.targetSales).toMatchObject({ current: '120.00', reference: '30.00' });
     expect(comparison.metrics.netResult.absoluteDifference).toBe('5.00');
     expect(writes).toBe(0);
   });
@@ -694,6 +761,18 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
       reason: 'REFERENCE_SUBTOTAL',
     });
     expect(body.population.changedExistence).toContain(b2);
+    expect(writes).toBe(0);
+  });
+
+  it('compara ambos consolidados con el mismo margen transitorio', async () => {
+    branches[0]!.startDate = new Date('2025-01-01T03:00:00Z');
+    branches[1]!.startDate = new Date('2025-01-01T03:00:00Z');
+    rows.push(...rows.map((row) => ({ ...row, _id: randomUUID(), month: 8 })));
+    const body = (await comparisonGet(`consolidated/compare?${comparisonPeriods}&targetNetMargin=0.25`).expect(200)).body;
+    expect(body.current.consolidated.targetNetMargin).toBe('0.2500');
+    expect(body.reference.consolidated.targetNetMargin).toBe('0.2500');
+    expect(body.goalComparison.targetSales).toMatchObject({ current: '100.00', reference: '100.00', absoluteDifference: '0.00' });
+    expect(body.current.consolidated.trafficLight.value).toBe('GREEN');
     expect(writes).toBe(0);
   });
 

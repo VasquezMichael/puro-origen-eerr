@@ -5,7 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 const { EerrApiError } = await import("../src/app/eerr/api.ts");
 const model = await import("../src/app/dashboard-model.ts");
-const { Coverage, Consolidated, Branches, PeriodPicker } = await import("../src/app/dashboard-sections.tsx");
+const { Coverage, Consolidated, Branches, MarginPicker, PeriodPicker } = await import("../src/app/dashboard-sections.tsx");
 const { dashboardError } = await import("../src/app/dashboard.tsx");
 const { ROOTS } = await import("../../../packages/domain/dist/index.js");
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props));
@@ -18,7 +18,7 @@ const branch = (status, overrides = {}) => ({ branchId: "a", name: "Sucursal Nor
 function response(definitive = true, overrides = {}) {
   return { year: 2026, month: 9, timezone: "America/Argentina/Buenos_Aires", scope: { type: "GLOBAL", authorizedCount: 1, expectedCount: 1, label: "Consolidado global" },
     coverage: { expected: 1, withEerr: 1, withoutEerr: 0, complete: definitive ? 1 : 0, partial: definitive ? 0 : 1, pending: 0, empty: 0, uninitialized: 0, inactiveWithHistory: 0, inactiveWithoutHistory: 0, excludedNotStarted: 0 },
-    consolidated: { definitive, status: definitive ? "COMPLETE" : "PARTIAL", includedCount: definitive ? 1 : 0, expectedCount: 1, label: definitive ? "Consolidado definitivo" : "Subtotal de 0 de 1 sucursales esperadas", income: amount(definitive ? "9007199254740993.10" : null, definitive ? null : "NO_COMPLETE_SOURCES"), costs: amount(definitive ? "0.00" : null), expenses: amount(definitive ? "5.00" : null), grossMargin: amount(definitive ? "9007199254740993.10" : null, definitive ? null : "INCOMPLETE_SCOPE"), grossMarginPercent: amount(definitive ? "20.0000" : null, null, "PERCENT"), netResult: amount(definitive ? "50.00" : null), netResultPercent: amount(definitive ? "10.0000" : null, null, "PERCENT"), breakEvenSales: amount(definitive ? "25.00" : null), targetSales: null },
+    consolidated: { definitive, status: definitive ? "COMPLETE" : "PARTIAL", includedCount: definitive ? 1 : 0, expectedCount: 1, label: definitive ? "Consolidado definitivo" : "Subtotal de 0 de 1 sucursales esperadas", income: amount(definitive ? "9007199254740993.10" : null, definitive ? null : "NO_COMPLETE_SOURCES"), costs: amount(definitive ? "0.00" : null), expenses: amount(definitive ? "5.00" : null), grossMargin: amount(definitive ? "9007199254740993.10" : null, definitive ? null : "INCOMPLETE_SCOPE"), grossMarginPercent: amount(definitive ? "20.0000" : null, null, "PERCENT"), netResult: amount(definitive ? "50.00" : null), netResultPercent: amount(definitive ? "10.0000" : null, null, "PERCENT"), breakEvenSales: amount(definitive ? "25.00" : null), targetNetMargin: "0.2000", targetSales: amount(definitive ? "6.25" : null, definitive ? null : "INCOMPLETE_SCOPE"), targetDifference: amount(definitive ? "9007199254740986.85" : null, definitive ? null : "INCOMPLETE_SCOPE"), targetCompliance: amount(definitive ? "144115188075855889.6000" : null, definitive ? null : "INCOMPLETE_SCOPE", "PERCENT"), trafficLight: { status: definitive ? "COMPLETE" : "NOT_CALCULABLE", value: definitive ? "GREEN" : "NEUTRAL", reason: definitive ? null : "INCOMPLETE_SCOPE" } },
     branches: [branch(definitive ? "COMPLETE" : "PARTIAL")], sourceSignature: "signature", ...overrides };
 }
 test("período inicial del negocio cruza UTC sin depender del navegador", () => {
@@ -29,9 +29,25 @@ test("URL válida, ausente e inválida; la normalización produce formato canón
   const fallback = { year: 2026, month: 10 };
   assert.deepEqual(model.periodFromQuery(new URLSearchParams("year=2026&month=9"), fallback), { year: 2026, month: 9 });
   for (const query of ["year=2026&month=13", "year=0&month=9", "year=2026", "year=2026&month=9&month=10", "year=1e3&month=9", "year=2026&month=09"]) assert.deepEqual(model.periodFromQuery(new URLSearchParams(query), fallback), fallback);
-  assert.equal(model.queryIsCanonical(new URLSearchParams("year=2026&month=10"), fallback), true);
+  assert.equal(model.queryIsCanonical(new URLSearchParams("year=2026&month=10&targetMargin=0.20"), fallback), true);
   assert.equal(model.queryIsCanonical(new URLSearchParams("year=2026&month=09"), fallback), false);
   assert.equal(model.periodLabel({ year: 2026, month: 9 }), "Septiembre 2026");
+});
+test("margen de simulación se conserva en URL y se edita sin consultar en cada tecla", () => {
+  const query = new URLSearchParams("year=2026&month=9&targetMargin=0.25");
+  assert.equal(model.targetMarginFromQuery(query), "0.25");
+  assert.equal(model.targetMarginFromQuery(new URLSearchParams("targetMargin=texto")), "0.20");
+  assert.equal(model.queryIsCanonical(query, { year: 2026, month: 9 }, "summary", "0.25"), true);
+  assert.equal(model.dashboardHref({ year: 2026, month: 8 }, "comparisons", "0.25"), "/?year=2026&month=8&targetMargin=0.25&view=comparisons");
+  assert.equal(model.marginInput("0.2000"), "20,0");
+  assert.equal(model.marginFromInput("25,5"), "0.255");
+  assert.equal(model.marginFromInput("100,0"), "1.00");
+  assert.equal(model.marginFromInput("1e3"), null);
+  const html = render(MarginPicker, { margin: "0.20", onApply() {}, loading: false });
+  assert.match(html, /Margen objetivo consolidado en porcentaje/);
+  assert.match(html, /Aplicar simulación/);
+  assert.match(html, /20,0/);
+  assert.match(html, /no cambia metas de sucursal/);
 });
 test("selector tiene labels, año y mes y validación", () => {
   const html = render(PeriodPicker, { period: { year: 2026, month: 9 }, onSelect() {}, onRefresh() {}, loading: false });
@@ -48,10 +64,10 @@ test("cobertura separa faltantes, estados e inactivas; ayuda histórica accesibl
   const html = render(Coverage, { data });
   for (const text of ["Esperadas", "Con EERR", "Sin EERR", "Completas", "Pendientes", "Vacías", "Sin estructura", "Inactivas con histórico", "Excluidas por no haber iniciado", "fecha de baja", "Ver detalle de cobertura", "aria-label"] ) assert.match(html, new RegExp(text));
 });
-test("consolidado definitivo conserva precisión, cero y supuesto; no crea objetivo", () => {
+test("consolidado definitivo conserva precisión, cero y muestra objetivo transitorio", () => {
   const html = render(Consolidated, { data: response() });
   assert.match(html, /9\.007\.199\.254\.740\.993,10 ARS/); assert.match(html, /0,00 ARS/); assert.match(html, /20,0000 %/);
-  assert.match(html, /Punto de Equilibrio/); assert.match(html, /mezcla observada/); assert.match(html, /No hay Objetivo de Venta consolidado/);
+  assert.match(html, /Punto de Equilibrio/); assert.match(html, /mezcla observada/); assert.match(html, /Objetivo consolidado transitorio/); assert.match(html, /Cumplimiento/);
   assert.equal(model.formatDashboardMetric("-9007199254740993.10", "ARS"), "-9.007.199.254.740.993,10 ARS");
 });
 test("subtotal excluye derivados y explica fuentes", () => {
@@ -76,16 +92,23 @@ test("fuente inexistente carece de importe y de acción de creación para Lector
   const html = render(Branches, { data });
   assert.match(html, /Sin EERR/); assert.doesNotMatch(html, /0,00 ARS|Crear período|Abrir EERR/);
 });
-test("Dashboard muestra meta local y motivo neutral sin agregar objetivo consolidado", () => {
+test("Dashboard conserva el motivo neutral de una respuesta histórica v2 sin agregar objetivo consolidado", () => {
   const unavailable = { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: "TARGET_MARGIN_UNATTAINABLE" };
   const goals = { targetSales: unavailable, targetDifference: unavailable,
     targetCompliance: { ...unavailable, unit: "PERCENT" },
     trafficLight: { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: "TARGET_MARGIN_UNATTAINABLE" } };
   const data = response(true, { branches: [branch("COMPLETE", { goalIndicators: goals })] });
-  const html = render(Branches, { data });
-  for (const fragment of [/Objetivo de Venta/, /Cumplimiento/, /Semáforo/, /Neutral/, /meta iguala o supera/]) assert.match(html, fragment);
-  assert.doesNotMatch(html, /0,0000 %|NaN|Infinity/);
+  data.calculationVersion = 2;
+  data.consolidated.targetSales = null;
+  for (const field of ["targetNetMargin", "targetDifference", "targetCompliance", "trafficLight"]) delete data.consolidated[field];
+  const html = renderToStaticMarkup(React.createElement(React.Fragment, null,
+    React.createElement(Coverage, { data }), React.createElement(Consolidated, { data }), React.createElement(Branches, { data })));
+  for (const fragment of [/Objetivo de Venta/, /Cumplimiento/, /Semáforo/, /Neutral/, /Esta versión del análisis no pudo calcular/]) assert.match(html, fragment);
+  assert.match(html, /Consolidado definitivo|Resultado Neto|Objetivo consolidado no disponible en esta respuesta histórica/);
+  assert.doesNotMatch(html, /Objetivo consolidado transitorio|NaN|Infinity/);
   assert.equal(data.consolidated.targetSales, null);
+  assert.equal(model.matchesDashboardMargin(data, "0.20"), true);
+  assert.equal(model.matchesDashboardMargin(response(), "0.25"), false);
 });
 test("bloque pendiente muestra raya, nunca un cero inventado", () => {
   const data = response(false); data.branches = [branch("PENDING", { blocks: ROOTS.map((root) => ({ code: root.code, value: null, status: "PENDING" })) })];

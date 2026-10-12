@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { calculateConsolidatedGoal } from '@puro-origen/calculation-engine';
 import {
   ROOTS,
   assertStructure,
@@ -97,7 +98,7 @@ describe('dataset demostrativo integral', () => {
       structure.nodes.filter((node) => node.kind === 'ITEM' && node.note),
     ).toHaveLength(3);
   });
-  it('configura metas en ambas modalidades y una meta inalcanzable', () => {
+  it('configura metas en ambas modalidades y calcula la regla porcentual aprobada', () => {
     expect(DEMO_GOALS.map((goal) => goal.mode)).toEqual([
       'NET_MARGIN_PERCENT',
       'NET_MARGIN_PERCENT',
@@ -107,29 +108,40 @@ describe('dataset demostrativo integral', () => {
       'NET_MARGIN_PERCENT',
     ]);
     const results = expectedDemoResults();
-    expect(results.perEerr[0]!.projections.targetSales.reason).toBe(
-      'TARGET_MARGIN_UNATTAINABLE',
-    );
-    expect(results.perEerr[4]!.projections.targetSales.status).toBe('COMPLETE');
     expect(results.perEerr[0]!.projections).toMatchObject({
-      targetSales: { status: 'NOT_CALCULABLE', reason: 'TARGET_MARGIN_UNATTAINABLE' },
-      targetDifference: { status: 'NOT_CALCULABLE', reason: 'TARGET_MARGIN_UNATTAINABLE' },
-      targetCompliance: { status: 'NOT_CALCULABLE', reason: 'TARGET_MARGIN_UNATTAINABLE' },
-      trafficLight: { value: 'NEUTRAL', reason: 'TARGET_MARGIN_UNATTAINABLE' },
+      targetSales: { status: 'COMPLETE', value: '2132445.56', reason: null },
+      targetDifference: { value: '-1032413.81' },
+      targetCompliance: { value: '51.5855' },
+      trafficLight: { value: 'YELLOW', reason: null },
+    });
+    expect(results.perEerr[1]!.projections).toMatchObject({
+      targetSales: { value: '2566035.56' },
+      targetDifference: { value: '-1296022.66' },
+      targetCompliance: { value: '49.4932' },
+      trafficLight: { value: 'YELLOW' },
     });
     expect(results.perEerr[2]!.projections).toMatchObject({
       targetSales: { value: '1310025.53' },
       targetDifference: { value: '-9979.68' },
+      targetCompliance: { value: '99.2382' },
       trafficLight: { value: 'YELLOW' },
     });
     expect(results.perEerr[3]!.projections).toMatchObject({
       targetSales: { value: '1332554.80' },
       targetDifference: { value: '7464.40' },
+      targetCompliance: { value: '100.5602' },
       trafficLight: { value: 'GREEN' },
     });
     expect(results.perEerr[4]!.projections).toMatchObject({
-      targetSales: { value: '1749794.20' },
-      targetDifference: { value: '50221.50' },
+      targetSales: { value: '1775250.00' },
+      targetDifference: { value: '24765.70' },
+      targetCompliance: { value: '101.3951' },
+      trafficLight: { value: 'GREEN' },
+    });
+    expect(results.perEerr[5]!.projections).toMatchObject({
+      targetSales: { value: '1953288.47' },
+      targetDifference: { value: '146750.78' },
+      targetCompliance: { value: '107.5130' },
       trafficLight: { value: 'GREEN' },
     });
   });
@@ -175,6 +187,15 @@ describe('dataset demostrativo integral', () => {
     ).toBeGreaterThan(
       BigInt(result.consolidated[0]!.result.income.value!.replace('.', '')),
     );
+  });
+  it('simula 20 % y 25 % sobre las bases reales del manifiesto, sin Atlas', () => {
+    const rows = expectedDemoResults().consolidated;
+    expect(rows.map(({ result }) => [result.income.value, result.costs.value, result.expenses.value])).toEqual([
+      ['4200093.30', '1768989.30', '1736700.00'],
+      ['4710071.35', '2061271.45', '1762650.00'],
+    ]);
+    expect(rows.map(({ result }) => calculateConsolidatedGoal(result, '0.2000').targetSales.value)).toEqual(['4382111.63', '4779901.82']);
+    expect(rows.map(({ result }) => calculateConsolidatedGoal(result, '0.2500').targetSales.value)).toEqual(['4674252.40', '5098561.94']);
   });
   it('exige frases distintas para escritura y limpieza', () => {
     expect(APPLY_PHRASE).not.toBe(CLEAN_PHRASE);

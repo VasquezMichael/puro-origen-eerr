@@ -9,26 +9,27 @@ const { SalesGoalModal } = await import("../src/app/eerr/[id]/sales-goal-modal.t
 const metric = (value, unit = "ARS", reason = null) => ({ status: value === null ? "BLOCKED" : "COMPLETE", value, unit, reason });
 const fixture = (goal = null) => ({ salesGoal: goal,
   metrics: { grossMarginPercent: metric("40.0000", "PERCENT") }, projections: {
-  breakEvenSales: metric("50000.00"), targetSales: goal ? metric("66666.67") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
-  targetDifference: goal ? metric("-16666.67") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
-  targetCompliance: goal ? metric("75.0000", "PERCENT") : metric(null, "PERCENT", "GOAL_NOT_CONFIGURED"),
+  breakEvenSales: metric("50000.00"), targetSales: goal ? metric(goal.mode === "NET_MARGIN_PERCENT" ? "55555.56" : "5050000.00") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
+  targetDifference: goal ? metric(goal.mode === "NET_MARGIN_PERCENT" ? "-5555.56" : "-5000000.00") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
+  targetCompliance: goal ? metric(goal.mode === "NET_MARGIN_PERCENT" ? "90.0000" : "0.9901", "PERCENT") : metric(null, "PERCENT", "GOAL_NOT_CONFIGURED"),
   trafficLight: goal ? { status: "COMPLETE", value: "YELLOW", reason: null } : { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: "GOAL_NOT_CONFIGURED" },
-  targetReference: { ...goal ? metric(goal.mode === "NET_MARGIN_PERCENT" ? "6666.67" : "13.3333", goal.mode === "NET_MARGIN_PERCENT" ? "ARS" : "PERCENT") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"), type: goal ? goal.mode === "NET_MARGIN_PERCENT" ? "NET_PROFIT_AMOUNT" : "NET_MARGIN_PERCENT" : null },
+  targetReference: { ...goal ? metric(goal.mode === "NET_MARGIN_PERCENT" ? "5555.56" : "39.6040", goal.mode === "NET_MARGIN_PERCENT" ? "ARS" : "PERCENT") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"), type: goal ? goal.mode === "NET_MARGIN_PERCENT" ? "NET_PROFIT_AMOUNT" : "NET_MARGIN_PERCENT" : null },
 } });
 const render = (analysis, canEdit = false) => renderToStaticMarkup(React.createElement(ProjectionsSection,
   { analysis, canEdit, disabled: false, onConfigure() {}, onDelete() {} }));
 
 test("EERR presenta diferencia, cumplimiento y semáforo recibidos del análisis", () => {
   const html = render(fixture({ mode: "NET_MARGIN_PERCENT", value: "10.0000" }));
-  for (const text of ["Diferencia contra objetivo", "-16.666,67 ARS", "Cumplimiento del objetivo", "75,00 %", "Semáforo", "Amarillo"]) assert.match(html, new RegExp(text));
+  for (const text of ["Diferencia contra objetivo", "-5.555,56 ARS", "Cumplimiento del objetivo", "90,00 %", "Semáforo", "Amarillo"]) assert.match(html, new RegExp(text));
   const blocked = fixture({ mode: "NET_MARGIN_PERCENT", value: "55.0000" });
+  blocked.calculationVersion = 2; // Respuesta histórica: la API actual rechaza metas >= 100 %.
   blocked.projections.targetSales = metric(null, "ARS", "TARGET_MARGIN_UNATTAINABLE");
   blocked.projections.targetDifference = metric(null, "ARS", "TARGET_MARGIN_UNATTAINABLE");
   blocked.projections.targetCompliance = metric(null, "PERCENT", "TARGET_MARGIN_UNATTAINABLE");
   blocked.projections.trafficLight = { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: "TARGET_MARGIN_UNATTAINABLE" };
   const unavailable = render(blocked);
   assert.match(unavailable, /Neutral/);
-  assert.match(unavailable, /margen deseado iguala o supera/);
+  assert.match(unavailable, /Esta versión del análisis no pudo calcular/);
   assert.doesNotMatch(unavailable, /NaN|Infinity|0,0000 %/);
 });
 
@@ -92,15 +93,15 @@ test("porcentaje, monto y referencia se distinguen; cero no se confunde con null
   assert.match(percent, /Meta principal/);
   assert.match(percent, /Margen neto deseado/);
   assert.match(percent, /10,00 %/);
-  assert.match(percent, /66\.666,67 ARS/);
+  assert.match(percent, /55\.555,56 ARS/);
   assert.match(percent, /Ganancia neta estimada/);
-  assert.match(percent, /6\.666,67 ARS/);
+  assert.match(percent, /5\.555,56 ARS/);
   assert.match(percent, /Cambiar meta/);
   assert.match(percent, /Eliminar meta/);
   const amount = render(fixture({ mode: "NET_PROFIT_AMOUNT", value: "2000000.00" }));
   assert.match(amount, /2\.000\.000,00 ARS/);
   assert.match(amount, /Margen neto equivalente/);
-  assert.match(amount, /13,33 %/);
+  assert.match(amount, /39,60 %/);
   const zero = fixture(); zero.projections.breakEvenSales = metric("0.00");
   assert.match(render(zero), /0,00 ARS/);
 });
@@ -110,6 +111,9 @@ test("motivos no calculables se traducen sin códigos ni cero ficticio", () => {
     const data = fixture({ mode: "NET_PROFIT_AMOUNT", value: "1.00" });
     data.projections.breakEvenSales = metric(null, "ARS", reason);
     data.projections.targetSales = metric(null, "ARS", reason);
+    data.projections.targetDifference = metric(null, "ARS", reason);
+    data.projections.targetCompliance = metric(null, "PERCENT", reason);
+    data.projections.trafficLight = { status: "NOT_CALCULABLE", value: "NEUTRAL", reason };
     data.projections.targetReference = { ...metric(null, "PERCENT", reason), type: "NET_MARGIN_PERCENT" };
     const markup = render(data);
     assert.match(markup, /—/);
@@ -121,12 +125,13 @@ test("motivos no calculables se traducen sin códigos ni cero ficticio", () => {
 
 test("la ayuda contextual usa el porcentaje entregado por el análisis y conserva el motivo", () => {
   const data = fixture({ mode: "NET_MARGIN_PERCENT", value: "40.0000" });
+  data.calculationVersion = 2;
   data.metrics.grossMarginPercent = metric("37.1250", "PERCENT");
   data.projections.targetSales = metric(null, "ARS", "TARGET_MARGIN_UNATTAINABLE");
   const markup = render(data);
-  assert.match(markup, /El margen deseado iguala o supera el margen de contribución actual/);
+  assert.match(markup, /Esta versión del análisis no pudo calcular la meta de margen/);
   assert.match(markup, /aria-label="¿Por qué esta meta es inalcanzable\?"/);
-  assert.match(markup, /margen de contribución actual del 37,13 %/);
+  assert.match(markup, /margen de contribución del 37,13 %/);
   assert.match(markup, /role="tooltip"/);
   assert.match(markup, /aria-controls=/);
   assert.doesNotMatch(markup, /<[^>]+title=/);
@@ -134,11 +139,12 @@ test("la ayuda contextual usa el porcentaje entregado por el análisis y conserv
 
 test("sin porcentaje disponible la ayuda ofrece el texto general", () => {
   const data = fixture({ mode: "NET_MARGIN_PERCENT", value: "40.0000" });
+  data.calculationVersion = 2;
   data.metrics.grossMarginPercent = metric(null, "PERCENT", "PENDING_INPUTS");
   data.projections.targetSales = metric(null, "ARS", "TARGET_MARGIN_UNATTAINABLE");
   const markup = render(data);
-  assert.match(markup, /Con la estructura vigente, el margen neto puede aproximarse/);
-  assert.doesNotMatch(markup, /margen de contribución actual del/);
+  assert.match(markup, /una meta de margen menor al 100 % es calculable/);
+  assert.doesNotMatch(markup, /margen de contribución del/);
 });
 
 test("otras razones, incluso ZERO_DENOMINATOR de referencia, no reciben la ayuda", () => {

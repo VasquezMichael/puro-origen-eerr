@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsMongoId, Max, Min, ValidateIf } from 'class-validator';
+import { IsInt, IsMongoId, IsOptional, IsString, Matches, Max, Min, ValidateIf } from 'class-validator';
 
 export class CreateEerrDto {
   @IsMongoId({ message: 'Identificador de sucursal inválido' })
@@ -25,6 +25,7 @@ export class ListEerrDto {
 // Las query strings son texto; solo convertir una representación decimal entera.
 const queryInteger = ({ value }: { value: unknown }) =>
   typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+const targetMarginQueryPattern = /^(?:0|[1-9]\d{0,2})(?:\.\d{1,4})?$/;
 
 export class EerrMonthDto {
   @Transform(queryInteger)
@@ -52,6 +53,20 @@ export class ComparisonPeriodsDto extends EerrMonthDto {
   @Min(1)
   @Max(12)
   referenceMonth!: number;
+}
+
+export class DashboardQueryDto extends EerrMonthDto {
+  @IsOptional()
+  @IsString()
+  @Matches(targetMarginQueryPattern, { message: 'targetNetMargin debe ser un decimal no negativo con hasta cuatro cifras decimales' })
+  targetNetMargin?: string;
+}
+
+export class ConsolidatedComparisonDto extends ComparisonPeriodsDto {
+  @IsOptional()
+  @IsString()
+  @Matches(targetMarginQueryPattern, { message: 'targetNetMargin debe ser un decimal no negativo con hasta cuatro cifras decimales' })
+  targetNetMargin?: string;
 }
 
 export class BranchComparisonDto extends EerrMonthDto {

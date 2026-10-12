@@ -3,8 +3,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BranchPeriodComparisonResponse, BranchTableResponse, ComparisonBranch, ComparisonMetrics, ConsolidatedPeriodComparisonResponse, TwoBranchComparisonResponse } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "./eerr/api";
-import { MONTHS, metricReason, periodLabel, scopeLabel, trafficLightLabel, validPeriod, type Period } from "./dashboard-model";
-import { comparisonDescription, comparisonMetrics, comparisonPath, comparisonReason, formatComparisonValue, formatDifference, formatVariation, initialReference, itemComparisonOrNull, matchesComparison, sourceStatus } from "./comparison-model";
+import { marginInput, MONTHS, metricReason, periodLabel, scopeLabel, trafficLightLabel, validPeriod, type Period } from "./dashboard-model";
+import { comparisonDescription, comparisonMetrics, comparisonPath, comparisonReason, formatComparisonValue, formatDifference, formatVariation, initialReference, itemComparisonOrNull, matchesComparison, matchesConsolidatedMargin, sourceStatus } from "./comparison-model";
 import styles from "./dashboard.module.css";
 import { ItemComparisonTable } from "./item-comparison-table";
 
@@ -112,17 +112,36 @@ function CoverageSide({ title, side }: { title: string; side: ConsolidatedPeriod
   const c = side.coverage;
   return <div className={styles.coverageSide}><h3>{title} · {periodLabel(side.period)}</h3><p>{side.consolidated.definitive ? "Consolidado definitivo" : side.consolidated.label}</p><dl><div><dt>Esperadas</dt><dd>{c.expected}</dd></div><div><dt>Con EERR</dt><dd>{c.withEerr}</dd></div><div><dt>Completas</dt><dd>{c.complete}</dd></div><div><dt>Incompletas</dt><dd>{c.partial + c.pending + c.empty + c.uninitialized}</dd></div><div><dt>Sin EERR</dt><dd>{c.withoutEerr}</dd></div></dl></div>;
 }
-function ConsolidatedPeriods({ period }: { period: Period }) {
+export function ConsolidatedGoalComparison({ data }: { data: ConsolidatedPeriodComparisonResponse }) {
+  const hasGoal = (side: typeof data.current) => side.consolidated.targetNetMargin !== undefined
+    && !!side.consolidated.targetSales && !!side.consolidated.targetDifference
+    && !!side.consolidated.targetCompliance && !!side.consolidated.trafficLight;
+  if (!data.goalComparison || !hasGoal(data.current) || !hasGoal(data.reference))
+    return <p className={styles.note}>La respuesta no incluye comparación de metas consolidadas.</p>;
+  const names = [["targetSales", "Objetivo de Venta"], ["targetDifference", "Diferencia contra objetivo"], ["targetCompliance", "Cumplimiento"]] as const;
+  const light = (side: typeof data.current) => <>{<span className={styles.trafficLight} data-light={side.consolidated.trafficLight.value}>{trafficLightLabel(side.consolidated.trafficLight.value)}</span>}{side.consolidated.trafficLight.reason && <small>{metricReason(side.consolidated.trafficLight.reason)}</small>}</>;
+  return <div className={styles.tableScroll} role="region" aria-label="Comparación temporal de meta consolidada" tabIndex={0}><table className={styles.comparisonTable}>
+    <caption>Meta consolidada transitoria · {marginInput(data.current.consolidated.targetNetMargin)} %</caption>
+    <thead><tr><th scope="col">Indicador</th><th scope="col">Analizado · {periodLabel(data.current.period)}</th><th scope="col">Referencia · {periodLabel(data.reference.period)}</th><th scope="col">Diferencia</th><th scope="col">Variación</th></tr></thead>
+    <tbody>{names.map(([name, label]) => { const metric = data.goalComparison[name]; return <tr key={name}><th scope="row">{label}</th><td>{formatComparisonValue(metric.current, metric.unit)}{metric.current === null && <small>{metricReason(data.current.consolidated[name].reason)}</small>}</td><td>{formatComparisonValue(metric.reference, metric.unit)}{metric.reference === null && <small>{metricReason(data.reference.consolidated[name].reason)}</small>}</td><td>{formatDifference(metric)}</td><td>{formatVariation(metric)}{metric.reason && <small>{comparisonReason(metric.reason)}</small>}</td></tr>; })}
+      <tr><th scope="row">Semáforo</th><td>{light(data.current)}</td><td>{light(data.reference)}</td><td colSpan={2}>Estado por período; sin variación numérica.</td></tr>
+    </tbody>
+  </table></div>;
+}
+export function ConsolidatedComparisonResult({ data }: { data: ConsolidatedPeriodComparisonResponse }) {
+  return <><p className={styles.note}>{scopeLabel(data.scope)}. {comparisonDescription(data.current.period, data.reference.period)} El cambio de población no explica por sí solo una variación financiera.</p><div className={styles.coveragePair}><CoverageSide title="Analizado" side={data.current} /><CoverageSide title="Referencia" side={data.reference} /></div>{(!data.current.consolidated.definitive || !data.reference.consolidated.definitive) && <p className={styles.note}>La cobertura incompleta impide una comparación financiera definitiva. No se interpreta el subtotal como consolidado completo.</p>}<MetricTable metrics={data.metrics} current={periodLabel(data.current.period)} reference={periodLabel(data.reference.period)} /><ConsolidatedGoalComparison data={data} /></>;
+}
+function ConsolidatedPeriods({ period, targetMargin }: { period: Period; targetMargin: string }) {
   const [reference, setReference] = useState(() => initialReference(period)); const query = useQuery<ConsolidatedPeriodComparisonResponse>();
-  const compare = () => { if (!validPeriod(reference.year, reference.month)) return; query.run(comparisonPath("consolidated", period, reference), (data) => matchesComparison(data, period, reference)); };
+  const compare = () => { if (!validPeriod(reference.year, reference.month)) return; query.run(comparisonPath("consolidated", period, reference, undefined, undefined, targetMargin), (data) => matchesComparison(data, period, reference) && matchesConsolidatedMargin(data, targetMargin)); };
   const data = query.state.data;
   return <section className={styles.section} aria-labelledby="consolidated-comparison-title"><p className={styles.eyebrow}>Alcance autorizado</p><h2 id="consolidated-comparison-title">Consolidado entre períodos</h2><p>Período analizado: <strong>{periodLabel(period)}</strong>. La referencia inicial es el mes anterior.</p>
     <div className={styles.compareControls}><ReferencePicker prefix="Consolidado" period={reference} onChange={setReference} /><button type="button" disabled={!validPeriod(reference.year, reference.month) || query.state.loading} onClick={compare}>Comparar consolidados</button></div>
     <QueryFeedback state={query.state} retry={query.retry} />
-    {data && <><p className={styles.note}>{scopeLabel(data.scope)}. {comparisonDescription(data.current.period, data.reference.period)} El cambio de población no explica por sí solo una variación financiera.</p><div className={styles.coveragePair}><CoverageSide title="Analizado" side={data.current} /><CoverageSide title="Referencia" side={data.reference} /></div>{(!data.current.consolidated.definitive || !data.reference.consolidated.definitive) && <p className={styles.note}>La cobertura incompleta impide una comparación financiera definitiva. No se interpreta el subtotal como consolidado completo.</p>}<MetricTable metrics={data.metrics} current={periodLabel(data.current.period)} reference={periodLabel(data.reference.period)} /></>}
+    {data && <ConsolidatedComparisonResult data={data} />}
   </section>;
 }
-export function Comparisons({ period }: { period: Period }) {
+export function Comparisons({ period, targetMargin }: { period: Period; targetMargin: string }) {
   const [mode, setMode] = useState<"periods" | "branches" | "consolidated">("periods");
   const table = useQuery<BranchTableResponse>();
   const loadTable = table.run;
@@ -133,6 +152,6 @@ export function Comparisons({ period }: { period: Period }) {
     {table.state.data && <button type="button" onClick={table.retry} disabled={table.state.loading}>Actualizar sucursales</button>}
     {mode === "periods" && table.state.data && <BranchPeriods period={period} branches={table.state.data.branches} />}
     {mode === "branches" && table.state.data && <BranchesView period={period} table={table.state.data} />}
-    {mode === "consolidated" && <ConsolidatedPeriods period={period} />}
+    {mode === "consolidated" && <ConsolidatedPeriods key={targetMargin} period={period} targetMargin={targetMargin} />}
   </div>;
 }

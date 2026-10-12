@@ -36,18 +36,20 @@ Antes del go-live, ejecutar `clean` bajo control operativo, comprobar que no que
 
 ## Resultados esperados
 
-Los importes se expresan en ARS. `Objetivo` es la venta mínima calculada por el motor, no una cifra persistida. La meta porcentual de CALLE 13 es intencionalmente inalcanzable; el motivo esperado es `TARGET_MARGIN_UNATTAINABLE`.
+Los importes se expresan en ARS. `Objetivo` es la venta mínima calculada por el motor (`calculationVersion: 3`), no una cifra persistida. La meta de margen del 55 % de CALLE 13 supera la contribución observada, pero es calculable con la regla confirmada `(Costos + Gastos)/(1 − margen)`. Los documentos almacenados no requieren modificación.
 
 | Sucursal | Mes | Ingresos | Costos | Gastos generales | Resultado neto | Objetivo |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| CALLE 13 | ago | 1.100.031,75 | 500.200,50 | 459.400,00 | 140.431,25 | No calculable |
-| CALLE 13 | sep | 1.270.012,90 | 680.166,00 | 474.550,00 | 115.296,90 | No calculable |
+| CALLE 13 | ago | 1.100.031,75 | 500.200,50 | 459.400,00 | 140.431,25 | 2.132.445,56 |
+| CALLE 13 | sep | 1.270.012,90 | 680.166,00 | 474.550,00 | 115.296,90 | 2.566.035,56 |
 | CALLE 50 | ago | 1.300.045,85 | 538.888,80 | 587.000,00 | 174.157,05 | 1.310.025,53 |
 | CALLE 50 | sep | 1.340.019,20 | 553.940,45 | 591.700,00 | 194.378,75 | 1.332.554,80 |
-| CALLE 59 | ago | 1.800.015,70 | 729.900,00 | 690.300,00 | 379.815,70 | 1.749.794,20 |
-| CALLE 59 | sep | 2.100.039,25 | 827.165,00 | 696.400,00 | 576.474,25 | 1.803.587,81 |
-| Consolidado | ago | 4.200.093,30 | 1.768.989,30 | 1.736.700,00 | 694.404,00 | No aplica |
-| Consolidado | sep | 4.710.071,35 | 2.061.271,45 | 1.762.650,00 | 886.149,90 | No aplica |
+| CALLE 59 | ago | 1.800.015,70 | 729.900,00 | 690.300,00 | 379.815,70 | 1.775.250,00 |
+| CALLE 59 | sep | 2.100.039,25 | 827.165,00 | 696.400,00 | 576.474,25 | 1.953.288,47 |
+| Consolidado | ago | 4.200.093,30 | 1.768.989,30 | 1.736.700,00 | 694.404,00 | 4.382.111,63 (simulación 20 %) |
+| Consolidado | sep | 4.710.071,35 | 2.061.271,45 | 1.762.650,00 | 886.149,90 | 4.779.901,82 (simulación 20 %) |
+
+El objetivo consolidado se calcula bajo demanda con un margen transitorio propio, sin leer ni modificar las metas locales. Una simulación de 25 % produce 4.674.252,40 en agosto y 5.098.561,94 en septiembre.
 
 Entre agosto y septiembre, CALLE 13 vende más pero cae su resultado; CALLE 50 crece levemente y CALLE 59 mejora con fuerza. El ingreso consolidado aumenta 509.978,05 y el resultado neto 191.745,90. Las comparaciones exactas por sucursal, entre sucursales y del consolidado se emiten en `plan` mediante `compareMetricValues` y `aggregateEerr`; no se recalculan con fórmulas del script.
 

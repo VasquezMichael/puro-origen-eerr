@@ -5,7 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 const model = await import("../src/app/comparison-model.ts");
 const dashboard = await import("../src/app/dashboard-model.ts");
-const { Comparisons, GoalComparison, TwoBranches } = await import("../src/app/dashboard-comparisons.tsx");
+const { Comparisons, ConsolidatedComparisonResult, ConsolidatedGoalComparison, GoalComparison, TwoBranches } = await import("../src/app/dashboard-comparisons.tsx");
 const comparisonFixture = await import("./comparison-browser-fixture.mts");
 
 test("fixture limita indicadores de metas a la comparación temporal", () => {
@@ -33,6 +33,33 @@ test("comparación temporal presenta metas y semáforos sin calcular variación 
   for (const fragment of [/Metas locales por período/, /Objetivo de Venta/, /Diferencia contra objetivo/, /Cumplimiento/, /Verde/, /Amarillo/, /sin variación numérica/]) assert.match(html, fragment);
   assert.match(renderToStaticMarkup(React.createElement(GoalComparison, { data: { ...data, goalComparison: undefined } })), /no incluye comparación/);
 });
+test("comparación consolidada muestra el mismo margen por lado y no compara colores", () => {
+  const data = comparisonFixture.consolidatedFixture(2026, 9, 2026, 8, false, "0.25");
+  const html = renderToStaticMarkup(React.createElement(ConsolidatedGoalComparison, { data }));
+  assert.equal(data.current.consolidated.targetNetMargin, "0.2500");
+  assert.equal(data.reference.consolidated.targetNetMargin, "0.2500");
+  for (const fragment of [/25,0 %/, /Objetivo de Venta/, /Diferencia contra objetivo/, /Cumplimiento/, /Semáforo/, /sin variación numérica/]) assert.match(html, fragment);
+  const partial = comparisonFixture.consolidatedFixture(2026, 9, 2026, 8, true);
+  const partialHtml = renderToStaticMarkup(React.createElement(ConsolidatedGoalComparison, { data: partial }));
+  assert.match(partialHtml, /Neutral/);
+  assert.match(partialHtml, /cobertura está incompleta/);
+});
+test("comparación histórica v2 conserva cobertura y tabla financiera sin metas consolidadas", () => {
+  const data = comparisonFixture.consolidatedFixture(2026, 9, 2026, 8);
+  data.calculationVersion = 2;
+  delete data.goalComparison;
+  for (const side of [data.current, data.reference]) {
+    side.consolidated.targetSales = null;
+    for (const field of ["targetNetMargin", "targetDifference", "targetCompliance", "trafficLight"]) delete side.consolidated[field];
+  }
+  assert.equal(model.matchesComparison(data, { year: 2026, month: 9 }, { year: 2026, month: 8 }), true);
+  assert.equal(model.matchesConsolidatedMargin(data, "0.20"), true);
+  const html = renderToStaticMarkup(React.createElement(ConsolidatedComparisonResult, { data }));
+  for (const fragment of [/Consolidado entre|Consolidado definitivo|Esperadas|Tabla de indicadores comparados|Ingresos|La respuesta no incluye comparación de metas consolidadas/]) assert.match(html, fragment);
+  assert.doesNotMatch(html, /NaN|Infinity|Objetivo de Venta/);
+  const current = comparisonFixture.consolidatedFixture(2026, 9, 2026, 8);
+  assert.equal(model.matchesConsolidatedMargin(current, "0.25"), false);
+});
 const { ItemComparisonTable } = await import("../src/app/item-comparison-table.tsx");
 
 test('tabla de ítems diferencia ausente, pendiente, cero y cantidad sin recalcular', () => {
@@ -48,7 +75,7 @@ test('tabla de ítems diferencia ausente, pendiente, cero y cantidad sin recalcu
 
 test('la web renderiza respuesta moderna, null explícito y legacy sin itemComparison', () => {
   const period = month => ({ year: 2026, month });
-  const response = { orientation: 'CURRENT_MINUS_REFERENCE', calculationVersion: 2,
+  const response = { orientation: 'CURRENT_MINUS_REFERENCE', calculationVersion: 3,
     current: { period: period(9), branch: { branchId: 'a' }, sourceSignature: 'one' },
     reference: { period: period(8), branch: { branchId: 'a' }, sourceSignature: 'two' } };
   const modern = { orientation: 'LATER_MINUS_EARLIER', periods: [period(8), period(9)], items: [] };
@@ -69,8 +96,8 @@ test("Resumen es inicial; Comparaciones conserva el período en URL y normaliza 
   const period = { year: 2026, month: 10 };
   assert.equal(dashboard.viewFromQuery(new URLSearchParams("year=2026&month=10")), "summary");
   assert.equal(dashboard.viewFromQuery(new URLSearchParams("view=comparisons")), "comparisons");
-  assert.equal(dashboard.dashboardHref(period, "comparisons"), "/?year=2026&month=10&view=comparisons");
-  assert.equal(dashboard.dashboardHref(period, "summary"), "/?year=2026&month=10");
+  assert.equal(dashboard.dashboardHref(period, "comparisons"), "/?year=2026&month=10&targetMargin=0.20&view=comparisons");
+  assert.equal(dashboard.dashboardHref(period, "summary"), "/?year=2026&month=10&targetMargin=0.20");
   assert.equal(dashboard.queryIsCanonical(new URLSearchParams("year=2026&month=10&view=no"), period, "summary"), false);
 });
 test("referencia anterior cruza enero y las rutas conservan orientación y selección explícita", () => {
@@ -78,15 +105,16 @@ test("referencia anterior cruza enero y las rutas conservan orientación y selec
   assert.deepEqual(reference, { year: 2025, month: 12 });
   assert.equal(model.comparisonPath("branch-period", period, reference, "abc"), "/analytics/branches/abc/period-comparison?year=2026&month=1&referenceYear=2025&referenceMonth=12");
   assert.equal(model.comparisonPath("two-branches", period, reference, "a", "b"), "/analytics/branches/compare?year=2026&month=1&branchId=a&referenceBranchId=b");
+  assert.equal(model.comparisonPath("consolidated", period, reference, undefined, undefined, "0.25"), "/analytics/consolidated/compare?year=2026&month=1&referenceYear=2025&referenceMonth=12&targetNetMargin=0.25");
 });
 test("valida período, firmas, orientación e IDs de respuestas, incluidas antiguas", () => {
   const a = { year: 2026, month: 9 }, b = { year: 2026, month: 8 };
-  const response = { orientation: "CURRENT_MINUS_REFERENCE", calculationVersion: 2, current: { period: a, branch: { branchId: "a" }, sourceSignature: "one" }, reference: { period: b, branch: { branchId: "a" }, sourceSignature: "two" } };
+  const response = { orientation: "CURRENT_MINUS_REFERENCE", calculationVersion: 3, current: { period: a, branch: { branchId: "a" }, sourceSignature: "one" }, reference: { period: b, branch: { branchId: "a" }, sourceSignature: "two" } };
   assert.equal(model.matchesComparison(response, a, b, "a"), true);
   assert.equal(model.matchesComparison(response, a, b, "b"), false);
   assert.equal(model.matchesComparison(response, b, a, "a"), false);
   assert.equal(model.matchesComparison({ ...response, orientation: "REFERENCE_MINUS_CURRENT" }, a, b, "a"), false);
-  const pair = { orientation: "CURRENT_MINUS_REFERENCE", calculationVersion: 2, period: a, current: { branchId: "a" }, reference: { branchId: "b" }, sourceSignature: "both" };
+  const pair = { orientation: "CURRENT_MINUS_REFERENCE", calculationVersion: 3, period: a, current: { branchId: "a" }, reference: { branchId: "b" }, sourceSignature: "both" };
   assert.equal(model.matchesComparison(pair, a, a, "a", "b"), true);
   assert.equal(model.matchesComparison(pair, a, a, "b", "a"), false);
 });

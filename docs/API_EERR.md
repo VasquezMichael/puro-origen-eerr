@@ -442,10 +442,15 @@ en documentos antiguos) y `projections`: `breakEvenSales`, `targetSales` y
 la referencia añade type de la modalidad alternativa o null sin meta. Los
 motivos nuevos son UNINITIALIZED, PENDING_INPUTS, EMPTY_INPUT, ZERO_REVENUE,
 NON_POSITIVE_CONTRIBUTION_MARGIN, GOAL_NOT_CONFIGURED,
-TARGET_MARGIN_UNATTAINABLE y ZERO_DENOMINATOR. Los primeros bloquean la métrica;
+TARGET_MARGIN_UNATTAINABLE y ZERO_DENOMINATOR. El margen objetivo de al menos 100 %
+produce `TARGET_MARGIN_UNATTAINABLE` en el motor; la API no permite guardarlo y
+un margen válido no se bloquea por superar la contribución observada. Los motivos
+de bloqueo dejan la métrica sin valor;
 ZERO_DENOMINATOR en la referencia es NOT_CALCULABLE. Punto de equilibrio y
 objetivo tienen dos decimales y techo al centavo; referencia usa HALF_UP. La
-respuesta indica `calculationVersion: 2` y `sourceRevision`; GET no escribe.
+respuesta indica `calculationVersion: 3` y `sourceRevision`; GET no escribe.
+El Punto de Equilibrio y la meta por resultado mantienen la tasa observada
+Costos/Ingresos; el objetivo por margen usa `(Costos + Gastos)/(1 − margen)`.
 
 ## EP-06A.1 — GET /analytics/dashboard
 
@@ -470,7 +475,7 @@ branchId cada sucursal autorizada, con eerrId/revision o null.
 `consolidated` incluye estado COMPLETE/PARTIAL/PENDING/EMPTY, `definitive`,
 `includedCount`, `expectedCount`, etiqueta, bases income/costs/expenses,
 grossMargin y porcentaje, netResult y porcentaje, breakEvenSales y
-`targetSales: null`. Cada métrica lleva status, value string/null, unit y
+un objetivo consolidado transitorio en `targetSales`. Cada métrica lleva status, value string/null, unit y
 reason. Dinero usa dos decimales; porcentajes, cuatro. Sin ninguna fuente
 completa, las bases tienen motivo NO_COMPLETE_SOURCES. Si el alcance está
 incompleto, solo las bases de EERR completos contienen valores: derivados y
@@ -481,7 +486,7 @@ del supuesto de mezcla observada aparece únicamente si es calculable.
 La población usa el mes de inicio actual en America/Argentina/Buenos_Aires.
 Una activa posterior al mes se excluye; una inactiva entra solo con EERR del
 mes. Editar la fecha de inicio cambia potencialmente cobertura histórica.
-No se suman derivados ni metas locales; no existe Objetivo consolidado.
+No se suman derivados ni metas locales; el objetivo consolidado se calcula por separado sobre las bases definitivas.
 
 La API lee fuentes en lote, calcula sin escritura y vuelve a verificar membresía,
 metadatos de sucursales, IDs, revisiones y ausencias. Reintenta una vez. Si
@@ -516,6 +521,13 @@ Cada importe distingue `NO_EXISTIA` (ítem ausente), `SIN_CARGAR` (celda pendien
 
 ## EP-06: metas locales en análisis y analytics
 
-`GET /eerr/:id/analysis` agrega a `projections` `targetDifference`, `targetCompliance` y `trafficLight`, junto al `targetSales` existente. Los resultados numéricos usan `status`, `value`, `unit` y `reason`; el semáforo usa `status`, `value` (`RED`, `YELLOW`, `GREEN`, `NEUTRAL`) y `reason`. El margen inalcanzable conserva `TARGET_MARGIN_UNATTAINABLE`. Con objetivo cero o negativo, la diferencia absoluta sigue disponible, el cumplimiento es `NOT_CALCULABLE` y el semáforo es `NEUTRAL`; ambos llevan `NON_POSITIVE_TARGET`.
+`GET /eerr/:id/analysis` agrega a `projections` `targetDifference`, `targetCompliance` y `trafficLight`, junto al `targetSales` existente. Los resultados numéricos usan `status`, `value`, `unit` y `reason`; el semáforo usa `status`, `value` (`RED`, `YELLOW`, `GREEN`, `NEUTRAL`) y `reason`. `TARGET_MARGIN_UNATTAINABLE` permanece en el contrato para entradas de al menos 100 % procesadas directamente por el motor y respuestas antiguas, no para márgenes válidos superiores a la contribución observada. Con objetivo cero o negativo, la diferencia absoluta sigue disponible, el cumplimiento es `NOT_CALCULABLE` y el semáforo es `NEUTRAL`; ambos llevan `NON_POSITIVE_TARGET`.
 
-`GET /analytics/dashboard` expone `goalIndicators` por sucursal esperada con EERR, sin modificar el consolidado. La comparación temporal de una sucursal incluye esos indicadores por lado y `goalComparison` para las tres métricas numéricas. Las ocho métricas financieras previas y `itemComparison` no cambian. El OpenAPI temporal completo está en `openapi-analytics-items.yaml`. La comparación entre sucursales no añade diferencias de metas.
+`GET /analytics/dashboard` expone `goalIndicators` por sucursal esperada con EERR, sin modificar sus metas locales. La comparación temporal de una sucursal incluye esos indicadores por lado y `goalComparison` para las tres métricas numéricas. Las ocho métricas financieras previas y `itemComparison` no cambian. El OpenAPI temporal completo está en `openapi-analytics-items.yaml`. La comparación entre sucursales no añade diferencias de metas.
+
+## EP-06: objetivo consolidado transitorio
+
+`GET /analytics/dashboard?year=2026&month=9&targetNetMargin=0.20` acepta el margen consolidado opcional como fracción decimal no negativa hasta `999.9999`: admite enteros como `0` y `1` o entre una y cuatro cifras decimales; por defecto usa `0.20`. La respuesta normaliza `consolidated.targetNetMargin` a cuatro decimales (`0.2000`) y agrega `targetSales`, `targetDifference`, `targetCompliance` y `trafficLight`. El margen igual o mayor que uno llega al motor y devuelve `TARGET_MARGIN_UNATTAINABLE` aun si la base es incompleta; con margen válido se evalúa la cobertura antes de calcular el objetivo. No se guarda ni se infiere de metas locales. Solo se calcula un objetivo definitivo con cobertura completa; con subtotal, las métricas quedan bloqueadas y el semáforo neutral. La web conserva las métricas financieras de una respuesta histórica v2 sin estos indicadores y muestra el objetivo consolidado como no disponible.
+
+`GET /analytics/consolidated/compare` acepta el mismo `targetNetMargin` opcional y lo aplica a ambos períodos. `current.consolidated` y `reference.consolidated` conservan cobertura y métricas previas; `goalComparison` agrega las diferencias de las tres métricas numéricas mediante la regla existente. El semáforo se presenta por período, sin variación entre colores. La web conserva la simulación en `targetMargin` de la URL, con edición y aplicación explícita; actualizar y navegar Atrás/Adelante conservan el margen aplicado. [OpenAPI del consolidado](openapi-analytics-consolidated.yaml).
+Si una respuesta histórica v2 carece de `goalComparison`, la web conserva la tabla financiera y presenta la comparación de metas como no disponible.

@@ -11,7 +11,8 @@ import {
   type StructureNode,
 } from "@puro-origen/domain";
 
-export const CALCULATION_VERSION = 2;
+export const CALCULATION_VERSION = 3;
+export const DEFAULT_CONSOLIDATED_TARGET_NET_MARGIN = "0.2000";
 export type ScopeStatus = "EMPTY" | "PENDING" | "PARTIAL" | "COMPLETE";
 export type MetricStatus = "COMPLETE" | "BLOCKED" | "NOT_CALCULABLE";
 export type MetricReason =
@@ -107,6 +108,13 @@ export type AggregateCalculation = {
   breakEvenSales: AggregateMetric;
   targetSales: null;
 };
+export type ConsolidatedGoalCalculation = {
+  targetNetMargin: string;
+  targetSales: AggregateMetric;
+  targetDifference: AggregateMetric;
+  targetCompliance: AggregateMetric;
+  trafficLight: Omit<TrafficLightResult, "reason"> & { reason: AggregateReason | null };
+};
 
 type Accumulator = { total: number; loaded: number; cents: bigint };
 const emptyAccumulator = (): Accumulator => ({
@@ -137,6 +145,12 @@ function breakEvenCents(
   expenses: bigint,
 ): bigint {
   return divideCeiling(expenses * income, contribution);
+}
+
+/** Misma regla v3 para metas locales y simulaciones consolidadas. */
+function marginTargetCents(costs: bigint, expenses: bigint, percentUnits: bigint): bigint | null {
+  const denominator = 1000000n - percentUnits;
+  return denominator <= 0n ? null : divideCeiling((costs + expenses) * 1000000n, denominator);
 }
 
 function projectionReason(
@@ -194,17 +208,16 @@ function projections(
     };
   let targetCents: bigint;
   if (goal.mode === "NET_MARGIN_PERCENT") {
-    if (!/^\d{1,2}\.\d{4}$/.test(goal.value))
-      throw new Error("Meta persistida inválida");
+    if (!/^(?:0|[1-9]\d*)\.\d{4}$/.test(goal.value)) throw new Error("Meta persistida inválida");
     const percentUnits = BigInt(goal.value.replace(".", ""));
-    const denominator = contribution * 1000000n - income * percentUnits;
-    if (denominator <= 0n)
+    const marginTarget = marginTargetCents(income - contribution, expenses, percentUnits);
+    if (marginTarget === null)
       return {
         breakEvenSales,
         targetSales: { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: "TARGET_MARGIN_UNATTAINABLE" },
         targetReference: blockedReference("TARGET_MARGIN_UNATTAINABLE"),
       };
-    targetCents = divideCeiling(expenses * income * 1000000n, denominator);
+    targetCents = marginTarget;
     return {
       breakEvenSales,
       targetSales: monetary(targetCents),
@@ -429,6 +442,43 @@ export function aggregateEerr(
     breakEvenSales,
     targetSales: null,
   };
+}
+
+/** Aplica una meta transitoria a bases agregadas definitivas; nunca usa metas locales. */
+export function calculateConsolidatedGoal(
+  aggregate: AggregateCalculation,
+  targetNetMargin: string,
+): ConsolidatedGoalCalculation {
+  if (!/^(?:0|[1-9]\d*)\.\d{4}$/.test(targetNetMargin)) throw new Error("Margen objetivo inválido");
+  const unavailable = (unit: AggregateMetric["unit"], reason: AggregateReason): AggregateMetric =>
+    ({ status: "BLOCKED", value: null, unit, reason });
+  const neutral = (reason: AggregateReason): ConsolidatedGoalCalculation["trafficLight"] =>
+    ({ status: "NOT_CALCULABLE", value: "NEUTRAL", reason });
+  const marginUnits = BigInt(targetNetMargin.replace(".", "")) * 100n;
+  if (marginUnits >= 1000000n) {
+    const reason = "TARGET_MARGIN_UNATTAINABLE";
+    const notCalculable = (unit: AggregateMetric["unit"]): AggregateMetric =>
+      ({ status: "NOT_CALCULABLE", value: null, unit, reason });
+    return { targetNetMargin, targetSales: notCalculable("ARS"),
+      targetDifference: notCalculable("ARS"), targetCompliance: notCalculable("PERCENT"),
+      trafficLight: neutral(reason) };
+  }
+  if (!aggregate.definitive) {
+    const reason = aggregate.includedCount === 0 ? "NO_COMPLETE_SOURCES" : "INCOMPLETE_SCOPE";
+    return { targetNetMargin, targetSales: unavailable("ARS", reason),
+      targetDifference: unavailable("ARS", reason), targetCompliance: unavailable("PERCENT", reason),
+      trafficLight: neutral(reason) };
+  }
+  const income = aggregateCents(aggregate.income.value!);
+  const costs = aggregateCents(aggregate.costs.value!);
+  const expenses = aggregateCents(aggregate.expenses.value!);
+  const targetSales: MetricResult = income === 0n
+    ? blocked("ARS", "ZERO_REVENUE")
+    : income - costs <= 0n
+      ? blocked("ARS", "NON_POSITIVE_CONTRIBUTION_MARGIN")
+      : monetary(marginTargetCents(costs, expenses, marginUnits)!);
+  const indicators = calculateGoalIndicators(monetary(income), aggregate.breakEvenSales as MetricResult, targetSales);
+  return { targetNetMargin, targetSales, ...indicators };
 }
 function percentage(numerator: bigint, denominator: bigint): MetricResult {
   if (denominator === 0n)

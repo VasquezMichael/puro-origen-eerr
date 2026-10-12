@@ -457,7 +457,9 @@ repitieron contra la build de producción con API simulada en los cinco tamaños
 Pruebas web verifican que solo `TARGET_MARGIN_UNATTAINABLE` del Objetivo de Venta
 presenta la ayuda, que conserva el motivo principal y que el porcentaje mostrado
 proviene de `grossMarginPercent` del mismo análisis; si falta, usa el texto
-general. `ZERO_DENOMINATOR` y otros motivos no se mezclan.
+general. Esta prueba de presentación cubre respuestas antiguas o metas inválidas
+de al menos 100 %; un margen válido superior a la contribución observada ya es
+calculable. `ZERO_DENOMINATOR` y otros motivos no se mezclan.
 
 Chromium con API simulada recorre hover, foco, Enter, Espacio, toque, Escape,
 salida de foco y clic/toque exterior en los cinco tamaños habituales. Comprueba
@@ -519,3 +521,7 @@ El motor puro cubre diferencias orientadas exactas, cero y referencia negativa, 
 Pruebas unitarias web verifican URL de Resumen/Comparaciones, referencia anterior incluso enero, rutas explícitas, orientación y firmas, precisión monetaria, puntos porcentuales, variación entregada y motivos de ausencia, incompletitud y subtotal. `comparison.browser.mjs` usa Chromium y respuestas simuladas tipadas según los contratos para recorrer consulta diferida, selectores pendientes, 409 y reintento, sucursales accesibles, dos sucursales distintas, consolidado parcial y navegación Atrás/Adelante. Revisa capturas y desbordes en 1600×900, 1440×900, 1280×720, 1024×768, 768×1024 y 390×844. El navegador no inicia API ni accede a Atlas. La aceptación visual con datos reales de negocio sigue pendiente.
 
 Se aplicaron y restauraron seis mutaciones manuales en el modelo de presentación: romper el cruce enero/diciembre, aceptar orientación inversa, usar `%` en vez de `pp`, convertir importes a `Number`, convertir ausencia en cero y mostrar una variación no entregada. La prueba unitaria específica detectó las seis. Los recorridos de navegador verifican además selección pendiente, respuesta tardía, misma sucursal en ambos lados y derivados bloqueados por cobertura incompleta.
+
+## EP-06: objetivo consolidado transitorio
+
+Verificar el margen predeterminado 20 % y alternativo 25 % en agosto y septiembre de 2026 con las bases del manifiesto demo; comprobar el redondeo al centavo, diferencia, cumplimiento y semáforo. Cubrir margen 0, válido cercano a 100 % y al menos 100 %, objetivo cero, límites rojo/amarillo/verde y cobertura parcial. En HTTP sin Atlas, comprobar validación de query, permisos, ausencia de escrituras, conservación de metas locales y el mismo margen en los dos lados de la comparación. En web, comprobar aplicación explícita, URL compartible, refresh, Atrás/Adelante, estados neutrales y scroll en tamaños reducidos.

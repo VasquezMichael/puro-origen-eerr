@@ -6,8 +6,8 @@ import styles from "./results-statement.module.css";
 
 export function unattainableHelpText(contributionPercent: string | null): string {
   if (contributionPercent === null)
-    return "La meta debe ser menor al margen de contribución actual. Con la estructura vigente, el margen neto puede aproximarse a ese porcentaje, pero no alcanzarlo mientras existan gastos generales.";
-  return `La meta debe ser menor al margen de contribución actual del ${formatAnalysisPercent(contributionPercent)}. Puede aproximarse a ese valor, pero no alcanzarlo mientras existan gastos generales.`;
+    return "Esta respuesta puede provenir de un cálculo anterior. Con la regla actual, una meta de margen menor al 100 % es calculable si los datos base están completos. Una meta del 100 % o más no es válida.";
+  return `Esta respuesta puede provenir de un cálculo anterior que comparaba la meta con el margen de contribución del ${formatAnalysisPercent(contributionPercent)}. Con la regla actual, una meta menor al 100 % es calculable si los datos base están completos.`;
 }
 
 export function UnattainableHelp({ contributionPercent }: { contributionPercent: string | null }) {
