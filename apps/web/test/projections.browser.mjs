@@ -40,8 +40,15 @@ function analysis(revision, currentGoal, scenario) {
     salesGoal: currentGoal,
     projections: {
       breakEvenSales: metric(blocked ? null : "33.34", "ARS", blocked ? "PENDING_INPUTS" : null),
-      targetSales: metric(!currentGoal || blocked || unattainable ? null : "50.00", "ARS",
-        !currentGoal ? "GOAL_NOT_CONFIGURED" : reason),
+      targetSales: { ...metric(!currentGoal || blocked || unattainable ? null : "50.00", "ARS",
+        !currentGoal ? "GOAL_NOT_CONFIGURED" : reason), status: unattainable ? "NOT_CALCULABLE" : !currentGoal || blocked ? "BLOCKED" : "COMPLETE" },
+      targetDifference: { ...metric(!currentGoal || blocked || unattainable ? null : "50.00", "ARS",
+        !currentGoal ? "GOAL_NOT_CONFIGURED" : reason), status: !currentGoal || blocked || unattainable ? "NOT_CALCULABLE" : "COMPLETE" },
+      targetCompliance: { ...metric(!currentGoal || blocked || unattainable ? null : "200.0000", "PERCENT",
+        !currentGoal ? "GOAL_NOT_CONFIGURED" : reason), status: !currentGoal || blocked || unattainable ? "NOT_CALCULABLE" : "COMPLETE" },
+      trafficLight: !currentGoal || blocked || unattainable
+        ? { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: !currentGoal ? "GOAL_NOT_CONFIGURED" : reason }
+        : { status: "COMPLETE", value: "GREEN", reason: null },
       targetReference: { ...metric(!currentGoal || blocked || unattainable ? null
         : referenceUnit === "PERCENT" ? "12.3456" : "9007199254740993.10", referenceUnit,
       !currentGoal ? "GOAL_NOT_CONFIGURED" : reason), type: currentGoal?.mode ?? null },

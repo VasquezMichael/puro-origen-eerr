@@ -76,6 +76,17 @@ test("fuente inexistente carece de importe y de acción de creación para Lector
   const html = render(Branches, { data });
   assert.match(html, /Sin EERR/); assert.doesNotMatch(html, /0,00 ARS|Crear período|Abrir EERR/);
 });
+test("Dashboard muestra meta local y motivo neutral sin agregar objetivo consolidado", () => {
+  const unavailable = { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: "TARGET_MARGIN_UNATTAINABLE" };
+  const goals = { targetSales: unavailable, targetDifference: unavailable,
+    targetCompliance: { ...unavailable, unit: "PERCENT" },
+    trafficLight: { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: "TARGET_MARGIN_UNATTAINABLE" } };
+  const data = response(true, { branches: [branch("COMPLETE", { goalIndicators: goals })] });
+  const html = render(Branches, { data });
+  for (const fragment of [/Objetivo de Venta/, /Cumplimiento/, /Semáforo/, /Neutral/, /meta iguala o supera/]) assert.match(html, fragment);
+  assert.doesNotMatch(html, /0,0000 %|NaN|Infinity/);
+  assert.equal(data.consolidated.targetSales, null);
+});
 test("bloque pendiente muestra raya, nunca un cero inventado", () => {
   const data = response(false); data.branches = [branch("PENDING", { blocks: ROOTS.map((root) => ({ code: root.code, value: null, status: "PENDING" })) })];
   const html = render(Branches, { data });

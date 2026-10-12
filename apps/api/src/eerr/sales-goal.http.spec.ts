@@ -187,6 +187,11 @@ describe('EP-05B.1 HTTP: meta por EERR', () => {
     expect((await get().expect(200)).body).toMatchObject({
       sourceRevision: 2,
       salesGoal: { value: '10.0000' },
+      projections: {
+        targetDifference: { status: 'NOT_CALCULABLE', value: null, reason: 'EMPTY_INPUT' },
+        targetCompliance: { status: 'NOT_CALCULABLE', value: null, reason: 'EMPTY_INPUT' },
+        trafficLight: { status: 'NOT_CALCULABLE', value: 'NEUTRAL', reason: 'EMPTY_INPUT' },
+      },
     });
     expect(store.writes).toBe(writes);
     await put({

@@ -38,7 +38,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [orientation, timezone, scope, calculationVersion, current, reference, metrics, itemComparison]
+                required: [orientation, timezone, scope, calculationVersion, current, reference, metrics, goalComparison, itemComparison]
                 properties:
                   orientation: { type: string, const: CURRENT_MINUS_REFERENCE }
                   timezone: { type: string, const: America/Argentina/Buenos_Aires }
@@ -47,6 +47,7 @@ paths:
                   current: { $ref: '#/components/schemas/ComparisonSide' }
                   reference: { $ref: '#/components/schemas/ComparisonSide' }
                   metrics: { $ref: '#/components/schemas/ComparisonMetrics' }
+                  goalComparison: { $ref: '#/components/schemas/GoalComparisonMetrics' }
                   itemComparison:
                     oneOf:
                       - type: 'null'
@@ -85,7 +86,7 @@ components:
         sourceSignature: { type: string }
     ComparisonBranch:
       type: object
-      required: [branchId, name, active, temporal, eerrId, revision, loadStatus, status, reason, metrics]
+      required: [branchId, name, active, temporal, eerrId, revision, loadStatus, status, reason, metrics, goalIndicators]
       properties:
         branchId: { type: string, pattern: '^[0-9a-fA-F]{24}$' }
         name: { type: string }
@@ -97,6 +98,44 @@ components:
         status: { type: string, enum: [COMPLETE, PARTIAL, PENDING, EMPTY, UNINITIALIZED, NO_EERR, EXCLUDED, INVALID] }
         reason: { type: [string, 'null'] }
         metrics: { $ref: '#/components/schemas/ComparisonBranchMetrics' }
+        goalIndicators:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/LocalGoalIndicators'
+    LocalGoalIndicators:
+      type: object
+      required: [targetSales, targetDifference, targetCompliance, trafficLight]
+      properties:
+        targetSales: { $ref: '#/components/schemas/GoalMetric' }
+        targetDifference: { $ref: '#/components/schemas/GoalMetric' }
+        targetCompliance: { $ref: '#/components/schemas/GoalMetric' }
+        trafficLight:
+          type: object
+          description: Un objetivo de venta no positivo produce status NOT_CALCULABLE, value NEUTRAL y reason NON_POSITIVE_TARGET.
+          required: [status, value, reason]
+          properties:
+            status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
+            value: { type: string, enum: [RED, YELLOW, GREEN, NEUTRAL] }
+            reason: { $ref: '#/components/schemas/GoalReason' }
+    GoalMetric:
+      type: object
+      required: [status, value, unit, reason]
+      properties:
+        status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
+        value: { type: [string, 'null'] }
+        unit: { type: string, enum: [ARS, PERCENT] }
+        reason: { $ref: '#/components/schemas/GoalReason' }
+    GoalReason:
+      type: [string, 'null']
+      enum: [UNINITIALIZED, PENDING_INPUTS, EMPTY_INPUT, ZERO_DENOMINATOR, ZERO_REVENUE, NON_POSITIVE_CONTRIBUTION_MARGIN, GOAL_NOT_CONFIGURED, TARGET_MARGIN_UNATTAINABLE, NON_POSITIVE_TARGET, null]
+    GoalComparisonMetrics:
+      type: object
+      description: Diferencias numéricas entre metas locales de dos períodos de la misma sucursal; el semáforo se muestra por lado, sin variación matemática.
+      required: [targetSales, targetDifference, targetCompliance]
+      properties:
+        targetSales: { $ref: '#/components/schemas/ComparisonMetric' }
+        targetDifference: { $ref: '#/components/schemas/ComparisonMetric' }
+        targetCompliance: { $ref: '#/components/schemas/ComparisonMetric' }
     ComparisonBranchMetrics:
       type: object
       required: [income, costs, grossMargin, grossMarginPercent, expenses, netResult, netResultPercent, breakEvenSales]

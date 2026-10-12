@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { ROOTS } from "@puro-origen/domain";
 import type { DashboardBranch, DashboardResponse } from "@puro-origen/shared-types";
-import { branchStatus, formatDashboardMetric, metricReason, scopeLabel, type Period, MONTHS, validPeriod, periodKey } from "./dashboard-model";
+import { branchStatus, formatDashboardMetric, metricReason, scopeLabel, trafficLightLabel, type Period, MONTHS, validPeriod, periodKey } from "./dashboard-model";
 import styles from "./dashboard.module.css";
 
 export function PeriodPicker({ period, onSelect, onRefresh, loading, hideRefresh = false }: { period: Period; onSelect: (period: Period) => void; onRefresh: () => void; loading: boolean; hideRefresh?: boolean }) {
@@ -79,6 +79,12 @@ function BranchCard({ branch }: { branch: DashboardBranch }) {
   const amounts = branch.blocks?.map((block) => ({ code: block.code, value: block.value, status: block.status })) ?? [];
   return <li className={styles.branch}><div className={styles.branchHead}><h3>{branch.name}</h3><span className={styles.state}>{branchStatus(branch)}</span></div><p>{branch.active ? "Activa" : branch.temporal === "EXPECTED" ? "Inactiva · EERR histórico" : "Inactiva"} · {branch.eerrId ? "Con EERR" : "Sin EERR"}</p>
     {branch.temporal === "EXPECTED" && branch.eerrId && <dl className={styles.branchValues}>{ROOTS.map((root) => { const block = amounts.find((item) => item.code === root.code); return <div key={root.code}><dt>{root.name}</dt><dd>{block?.value === null || block?.value === undefined ? "—" : formatDashboardMetric(block.value, "ARS")}{block && block.status !== "COMPLETE" && <small> {block.status === "PARTIAL" ? "Subtotal parcial" : "No completo"}</small>}</dd></div>; })}</dl>}
+    {branch.temporal === "EXPECTED" && branch.eerrId && branch.goalIndicators && <dl className={styles.branchValues} aria-label="Meta local">
+      <div><dt>Objetivo de Venta</dt><dd>{formatDashboardMetric(branch.goalIndicators.targetSales.value, "ARS")}</dd></div>
+      <div><dt>Cumplimiento</dt><dd>{formatDashboardMetric(branch.goalIndicators.targetCompliance.value, "PERCENT")}</dd></div>
+      <div><dt>Semáforo</dt><dd><span className={styles.trafficLight} data-light={branch.goalIndicators.trafficLight.value}>{trafficLightLabel(branch.goalIndicators.trafficLight.value)}</span></dd></div>
+      {branch.goalIndicators.trafficLight.reason && <div className={styles.goalReason}><dt>Motivo</dt><dd>{metricReason(branch.goalIndicators.trafficLight.reason)}</dd></div>}
+    </dl>}
     {branch.temporal === "EXPECTED" && branch.analysisStatus !== "COMPLETE" && <p className={styles.reason}>{branchStatus(branch)}. Esta fuente no integra el subtotal de EERR completos.</p>}
     {branch.eerrId && <Link className={styles.link} href={`/eerr/${branch.eerrId}`}>Abrir EERR →</Link>}
   </li>;

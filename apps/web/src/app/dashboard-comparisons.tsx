@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BranchPeriodComparisonResponse, BranchTableResponse, ComparisonBranch, ComparisonMetrics, ConsolidatedPeriodComparisonResponse, TwoBranchComparisonResponse } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "./eerr/api";
-import { MONTHS, periodLabel, scopeLabel, validPeriod, type Period } from "./dashboard-model";
+import { MONTHS, metricReason, periodLabel, scopeLabel, trafficLightLabel, validPeriod, type Period } from "./dashboard-model";
 import { comparisonDescription, comparisonMetrics, comparisonPath, comparisonReason, formatComparisonValue, formatDifference, formatVariation, initialReference, itemComparisonOrNull, matchesComparison, sourceStatus } from "./comparison-model";
 import styles from "./dashboard.module.css";
 import { ItemComparisonTable } from "./item-comparison-table";
@@ -50,6 +50,28 @@ function MetricTable({ metrics, current, reference }: { metrics: ComparisonMetri
     <tbody>{comparisonMetrics.map(({ name, label }) => { const metric = metrics[name]; return <tr key={name}><th scope="row">{label}</th><td>{formatComparisonValue(metric.current, metric.unit)}</td><td>{formatComparisonValue(metric.reference, metric.unit)}</td><td>{formatDifference(metric)}</td><td>{formatVariation(metric)}{metric.reason === "REFERENCE_NOT_POSITIVE" && <small>{comparisonReason(metric.reason)}</small>}{metric.status === "BLOCKED" && <small>{comparisonReason(metric.reason)}</small>}</td></tr>; })}</tbody>
   </table></div>;
 }
+export function GoalComparison({ data }: { data: BranchPeriodComparisonResponse }) {
+  const goalComparison = data.goalComparison;
+  if (!goalComparison) return <p className={styles.note}>La respuesta no incluye comparación de metas locales.</p>;
+  const rows = [
+    { key: "targetSales", label: "Objetivo de Venta" },
+    { key: "targetDifference", label: "Diferencia contra objetivo" },
+    { key: "targetCompliance", label: "Cumplimiento" },
+  ] as const;
+  const light = (side: typeof data.current) => {
+    const indicator = side.branch.goalIndicators?.trafficLight;
+    return <>{indicator ? <span className={styles.trafficLight} data-light={indicator.value}>{trafficLightLabel(indicator.value)}</span> : "—"}
+      {indicator?.reason && <small>{metricReason(indicator.reason)}</small>}</>;
+  };
+  return <div className={styles.tableScroll} role="region" aria-label="Comparación temporal de metas locales" tabIndex={0}>
+    <table className={styles.comparisonTable}><caption>Metas locales por período</caption>
+      <thead><tr><th scope="col">Indicador</th><th scope="col">Analizado · {periodLabel(data.current.period)}</th><th scope="col">Referencia · {periodLabel(data.reference.period)}</th><th scope="col">Diferencia</th><th scope="col">Variación</th></tr></thead>
+      <tbody>{rows.map(({ key, label }) => { const metric = goalComparison[key]; return <tr key={key}><th scope="row">{label}</th><td>{formatComparisonValue(metric.current, metric.unit)}{metric.current === null && <small>{metricReason(data.current.branch.goalIndicators?.[key].reason ?? null)}</small>}</td><td>{formatComparisonValue(metric.reference, metric.unit)}{metric.reference === null && <small>{metricReason(data.reference.branch.goalIndicators?.[key].reason ?? null)}</small>}</td><td>{formatDifference(metric)}</td><td>{formatVariation(metric)}{metric.reason && <small>{comparisonReason(metric.reason)}</small>}</td></tr>; })}
+        <tr><th scope="row">Semáforo</th><td>{light(data.current)}</td><td>{light(data.reference)}</td><td colSpan={2}>Estado por período; sin variación numérica.</td></tr>
+      </tbody>
+    </table>
+  </div>;
+}
 function QueryFeedback({ state, retry }: { state: QueryState<Result>; retry: () => void }) {
   return <><p className={styles.live} role="status" aria-live="polite">{state.loading ? "Consultando comparación…" : state.data ? "Comparación actualizada." : ""}</p>{state.data && <button type="button" onClick={retry}>Actualizar comparación aplicada</button>}{state.error && <div className={styles.feedback} role="alert"><p>{state.error}</p><button type="button" onClick={retry}>Reintentar comparación aplicada</button></div>}</>;
 }
@@ -65,7 +87,7 @@ function BranchPeriods({ period, branches }: { period: Period; branches: Compari
     <p>Período analizado: <strong>{periodLabel(period)}</strong>. Referencia inicial: mes anterior, editable.</p>
     <div className={styles.compareControls}><BranchSelect label="Sucursal analizada" branches={branches} value={branch} onChange={setBranch} /><ReferencePicker prefix="Sucursal entre períodos" period={reference} onChange={setReference} /><button type="button" onClick={compare} disabled={!branch || !validPeriod(reference.year, reference.month) || query.state.loading}>Comparar períodos</button></div>
     <QueryFeedback state={query.state} retry={query.retry} />
-    {data && <><p className={styles.note}>{comparisonDescription(data.current.period, data.reference.period)} Fuente analizada: {sourceStatus(data.current.branch.status)}{data.current.branch.revision !== null ? `, revisión ${data.current.branch.revision}` : ""}; referencia: {sourceStatus(data.reference.branch.status)}{data.reference.branch.revision !== null ? `, revisión ${data.reference.branch.revision}` : ""}.</p><MetricTable metrics={data.metrics} current={periodLabel(data.current.period)} reference={periodLabel(data.reference.period)} /><ItemComparisonTable comparison={itemComparisonOrNull(data)} /></>}
+    {data && <><p className={styles.note}>{comparisonDescription(data.current.period, data.reference.period)} Fuente analizada: {sourceStatus(data.current.branch.status)}{data.current.branch.revision !== null ? `, revisión ${data.current.branch.revision}` : ""}; referencia: {sourceStatus(data.reference.branch.status)}{data.reference.branch.revision !== null ? `, revisión ${data.reference.branch.revision}` : ""}.</p><MetricTable metrics={data.metrics} current={periodLabel(data.current.period)} reference={periodLabel(data.reference.period)} /><GoalComparison data={data} /><ItemComparisonTable comparison={itemComparisonOrNull(data)} /></>}
   </section>;
 }
 function BranchTable({ period, table }: { period: Period; table: BranchTableResponse }) {

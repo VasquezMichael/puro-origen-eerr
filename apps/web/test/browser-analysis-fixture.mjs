@@ -17,6 +17,9 @@ export function emptyAnalysis(row, id) {
     projections: {
       breakEvenSales: { status: "BLOCKED", value: null, unit: "ARS", reason: row.structure ? "EMPTY_INPUT" : "UNINITIALIZED" },
       targetSales: { status: "BLOCKED", value: null, unit: "ARS", reason: row.structure ? "EMPTY_INPUT" : "UNINITIALIZED" },
+      targetDifference: { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: row.structure ? "EMPTY_INPUT" : "UNINITIALIZED" },
+      targetCompliance: { status: "NOT_CALCULABLE", value: null, unit: "PERCENT", reason: row.structure ? "EMPTY_INPUT" : "UNINITIALIZED" },
+      trafficLight: { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: row.structure ? "EMPTY_INPUT" : "UNINITIALIZED" },
       targetReference: { status: "BLOCKED", type: null, value: null, unit: "ARS", reason: row.structure ? "EMPTY_INPUT" : "UNINITIALIZED" },
     },
   };

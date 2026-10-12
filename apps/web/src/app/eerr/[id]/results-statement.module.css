@@ -34,6 +34,10 @@
 .helpButton { display: inline-grid; place-items: center; width: 1.65rem; height: 1.65rem; padding: 0; border: 1px solid var(--brand); border-radius: 50%; color: var(--brand); background: var(--surface); font-size: .9rem; font-weight: 700; line-height: 1; cursor: pointer; }
 .helpPopover { position: fixed; inset: auto; margin: 0; width: min(20rem, calc(100vw - 1rem)); max-height: calc(100vh - 1rem); padding: .75rem .9rem; overflow: auto; overflow-wrap: anywhere; border: 1px solid var(--stroke); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 12px 32px #183c3140; font-size: .85rem; line-height: 1.45; }
 .referenceMetric { background: transparent; }
+.trafficLight { display: inline-block; width: fit-content; border-radius: 999px; padding: .2rem .65rem; background: #e9eee9; color: #30453b; }
+.trafficLight[data-light="RED"] { background: #f9dfdf; color: #862525; }
+.trafficLight[data-light="YELLOW"] { background: #fff0be; color: #725000; }
+.trafficLight[data-light="GREEN"] { background: #d9efdf; color: #245d37; }
 .referenceMetric strong { font-size: 1.05rem; }
 .goalSummary { display: grid; gap: .25rem; background: #f4f0e4; }
 .goalCaption { color: var(--text-muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }

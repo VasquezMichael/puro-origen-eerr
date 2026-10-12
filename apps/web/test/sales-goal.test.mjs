@@ -10,10 +10,38 @@ const metric = (value, unit = "ARS", reason = null) => ({ status: value === null
 const fixture = (goal = null) => ({ salesGoal: goal,
   metrics: { grossMarginPercent: metric("40.0000", "PERCENT") }, projections: {
   breakEvenSales: metric("50000.00"), targetSales: goal ? metric("66666.67") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
+  targetDifference: goal ? metric("-16666.67") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"),
+  targetCompliance: goal ? metric("75.0000", "PERCENT") : metric(null, "PERCENT", "GOAL_NOT_CONFIGURED"),
+  trafficLight: goal ? { status: "COMPLETE", value: "YELLOW", reason: null } : { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: "GOAL_NOT_CONFIGURED" },
   targetReference: { ...goal ? metric(goal.mode === "NET_MARGIN_PERCENT" ? "6666.67" : "13.3333", goal.mode === "NET_MARGIN_PERCENT" ? "ARS" : "PERCENT") : metric(null, "ARS", "GOAL_NOT_CONFIGURED"), type: goal ? goal.mode === "NET_MARGIN_PERCENT" ? "NET_PROFIT_AMOUNT" : "NET_MARGIN_PERCENT" : null },
 } });
 const render = (analysis, canEdit = false) => renderToStaticMarkup(React.createElement(ProjectionsSection,
   { analysis, canEdit, disabled: false, onConfigure() {}, onDelete() {} }));
+
+test("EERR presenta diferencia, cumplimiento y semáforo recibidos del análisis", () => {
+  const html = render(fixture({ mode: "NET_MARGIN_PERCENT", value: "10.0000" }));
+  for (const text of ["Diferencia contra objetivo", "-16.666,67 ARS", "Cumplimiento del objetivo", "75,00 %", "Semáforo", "Amarillo"]) assert.match(html, new RegExp(text));
+  const blocked = fixture({ mode: "NET_MARGIN_PERCENT", value: "55.0000" });
+  blocked.projections.targetSales = metric(null, "ARS", "TARGET_MARGIN_UNATTAINABLE");
+  blocked.projections.targetDifference = metric(null, "ARS", "TARGET_MARGIN_UNATTAINABLE");
+  blocked.projections.targetCompliance = metric(null, "PERCENT", "TARGET_MARGIN_UNATTAINABLE");
+  blocked.projections.trafficLight = { status: "NOT_CALCULABLE", value: "NEUTRAL", reason: "TARGET_MARGIN_UNATTAINABLE" };
+  const unavailable = render(blocked);
+  assert.match(unavailable, /Neutral/);
+  assert.match(unavailable, /margen deseado iguala o supera/);
+  assert.doesNotMatch(unavailable, /NaN|Infinity|0,0000 %/);
+});
+
+test("EERR acepta una respuesta anterior sin indicadores nuevos", () => {
+  const legacy = fixture({ mode: "NET_MARGIN_PERCENT", value: "10.0000" });
+  delete legacy.projections.targetDifference;
+  delete legacy.projections.targetCompliance;
+  delete legacy.projections.trafficLight;
+  const html = render(legacy);
+  assert.match(html, /Objetivo de Venta/);
+  assert.match(html, /respuesta todavía no incluye este indicador/);
+  assert.doesNotMatch(html, /NaN|Infinity/);
+});
 
 test("adapta coma o punto sin Number y respeta escalas, rango y máximo", () => {
   for (const [mode, input, expected] of [
@@ -55,7 +83,8 @@ test("sin meta conserva equilibrio, muestra raya y mensaje; Lector no ve accione
   assert.match(markup, /—/);
   assert.doesNotMatch(markup, /<button[^>]*>Configurar meta/);
   assert.match(render(fixture(), true), /Configurar meta/);
-  assert.doesNotMatch(markup, /<canvas|<svg|semáforo|meta global/i);
+  assert.match(markup, /Semáforo/);
+  assert.doesNotMatch(markup, /<canvas|<svg|meta global/i);
 });
 
 test("porcentaje, monto y referencia se distinguen; cero no se confunde con null", () => {
