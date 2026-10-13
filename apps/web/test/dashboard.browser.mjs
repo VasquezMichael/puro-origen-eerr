@@ -49,6 +49,9 @@ try {
     assert.match(await page.locator("main").innerText(), /Consolidado global/);
     assert.match(await page.locator("main").innerText(), /9\.007\.199\.254\.740\.993,10 ARS/);
     assert.match(await page.locator("main").innerText(), /Punto de Equilibrio/);
+    const branchCard = page.getByRole("listitem").filter({ hasText: "Sucursal ficticia" });
+    const branchMetrics = branchCard.locator('[aria-label="Indicadores financieros de la sucursal"]');
+    assert.match(await branchMetrics.innerText(), /Margen Bruto[\s\S]*100,0000 %[\s\S]*Resultado Neto[\s\S]*Punto de Equilibrio/);
     const marginField = page.getByRole("textbox", { name: "Margen objetivo consolidado en porcentaje" });
     const beforeMargin = reads;
     await marginField.fill("25,0");
@@ -69,7 +72,8 @@ try {
     mode = "partial"; signature = "sig-two"; await page.getByRole("button", { name: "Actualizar" }).click();
     await page.getByRole("heading", { name: /Subtotal de 1 de 2/ }).waitFor();
     assert.equal(await page.getByRole("heading", { name: "Consolidado definitivo" }).count(), 0);
-    assert.equal(await page.getByText("Punto de Equilibrio", { exact: true }).count(), 0);
+    assert.equal(await page.locator('section[aria-labelledby="summary-title"]').getByText("Punto de Equilibrio", { exact: true }).count(), 0);
+    assert.match(await branchMetrics.innerText(), /Margen Bruto[\s\S]*Fuente parcial; EERR incompleto[\s\S]*Resultado Neto[\s\S]*Quedan importes sin cargar[\s\S]*Punto de Equilibrio/);
     assert.match(await page.locator("main").innerText(), /Inactiva · EERR histórico/);
     assert.match(await page.locator("main").innerText(), /Parcial/);
     const help = page.getByRole("button", { name: "¿Cómo se cuentan las sucursales inactivas?" });

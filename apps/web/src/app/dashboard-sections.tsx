@@ -98,8 +98,20 @@ export function Consolidated({ data }: { data: DashboardResponse }) {
 
 function BranchCard({ branch }: { branch: DashboardBranch }) {
   const amounts = branch.blocks?.map((block) => ({ code: block.code, value: block.value, status: block.status })) ?? [];
+  const financial = branch.metrics;
+  const financialRow = (label: string, metric: NonNullable<DashboardBranch["metrics"]>["grossMargin"] | null, percentage?: NonNullable<DashboardBranch["metrics"]>["grossMarginPercent"] | null) =>
+    <div><dt>{label}</dt><dd>{formatDashboardMetric(metric?.value ?? null, "ARS")}
+      {percentage && <small>Porcentaje: {formatDashboardMetric(percentage.value, "PERCENT")}{percentage.value === null && metric?.reason !== percentage.reason && ` · ${metricReason(percentage.reason)}`}</small>}
+      {metric?.value === null && <small>{metricReason(metric.reason)}</small>}
+      {metric?.status === "COMPLETE" && branch.analysisStatus !== "COMPLETE" && <small>Fuente parcial; EERR incompleto</small>}
+    </dd></div>;
   return <li className={styles.branch}><div className={styles.branchHead}><h3>{branch.name}</h3><span className={styles.state}>{branchStatus(branch)}</span></div><p>{branch.active ? "Activa" : branch.temporal === "EXPECTED" ? "Inactiva · EERR histórico" : "Inactiva"} · {branch.eerrId ? "Con EERR" : "Sin EERR"}</p>
     {branch.temporal === "EXPECTED" && branch.eerrId && <dl className={styles.branchValues}>{ROOTS.map((root) => { const block = amounts.find((item) => item.code === root.code); return <div key={root.code}><dt>{root.name}</dt><dd>{block?.value === null || block?.value === undefined ? "—" : formatDashboardMetric(block.value, "ARS")}{block && block.status !== "COMPLETE" && <small> {block.status === "PARTIAL" ? "Subtotal parcial" : "No completo"}</small>}</dd></div>; })}</dl>}
+    {branch.temporal === "EXPECTED" && branch.eerrId && <dl className={styles.branchValues} aria-label="Indicadores financieros de la sucursal">
+      {financialRow("Margen Bruto", financial?.grossMargin ?? null, financial?.grossMarginPercent)}
+      {financialRow("Resultado Neto", financial?.netResult ?? null, financial?.netResultPercent)}
+      {financialRow("Punto de Equilibrio", branch.breakEvenSales)}
+    </dl>}
     {branch.temporal === "EXPECTED" && branch.eerrId && branch.goalIndicators && <dl className={styles.branchValues} aria-label="Meta local">
       <div><dt>Objetivo de Venta</dt><dd>{formatDashboardMetric(branch.goalIndicators.targetSales.value, "ARS")}</dd></div>
       <div><dt>Cumplimiento</dt><dd>{formatDashboardMetric(branch.goalIndicators.targetCompliance.value, "PERCENT")}</dd></div>
