@@ -92,6 +92,30 @@ test("fuente inexistente carece de importe y de acción de creación para Lector
   const html = render(Branches, { data });
   assert.match(html, /Sin EERR/); assert.doesNotMatch(html, /0,00 ARS|Crear período|Abrir EERR/);
 });
+test("sucursal completa presenta margen, resultado y equilibrio recibidos de la API", () => {
+  const data = response(true, { branches: [branch("COMPLETE", {
+    metrics: { grossMargin: amount("75.00"), grossMarginPercent: amount("75.0000", null, "PERCENT"), netResult: amount("25.00"), netResultPercent: amount("25.0000", null, "PERCENT") },
+    breakEvenSales: amount("66.67"),
+  })] });
+  const html = render(Branches, { data });
+  for (const text of [/Indicadores financieros de la sucursal/, /Margen Bruto/, /75,00 ARS/, /Porcentaje: 75,0000 %/, /Resultado Neto/, /25,00 ARS/, /Porcentaje: 25,0000 %/, /Punto de Equilibrio/, /66,67 ARS/]) assert.match(html, text);
+  assert.doesNotMatch(html, /Fuente parcial; EERR incompleto|NaN|Infinity/);
+});
+test("sucursal parcial distingue valor disponible de métricas bloqueadas sin inventar cero", () => {
+  const pending = amount(null, "PENDING_INPUTS");
+  const data = response(false, { branches: [branch("PARTIAL", {
+    blocks: [
+      { code: ROOTS[0].code, value: "100.00", status: "COMPLETE" },
+      { code: ROOTS[1].code, value: "50.00", status: "COMPLETE" },
+      { code: ROOTS[2].code, value: null, status: "PENDING" },
+    ],
+    metrics: { grossMargin: amount("50.00"), grossMarginPercent: amount("50.0000", null, "PERCENT"), netResult: pending, netResultPercent: amount(null, "PENDING_INPUTS", "PERCENT") },
+    breakEvenSales: pending,
+  })] });
+  const html = render(Branches, { data });
+  for (const text of [/Margen Bruto/, /50,00 ARS/, /Fuente parcial; EERR incompleto/, /Resultado Neto/, /Punto de Equilibrio/, /Quedan importes sin cargar/, /<dd>—/]) assert.match(html, text);
+  assert.doesNotMatch(html, /<dd>0,00 ARS|NaN|Infinity/);
+});
 test("Dashboard conserva el motivo neutral de una respuesta histórica v2 sin agregar objetivo consolidado", () => {
   const unavailable = { status: "NOT_CALCULABLE", value: null, unit: "ARS", reason: "TARGET_MARGIN_UNATTAINABLE" };
   const goals = { targetSales: unavailable, targetDifference: unavailable,

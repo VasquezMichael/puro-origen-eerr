@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Dashboard y comparación consolidada EERR
   version: 1.0.0
-  description: Consultas de solo lectura con simulación transitoria de margen; cálculo v3.
+  description: La API productiva emite calculationVersion 3. La web tolera respuestas históricas v2, en las que pueden faltar targetNetMargin, targetDifference, targetCompliance, trafficLight y goalComparison; esas respuestas no son el contrato de salida actual.
 paths:
   /analytics/dashboard:
     get:
@@ -55,6 +55,24 @@ components:
       description: Fracción decimal transitoria; admite enteros como 0 y 1 y hasta cuatro decimales. Omisión equivale a 0.20; la respuesta usa cuatro decimales. Valores de al menos 1 producen TARGET_MARGIN_UNATTAINABLE aun con base incompleta.
       schema: { type: string, pattern: '^(?:0|[1-9]\d{0,2})(?:\.\d{1,4})?$', default: '0.20', example: '0.25' }
   schemas:
+    Money:
+      type: [string, 'null']
+      pattern: '^-?(?:0|[1-9]\d*)\.\d{2}$'
+      description: ARS en cadena decimal canónica; null cuando no hay valor.
+    Percent:
+      type: [string, 'null']
+      pattern: '^-?(?:0|[1-9]\d*)\.\d{4}$'
+      description: Porcentaje en cadena decimal canónica; null cuando no es calculable.
+    Decimal:
+      type: [string, 'null']
+      pattern: '^-?(?:0|[1-9]\d*)\.\d{2}(?:\d{2})?$'
+      description: Cadena decimal canónica; dos posiciones para ARS o cuatro para porcentajes.
+    LocalReason:
+      type: [string, 'null']
+      enum: [null, UNINITIALIZED, PENDING_INPUTS, EMPTY_INPUT, ZERO_DENOMINATOR, ZERO_REVENUE, NON_POSITIVE_CONTRIBUTION_MARGIN, GOAL_NOT_CONFIGURED, TARGET_MARGIN_UNATTAINABLE, NON_POSITIVE_TARGET]
+    AggregateReason:
+      type: [string, 'null']
+      enum: [null, UNINITIALIZED, PENDING_INPUTS, EMPTY_INPUT, ZERO_DENOMINATOR, ZERO_REVENUE, NON_POSITIVE_CONTRIBUTION_MARGIN, GOAL_NOT_CONFIGURED, TARGET_MARGIN_UNATTAINABLE, NON_POSITIVE_TARGET, INCOMPLETE_SCOPE, NO_COMPLETE_SOURCES]
     Period:
       type: object
       required: [year, month]
@@ -84,23 +102,88 @@ components:
         inactiveWithHistory: { type: integer }
         inactiveWithoutHistory: { type: integer }
         excludedNotStarted: { type: integer }
-    Metric:
+    MoneyMetric:
       type: object
       required: [status, value, unit, reason]
       properties:
         status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
-        value: { type: [string, 'null'], description: 'ARS con dos decimales o PERCENT con cuatro' }
-        unit: { type: string, enum: [ARS, PERCENT] }
-        reason:
-          type: [string, 'null']
-          enum: [null, UNINITIALIZED, PENDING_INPUTS, EMPTY_INPUT, ZERO_DENOMINATOR, ZERO_REVENUE, NON_POSITIVE_CONTRIBUTION_MARGIN, GOAL_NOT_CONFIGURED, TARGET_MARGIN_UNATTAINABLE, NON_POSITIVE_TARGET, INCOMPLETE_SCOPE, NO_COMPLETE_SOURCES]
+        value: { $ref: '#/components/schemas/Money' }
+        unit: { type: string, const: ARS }
+        reason: { $ref: '#/components/schemas/AggregateReason' }
+    PercentMetric:
+      type: object
+      required: [status, value, unit, reason]
+      properties:
+        status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
+        value: { $ref: '#/components/schemas/Percent' }
+        unit: { type: string, const: PERCENT }
+        reason: { $ref: '#/components/schemas/AggregateReason' }
+    LocalMoneyMetric:
+      type: object
+      required: [status, value, unit, reason]
+      properties:
+        status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
+        value: { $ref: '#/components/schemas/Money' }
+        unit: { type: string, const: ARS }
+        reason: { $ref: '#/components/schemas/LocalReason' }
+    LocalPercentMetric:
+      type: object
+      required: [status, value, unit, reason]
+      properties:
+        status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
+        value: { $ref: '#/components/schemas/Percent' }
+        unit: { type: string, const: PERCENT }
+        reason: { $ref: '#/components/schemas/LocalReason' }
     TrafficLight:
       type: object
       required: [status, value, reason]
       properties:
         status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
         value: { type: string, enum: [RED, YELLOW, GREEN, NEUTRAL] }
-        reason: { type: [string, 'null'] }
+        reason: { $ref: '#/components/schemas/AggregateReason' }
+    LocalTrafficLight:
+      type: object
+      required: [status, value, reason]
+      properties:
+        status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
+        value: { type: string, enum: [RED, YELLOW, GREEN, NEUTRAL] }
+        reason: { $ref: '#/components/schemas/LocalReason' }
+    Completeness:
+      type: object
+      required: [loadedCount, pendingCount, totalCount, completenessPercent]
+      properties:
+        loadedCount: { type: integer, minimum: 0 }
+        pendingCount: { type: integer, minimum: 0 }
+        totalCount: { type: integer, minimum: 0 }
+        completenessPercent: { type: [string, 'null'], pattern: '^(?:0|[1-9]\d*)\.\d{2}$' }
+    Block:
+      type: object
+      required: [nodeId, code, name, status, value, completeness]
+      properties:
+        nodeId: { type: string }
+        code: { type: string }
+        name: { type: string }
+        status: { type: string, enum: [EMPTY, PENDING, PARTIAL, COMPLETE] }
+        value: { $ref: '#/components/schemas/Money' }
+        completeness: { $ref: '#/components/schemas/Completeness' }
+    BranchMetrics:
+      type: object
+      required: [grossMargin, grossMarginPercent, netResult, netResultPercent]
+      additionalProperties: false
+      properties:
+        grossMargin: { $ref: '#/components/schemas/LocalMoneyMetric' }
+        grossMarginPercent: { $ref: '#/components/schemas/LocalPercentMetric' }
+        netResult: { $ref: '#/components/schemas/LocalMoneyMetric' }
+        netResultPercent: { $ref: '#/components/schemas/LocalPercentMetric' }
+    LocalGoalIndicators:
+      type: object
+      required: [targetSales, targetDifference, targetCompliance, trafficLight]
+      additionalProperties: false
+      properties:
+        targetSales: { $ref: '#/components/schemas/LocalMoneyMetric' }
+        targetDifference: { $ref: '#/components/schemas/LocalMoneyMetric' }
+        targetCompliance: { $ref: '#/components/schemas/LocalPercentMetric' }
+        trafficLight: { $ref: '#/components/schemas/LocalTrafficLight' }
     Consolidated:
       description: Contrato actual v3. En respuestas históricas v2 pueden faltar los campos de simulación y targetSales puede ser null; el cliente los presenta como no disponibles.
       type: object
@@ -110,18 +193,18 @@ components:
         definitive: { type: boolean }
         includedCount: { type: integer }
         expectedCount: { type: integer }
-        income: { $ref: '#/components/schemas/Metric' }
-        costs: { $ref: '#/components/schemas/Metric' }
-        expenses: { $ref: '#/components/schemas/Metric' }
-        grossMargin: { $ref: '#/components/schemas/Metric' }
-        grossMarginPercent: { $ref: '#/components/schemas/Metric' }
-        netResult: { $ref: '#/components/schemas/Metric' }
-        netResultPercent: { $ref: '#/components/schemas/Metric' }
-        breakEvenSales: { $ref: '#/components/schemas/Metric' }
-        targetNetMargin: { type: string, pattern: '^(?:0|[1-9]\d*)\.\d{4}$', example: '0.2000' }
-        targetSales: { $ref: '#/components/schemas/Metric' }
-        targetDifference: { $ref: '#/components/schemas/Metric' }
-        targetCompliance: { $ref: '#/components/schemas/Metric' }
+        income: { $ref: '#/components/schemas/MoneyMetric' }
+        costs: { $ref: '#/components/schemas/MoneyMetric' }
+        expenses: { $ref: '#/components/schemas/MoneyMetric' }
+        grossMargin: { $ref: '#/components/schemas/MoneyMetric' }
+        grossMarginPercent: { $ref: '#/components/schemas/PercentMetric' }
+        netResult: { $ref: '#/components/schemas/MoneyMetric' }
+        netResultPercent: { $ref: '#/components/schemas/PercentMetric' }
+        breakEvenSales: { $ref: '#/components/schemas/MoneyMetric' }
+        targetNetMargin: { type: string, pattern: '^(?:0|[1-9]\d{0,2})\.\d{4}$', example: '0.2000' }
+        targetSales: { $ref: '#/components/schemas/MoneyMetric' }
+        targetDifference: { $ref: '#/components/schemas/MoneyMetric' }
+        targetCompliance: { $ref: '#/components/schemas/PercentMetric' }
         trafficLight: { $ref: '#/components/schemas/TrafficLight' }
         label: { type: string }
         breakEvenAssumption: { type: [string, 'null'] }
@@ -142,13 +225,13 @@ components:
         temporal: { type: string, enum: [EXPECTED, NOT_STARTED, INACTIVE_WITHOUT_HISTORY] }
         eerrId: { type: [string, 'null'] }
         revision: { type: [integer, 'null'] }
-        loadStatus: { type: [string, 'null'] }
+        loadStatus: { type: [string, 'null'], enum: [SIN_CARGAR, PARCIAL, CARGADO, null] }
         analysisStatus: { type: string, enum: [COMPLETE, PARTIAL, PENDING, EMPTY, UNINITIALIZED, NO_EERR, EXCLUDED] }
-        reason: { type: [string, 'null'] }
-        blocks: { type: [array, 'null'], items: { type: object } }
-        metrics: { type: [object, 'null'] }
-        breakEvenSales: { oneOf: [{ $ref: '#/components/schemas/Metric' }, { type: 'null' }] }
-        goalIndicators: { type: [object, 'null'] }
+        reason: { type: [string, 'null'], enum: [COMPLETE, PARTIAL, PENDING, EMPTY, UNINITIALIZED, NO_EERR, NOT_STARTED, INACTIVE_WITHOUT_HISTORY, null] }
+        blocks: { type: [array, 'null'], items: { $ref: '#/components/schemas/Block' } }
+        metrics: { oneOf: [{ $ref: '#/components/schemas/BranchMetrics' }, { type: 'null' }] }
+        breakEvenSales: { oneOf: [{ $ref: '#/components/schemas/LocalMoneyMetric' }, { type: 'null' }] }
+        goalIndicators: { oneOf: [{ $ref: '#/components/schemas/LocalGoalIndicators' }, { type: 'null' }] }
     DashboardResponse:
       type: object
       required: [year, month, timezone, calculationVersion, scope, coverage, consolidated, branches, sources, sourceSignature]
@@ -167,11 +250,11 @@ components:
       type: object
       required: [current, reference, absoluteDifference, percentagePointDifference, relativeVariation, unit, status, reason]
       properties:
-        current: { type: [string, 'null'] }
-        reference: { type: [string, 'null'] }
-        absoluteDifference: { type: [string, 'null'] }
-        percentagePointDifference: { type: [string, 'null'] }
-        relativeVariation: { type: [string, 'null'] }
+        current: { $ref: '#/components/schemas/Decimal' }
+        reference: { $ref: '#/components/schemas/Decimal' }
+        absoluteDifference: { $ref: '#/components/schemas/Money' }
+        percentagePointDifference: { $ref: '#/components/schemas/Percent' }
+        relativeVariation: { $ref: '#/components/schemas/Percent' }
         unit: { type: string, enum: [ARS, PERCENT] }
         status: { type: string, enum: [COMPLETE, BLOCKED, NOT_CALCULABLE] }
         reason: { type: [string, 'null'] }

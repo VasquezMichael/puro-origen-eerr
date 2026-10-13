@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Comparación temporal de ítems EERR
   version: 1.0.0
-  description: Respuesta completa de la comparación temporal de una sucursal. Requiere la cookie de sesión actual.
+  description: La API productiva emite esta comparación con calculationVersion 3 y requiere la cookie de sesión. La web tolera respuestas históricas v2 sin itemComparison, goalIndicators o goalComparison y conserva sus métricas financieras; esas omisiones no forman parte del contrato productivo actual.
 paths:
   /analytics/branches/{branchId}/period-comparison:
     get:
@@ -43,7 +43,7 @@ paths:
                   orientation: { type: string, const: CURRENT_MINUS_REFERENCE }
                   timezone: { type: string, const: America/Argentina/Buenos_Aires }
                   scope: { $ref: '#/components/schemas/ComparisonScope' }
-                  calculationVersion: { type: integer, minimum: 1 }
+                  calculationVersion: { type: integer, const: 3 }
                   current: { $ref: '#/components/schemas/ComparisonSide' }
                   reference: { $ref: '#/components/schemas/ComparisonSide' }
                   metrics: { $ref: '#/components/schemas/ComparisonMetrics' }
