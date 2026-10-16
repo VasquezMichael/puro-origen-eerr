@@ -9,13 +9,21 @@ ObjectId de Sucursal; `createdBy`, el ObjectId del usuario autenticado.
 
 Identificador, sucursal, año, mes y creador son inmutables. `createdAt` registra
 la fecha de creación y `updatedAt` la de modificación, mediante timestamps.
-El índice único `{ branchId: 1, year: -1, month: -1 }` impide dos EERR de la misma
-sucursal, año y mes. El servicio comprueba duplicados antes de escribir y convierte
+El esquema de EP-07 declara como destino el índice único parcial
+`{ branchId: 1, year: -1, month: -1 }` con
+`partialFilterExpression: { deletedAt: null }`. Impide dos EERR **activos** de la
+misma sucursal, año y mes, incluso documentos legacy sin `deletedAt`. Un
+histórico soft-deleted no ocupa la clave. El servicio comprueba duplicados
+activos antes de escribir y convierte
 también la colisión de índice concurrente en HTTP 409, sin detalles de MongoDB.
+En bases existentes, el índice global previo debe sustituirse mediante el
+rollout controlado descrito en [ARQUITECTURA.md](ARQUITECTURA.md); mientras
+permanezca, seguirá bloqueando la recreación aunque el código ya filtre activos.
 
-El estado de **carga** inicial es `loadStatus: "SIN_CARGAR"`. No representa cierre
-ni bloqueo. Los documentos previos no definen un enum de ciclo de vida; EP-03 no
-introduce `ABIERTO` ni transiciones. Su definición corresponde a EP-07.
+El estado de **carga** inicial es `loadStatus: "SIN_CARGAR"`. No representa cierre.
+EP-07 PR 1 incorpora `lifecycleStatus: "OPEN" | "CLOSED"`, inicialmente OPEN,
+independiente de la carga. Los documentos anteriores sin lifecycle se leen como
+OPEN, `everClosed: false` y activos. No se migran registros existentes.
 No hay categorías, ítems, importes, notas ni registros financieros ficticios.
 
 ## Calendario del negocio
@@ -55,7 +63,10 @@ enviados por el cliente.
 | `GET /eerr/:id` | UUID v4 | Contenedor accesible o 404 |
 
 Cada EERR público contiene `id`, `branchId`, `year`, `month`, `loadStatus`,
-`createdBy`, `createdAt` y `updatedAt`. Las fechas se serializan en ISO 8601.
+`lifecycleStatus`, `everClosed`, `closedAt`, `closedBy`, `deletedAt`, `deletedBy`,
+`createdBy`, `createdAt` y `updatedAt`. Las fechas se serializan en ISO 8601;
+los campos de cierre/borrado ausentes se devuelven como `null`. Las consultas
+públicas de contenedores omiten los soft-deleted.
 No se exponen `__v` ni campos internos de Sucursal.
 
 En la perspectiva mensual, cada entrada contiene:

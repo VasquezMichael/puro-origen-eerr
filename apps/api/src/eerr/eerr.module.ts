@@ -20,6 +20,11 @@ import { EerrController } from './eerr.controller.js';
 import { EerrService } from './eerr.service.js';
 import { EerrClock } from './eerr-clock.js';
 import { Eerr, EerrSchema } from './schemas/eerr.schema.js';
+import {
+  EerrAuditEventRecord,
+  EerrAuditEventSchema,
+} from './schemas/eerr-audit-event.schema.js';
+import { EerrAuditRepository } from './eerr-audit.repository.js';
 import { StructureController } from './structure.controller.js';
 import { StructureService } from './structure.service.js';
 import { StructureRepository } from './structure.repository.js';
@@ -28,7 +33,10 @@ import { StructureRepository } from './structure.repository.js';
   imports: [
     BranchesPersistenceModule,
     UsersModule,
-    MongooseModule.forFeature([{ name: Eerr.name, schema: EerrSchema }]),
+    MongooseModule.forFeature([
+      { name: Eerr.name, schema: EerrSchema },
+      { name: EerrAuditEventRecord.name, schema: EerrAuditEventSchema },
+    ]),
   ],
   controllers: [
     AnalysisController,
@@ -51,6 +59,7 @@ import { StructureRepository } from './structure.repository.js';
     EerrClock,
     StructureService,
     StructureRepository,
+    EerrAuditRepository,
     CloneService,
     ClonePreviewToken,
   ],

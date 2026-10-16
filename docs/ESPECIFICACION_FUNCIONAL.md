@@ -37,7 +37,8 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
   mes explícitos; la API aplica las validaciones definitivas.
 - Crear período prepara una plantilla mensual por sucursal.
 - Contemplar el estado “sin cargar”.
-- Cierre y bloqueo de períodos.
+- Cierre operativo de períodos: un EERR cerrado sigue siendo editable con
+  advertencia y auditoría; el cierre no bloquea la edición.
 - Acción para completar con cero las celdas sin movimiento.
 - La creación de períodos futuros permanece pendiente de definición.
 
@@ -47,6 +48,12 @@ Un EERR existente comienza `SIN_CARGAR`; una combinación inexistente se muestra
 como tal, sin interpretar su ausencia como importes en cero. No se crean registros
 al consultar. La estructura financiera y clonación se incorporarán en EP-04;
 cierre, reapertura y eliminación, en EP-07. Contratos: [API_EERR.md](API_EERR.md).
+
+En EP-07, Administrador y Editor asignado podrán cerrar, reabrir y eliminar;
+Lector no. Solo podrá eliminarse un EERR que nunca haya estado cerrado. El
+soft delete libera sucursal y período para crear otro EERR, preservando el
+histórico. El aviso de cierre contará importes activos `SIN_CARGAR`, sin contar
+cantidades opcionales pendientes. PR 1 prepara el modelo; no expone esas acciones.
 
 ### Carga y estructura
 

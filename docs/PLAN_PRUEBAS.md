@@ -1,5 +1,30 @@
 # Plan de pruebas del EERR
 
+## EP-07 PR 1: modelo, auditoría y soft delete
+
+Sin Atlas ni `.env`, comprobar defaults OPEN/false; normalización de documentos
+legacy y `.lean()`; identificación de soft delete; enum lifecycle; esquema de
+auditoría y metadata estricta; inserción append-only con `ClientSession`;
+declaración del índice único parcial activo; conflicto entre dos activos y
+recreación conceptual tras soft delete en la fixture HTTP. Las consultas básicas
+deben ocultar históricos borrados. No hay pruebas de endpoints de transiciones
+porque aún no existen. La declaración del índice y la fixture no sustituyen
+la comprobación de DDL en MongoDB durante un rollout controlado.
+La semántica del índice parcial **todavía no fue validada contra MongoDB real**.
+Antes de habilitar DELETE, ejecutar la prueba de colisión y coexistencia en
+MongoDB local o staging controlado, nunca sobre Atlas productivo.
+
+La prueba de `mongoConnectionOptions` verifica que producción, ausencia de
+`NODE_ENV` o un valor desconocido entreguen `autoIndex: false` a
+`MongooseModule.forRootAsync`; desarrollo, test y staging lo habilitan
+explícitamente, sin importar `AppModule` ni abrir conexiones.
+
+Antes de habilitar DELETE en PR 2, probar todas las rutas de lectura y mutación
+para garantizar filtrado de activos; validar en MongoDB de prueba la coexistencia
+de histórico borrado y activo con la misma sucursal/período, y la colisión de
+dos activos. Probar CAS + evento atómico, permisos y warning solo por importes
+activos `SIN_CARGAR`.
+
 ## EP-04B1: aislamiento y comandos
 
 `npm run check` verifica tipos, lint, pruebas y build sin .env real, AppModule,

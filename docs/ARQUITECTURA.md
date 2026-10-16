@@ -13,6 +13,12 @@ modular.
 
 La persistencia de ejecución utiliza Mongoose y MongoDB Atlas. La compilación y
 las pruebas unitarias no deben abrir conexiones ni requerir secretos.
+`MongooseModule.forRootAsync` recibe la política explícita de
+`mongoConnectionOptions`: solo `NODE_ENV=development`, `test` o `staging`
+habilita `autoIndex: true`; `production`, ausencia o valor desconocido fijan
+`false`. Así el arranque de producción, incluso si falta `NODE_ENV`, no intenta
+crear el índice parcial mientras exista el índice global anterior.
+Los índices de producción se administran solo mediante un rollout controlado.
 
 Las aplicaciones consumen paquetes, nunca al revés. Los paquetes puros no dependen
 de frameworks ni de persistencia. Toda nueva dependencia entre workspaces debe
@@ -39,6 +45,57 @@ las reglas de creación y limita las consultas por sucursales accesibles.
 La web `/eerr` presenta ambas perspectivas mediante consultas REST con sesión,
 sin persistencia ni cálculos financieros en el navegador.
 Los contratos y el modelo de EP-03 están en [API_EERR.md](API_EERR.md).
+
+EP-07 PR 1 agrega `lifecycleStatus` separado de `loadStatus`, resumen persistido
+del cierre (`closedAt`, `closedBy`, `everClosed`) y soft delete (`deletedAt`,
+`deletedBy`). `eerrLifecycle` normaliza también resultados `.lean()` legacy:
+campos ausentes significan OPEN, nunca cerrado y activo. `ACTIVE_EERR_FILTER`
+usa `{ deletedAt: null }`, que incluye documentos sin ese campo. Creación,
+listados, contexto y lectura por id de `EerrService` usan el filtro.
+
+`eerr_audit_events` es una colección separada de inserción solamente en la
+aplicación. Su esquema conserva tipo, EERR, sucursal, actor, instante, revisión
+y metadata acotada; no almacena snapshots ni secretos. `EerrAuditRepository.append`
+exige la `ClientSession` del llamador. PR 2 compondrá ese insert con el CAS del
+EERR dentro de `StructureRepository.transaction` (snapshot/majority). No hay
+transiciones ni endpoints de historial en PR 1.
+
+Antes de habilitar DELETE deben filtrar activos las consultas directas de
+`AnalyticsService` (Dashboard y comparaciones), `StructureRepository` (get,
+períodos, candidatos de clonación y publicación global) y los filtros CAS de
+escritura. Esto afecta estructura, metas (`SalesGoalService`), clonación,
+importación y complete pending: aunque consultan primero mediante `EerrService`,
+vuelven a leer o escribir por rutas directas. `AnalysisService` ya delega su
+lectura en `EerrService.readAuthorized`. La herramienta demo también requiere
+revisión antes de operar sobre históricos borrados. PR 1 no cambia masivamente
+esos flujos ni activa el borrado.
+
+El índice anterior `{ branchId: 1, year: -1, month: -1 }` es único global. El
+esquema declara como destino el índice único parcial
+`eerr_active_branch_period_unique` con filtro `{ deletedAt: null }`: cubre
+activos nuevos y legacy sin `deletedAt`, y excluye históricos borrados. En una
+base existente el índice global **no cambia por actualizar el esquema** y
+seguiría impidiendo recrear un período. En producción `autoIndex: false` impide
+que desplegar PR 1 intente crearlo automáticamente. Antes de desplegar o habilitar
+DELETE en PR 2, ejecutar esta secuencia controlada (no forma parte de PR 1):
+
+1. Mantener DELETE deshabilitado y verificar `autoIndex: false` en producción.
+2. Inspeccionar con `getIndexes()` el índice global existente y comprobar que no
+   haya duplicados activos por `branchId + year + month`.
+3. Detener o bloquear **todos** los escritores de EERR, incluidos procesos API,
+   tareas y scripts. Mantener el bloqueo hasta terminar la verificación del índice.
+4. Retirar el índice único global anterior y crear el índice único parcial
+   `eerr_active_branch_period_unique` sobre `{ branchId: 1, year: -1, month: -1 }`
+   con `partialFilterExpression: { deletedAt: null }`. La pausa de escritores
+   protege la unicidad durante el intervalo entre ambas operaciones.
+5. Confirmar con `getIndexes()` nombre, claves, `unique: true` y filtro exactos.
+   Antes de habilitar DELETE, probar en MongoDB local o staging controlado que
+   dos activos colisionan y que un histórico soft-deleted puede coexistir con
+   uno activo de la misma sucursal/período.
+6. Reanudar escritores solo con el índice correcto verificado. Recién entonces
+   desplegar y habilitar DELETE, tras cubrir todas las rutas activas y el CAS.
+
+No se ejecuta DDL ni se consulta Atlas en este PR.
 
 API y web consumen `@puro-origen/domain` para el calendario fijo
 `America/Argentina/Buenos_Aires`. `businessMonthAt` convierte instantes con

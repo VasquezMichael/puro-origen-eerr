@@ -15,6 +15,7 @@ import { BranchRole } from '../users/user-role.js';
 import { Eerr, EerrDocument } from './schemas/eerr.schema.js';
 import type { CreateEerrDto, EerrMonthDto } from './dto/eerr.dto.js';
 import { EerrClock } from './eerr-clock.js';
+import { ACTIVE_EERR_FILTER, eerrLifecycle } from './eerr-lifecycle.js';
 
 type Viewer = NonNullable<AuthenticatedRequest['user']>;
 
@@ -54,7 +55,8 @@ export class EerrService {
         'El período es anterior al mes de inicio de la sucursal',
       );
     const key = { branchId, year: input.year, month: input.month };
-    if (await this.eerr.exists(key)) throw this.duplicate();
+    if (await this.eerr.exists({ ...key, ...ACTIVE_EERR_FILTER }))
+      throw this.duplicate();
     try {
       const row = await this.eerr.create({ ...key, createdBy: viewer.sub });
       return this.toPublic(row);
@@ -77,7 +79,10 @@ export class EerrService {
         ? await this.branches.list(viewer)
         : [await this.accessibleBranch(branchId, viewer)];
     const rows = await this.eerr
-      .find({ branchId: { $in: branches.map((branch) => branch.id) } })
+      .find({
+        branchId: { $in: branches.map((branch) => branch.id) },
+        ...ACTIVE_EERR_FILTER,
+      })
       .sort({ year: -1, month: -1, _id: 1 })
       .exec();
     return rows.map((row) => this.toPublic(row));
@@ -89,6 +94,7 @@ export class EerrService {
       .find({
         ...input,
         branchId: { $in: branches.map((branch) => branch.id) },
+        ...ACTIVE_EERR_FILTER,
       })
       .exec();
     const byBranch = new Map(
@@ -114,6 +120,7 @@ export class EerrService {
       .findOne({
         _id: id.toLowerCase(),
         branchId: { $in: branches.map((branch) => branch.id) },
+        ...ACTIVE_EERR_FILTER,
       })
       .exec();
     if (!row) throw new NotFoundException('EERR no encontrado');
@@ -139,6 +146,7 @@ export class EerrService {
       year: row.year,
       month: row.month,
       loadStatus: row.loadStatus,
+      ...eerrLifecycle(row),
       createdBy: row.createdBy.toString(),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
