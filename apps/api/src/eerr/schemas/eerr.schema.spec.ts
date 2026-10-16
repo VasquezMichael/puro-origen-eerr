@@ -19,6 +19,12 @@ describe('EerrSchema sin metadatos inferidos ni conexión', () => {
         year: 'Number',
         month: 'Number',
         loadStatus: 'String',
+        lifecycleStatus: 'String',
+        everClosed: 'Boolean',
+        closedAt: 'Date',
+        closedBy: 'ObjectId',
+        deletedAt: 'Date',
+        deletedBy: 'ObjectId',
         createdBy: 'ObjectId',
         createdAt: 'Date',
         updatedAt: 'Date',
@@ -28,7 +34,10 @@ describe('EerrSchema sin metadatos inferidos ni conexión', () => {
       }
       expect(EerrSchema.indexes()).toContainEqual([
         { branchId: 1, year: -1, month: -1 },
-        expect.objectContaining({ unique: true }),
+        expect.objectContaining({
+          unique: true,
+          partialFilterExpression: { deletedAt: null },
+        }),
       ]);
       expect(EerrSchema.indexes()).toContainEqual([
         { year: 1, month: 1, branchId: 1 },
@@ -49,6 +58,9 @@ describe('EerrSchema sin metadatos inferidos ni conexión', () => {
       );
       expect(new Model(input)._id).not.toBe(row._id);
       expect(row.loadStatus).toBe('SIN_CARGAR');
+      expect(row.lifecycleStatus).toBe('OPEN');
+      expect(row.everClosed).toBe(false);
+      expect(row.deletedAt).toBeUndefined();
       expect(row.createdAt).toBeInstanceOf(Date);
       expect(row.toObject()).not.toHaveProperty('values');
       expect(row.toObject()).not.toHaveProperty('salesGoal');
@@ -79,6 +91,9 @@ describe('EerrSchema sin metadatos inferidos ni conexión', () => {
       ).rejects.toThrow();
       await expect(
         new Model({ ...input, year: 2026.5 }).validate(),
+      ).rejects.toThrow();
+      await expect(
+        new Model({ ...input, lifecycleStatus: 'UNKNOWN' }).validate(),
       ).rejects.toThrow();
     } finally {
       spy.mockRestore();

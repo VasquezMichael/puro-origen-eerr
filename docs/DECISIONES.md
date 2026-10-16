@@ -90,7 +90,9 @@ de EERR se implementarán con períodos. Son requisitos confirmados, no mejoras 
 - Un `Eerr` es un contenedor mensual, colección `eerr`, con UUID v4 propio como
   clave primaria MongoDB. UUID, sucursal, año, mes y creador son inmutables.
 - Hay como máximo un EERR por sucursal/año/mes, con validación previa e índice
-  único compuesto. Una colisión concurrente devuelve conflicto controlado.
+  único compuesto para los documentos activos. Una colisión concurrente devuelve
+  conflicto controlado; EP-07 incorpora el filtro parcial para liberar la clave al
+  eliminar lógicamente el EERR.
 - La creación requiere una sucursal activa y un mes no futuro ni anterior al
   mes de inicio de esa sucursal. Se admiten año y mes numéricos enteros válidos.
 - Administrador crea en cualquier sucursal activa; Editor solo en las activas
@@ -99,13 +101,32 @@ de EERR se implementarán con períodos. Son requisitos confirmados, no mejoras 
 - La inexistencia se representa explícitamente con `exists: false, eerr: null`,
   nunca con ceros. Consultar no crea ni modifica datos.
 - `loadStatus: SIN_CARGAR` es estado de carga de un contenedor existente. No es
-  estado de cierre; no se define aún un ciclo de vida ni sus transiciones (EP-07).
+  estado de cierre. El ciclo de vida separado se define en EP-07.
 - EP-03 no genera estructura ni valores. Clonación y estructura quedan para
   EP-04; cierre, reapertura y eliminación para EP-07. Períodos futuros siguen pendientes.
 - La restricción de creación en sucursales inactivas queda implementada. La
   corrección de históricos se mantiene confirmada para el milestone de edición.
 
 Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
+
+## Ciclo de vida del EERR (EP-07)
+
+- `lifecycleStatus` es `OPEN` o `CLOSED`, independiente de `loadStatus`. Cerrar es
+  una operación administrativa: el EERR cerrado sigue siendo editable, con
+  advertencia y auditoría de las ediciones posteriores. No equivale a bloqueo.
+- Administrador y Editor asignado pueden cerrar, reabrir y eliminar. Lector nunca.
+- `closedAt`/`closedBy` describen el cierre vigente; `everClosed` persiste si
+  alguna vez se cerró. Un EERR nunca cerrado es potencialmente eliminable; uno
+  alguna vez cerrado nunca se elimina. El historial de ciclos vive en eventos.
+- El borrado es lógico (`deletedAt`, `deletedBy`), excluye el EERR de vistas
+  activas y libera sucursal/año/mes para uno nuevo. No borra el historial.
+- Para un documento legacy sin estos campos se interpreta `OPEN`,
+  `everClosed: false` y activo, sin fabricar eventos retrospectivos.
+- La advertencia de cierre cuenta importes activos `SIN_CARGAR`; las cantidades
+  opcionales `SIN_CARGAR` no participan.
+- Las transiciones de cierre, reapertura y eliminación requieren revisión CAS
+  (`expectedRevision`) y evento en la misma transacción. Los endpoints y las
+  reglas de mutaciones post-cierre se incorporarán en PR posteriores.
 
 ## Estructura e ingreso manual básico (EP-04A)
 
@@ -412,7 +433,7 @@ entre bloques, archivo de categorías, eliminación, auditoría y cálculos deri
   ausentes/SIN_CARGAR), notas, archivados, estructura y creación quedan intactos.
 - loadStatus y progreso reflejan carga monetaria, nunca cierre. El período sigue
   editable: cada cero admite edición/expresión o volver individualmente a SIN_CARGAR.
-  Cierre, reapertura y bloqueo permanecen diferidos a EP-07.
+  Cierre y reapertura operativos corresponden a EP-07; no bloquean la edición.
 - Preview sin escrituras con contexto, pendientes, rutas y progreso antes/después.
   Sin pendientes: sin token, escritura, revisión ni timestamps. Confirmación vuelve
   a calcular el conjunto y verifica actor, operación, huella, revisión y vencimiento.

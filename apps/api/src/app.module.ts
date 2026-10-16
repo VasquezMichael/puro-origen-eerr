@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { UsersModule } from './users/users.module.js';
 import { BranchesModule } from './branches/branches.module.js';
 import { EerrModule } from './eerr/eerr.module.js';
+import { mongoConnectionOptions } from './mongo-connection.options.js';
 
 @Module({
   imports: [
@@ -16,9 +17,7 @@ import { EerrModule } from './eerr/eerr.module.js';
     }),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.getOrThrow<string>('MONGODB_URI'),
-      }),
+      useFactory: mongoConnectionOptions,
     }),
     UsersModule,
     AuthModule,

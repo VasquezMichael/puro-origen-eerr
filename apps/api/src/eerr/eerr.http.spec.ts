@@ -29,6 +29,7 @@ const eerrModel = {
   exists: vi.fn(),
   create: vi.fn(),
 };
+const auditModel = { create: vi.fn() };
 
 @Global()
 @Module({
@@ -36,10 +37,20 @@ const eerrModel = {
     {
       provide: getConnectionToken(),
       useValue: {
-        models: { Branch: branchModel, User: userModel, Eerr: eerrModel },
+        models: {
+          Branch: branchModel,
+          User: userModel,
+          Eerr: eerrModel,
+          EerrAuditEventRecord: auditModel,
+        },
       },
     },
-    { provide: ConfigService, useValue: new ConfigService({JWT_SECRET: "test-only-not-real-secret-0000000000000000"}) },
+    {
+      provide: ConfigService,
+      useValue: new ConfigService({
+        JWT_SECRET: 'test-only-not-real-secret-0000000000000000',
+      }),
+    },
   ],
   exports: [getConnectionToken(), ConfigService],
 })
@@ -54,12 +65,14 @@ type Row = {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date;
 };
 type Filter = {
   _id?: string;
   branchId?: string | { $in: string[] };
   year?: number;
   month?: number;
+  deletedAt?: null;
 };
 const matches = (row: Row, filter: Filter) =>
   (!filter._id || row._id === filter._id) &&
@@ -68,7 +81,8 @@ const matches = (row: Row, filter: Filter) =>
       ? row.branchId === filter.branchId
       : filter.branchId.$in.includes(row.branchId))) &&
   (filter.year === undefined || row.year === filter.year) &&
-  (filter.month === undefined || row.month === filter.month);
+  (filter.month === undefined || row.month === filter.month) &&
+  (filter.deletedAt === undefined || row.deletedAt == null);
 
 describe('EERR HTTP con módulos y autorización reales; persistencia en memoria', () => {
   let app: INestApplication;
@@ -95,7 +109,7 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
     api().post('/eerr').set('Cookie', cookie).send(body);
   const get = (path: string) => api().get(path).set('Cookie', cookie);
   const seed = (id: string, year = 2026, month = 8) => {
-    const row = {
+    const row: Row = {
       _id: randomUUID(),
       branchId: id,
       year,
@@ -183,7 +197,7 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
         month: number;
         createdBy: string;
       }) => {
-        if (rows.some((row) => matches(row, input)))
+        if (rows.some((row) => matches(row, { ...input, deletedAt: null })))
           throw {
             code: 11000,
             keyPattern: { branchId: 1, year: -1, month: -1 },
@@ -211,6 +225,12 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
       month: 8,
       createdBy: userId,
       loadStatus: 'SIN_CARGAR',
+      lifecycleStatus: 'OPEN',
+      everClosed: false,
+      closedAt: null,
+      closedBy: null,
+      deletedAt: null,
+      deletedBy: null,
     });
     expect(response.body.id).toMatch(/^[\da-f-]{36}$/);
     expect(Object.keys(response.body).sort()).toEqual(
@@ -220,6 +240,12 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
         'year',
         'month',
         'loadStatus',
+        'lifecycleStatus',
+        'everClosed',
+        'closedAt',
+        'closedBy',
+        'deletedAt',
+        'deletedBy',
         'createdBy',
         'createdAt',
         'updatedAt',
@@ -336,6 +362,23 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
     const response = await create().expect(409);
     expect(response.body.message).toContain('Ya existe un EERR');
     expect(eerrModel.create).not.toHaveBeenCalled();
+  });
+  it('un histórico soft-deleted no bloquea la recreación ni aparece en lecturas activas', async () => {
+    const historic = seed(branchId);
+    historic.deletedAt = new Date(now);
+    const created = await create().expect(201);
+    expect(created.body.id).not.toBe(historic._id);
+    expect(rows).toHaveLength(2);
+    expect(
+      (await get('/eerr').expect(200)).body.map(
+        (row: { id: string }) => row.id,
+      ),
+    ).toEqual([created.body.id]);
+    await get(`/eerr/${historic._id}`).expect(404);
+    expect(
+      (await get('/eerr/context?year=2026&month=8').expect(200)).body[0].eerr
+        .id,
+    ).toBe(created.body.id);
   });
   it('dos solicitudes con lectura previa vacía producen un éxito y un conflicto de índice controlado', async () => {
     eerrModel.exists.mockResolvedValue(null);

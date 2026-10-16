@@ -10,6 +10,34 @@ import type {
 } from "@puro-origen/calculation-engine";
 import type { EerrPeriod } from "@puro-origen/domain";
 
+export type EerrLifecycleStatus = "OPEN" | "CLOSED";
+export type EerrAuditEventType =
+  "EERR_CLOSED" | "EERR_REOPENED" | "EERR_DELETED" | "POST_CLOSE_EDIT";
+export type EerrLifecycleState = {
+  lifecycleStatus: EerrLifecycleStatus;
+  everClosed: boolean;
+  closedAt: string | null;
+  closedBy: string | null;
+  deletedAt: string | null;
+  deletedBy: string | null;
+};
+export type EerrAuditMetadata = {
+  previousLifecycleStatus?: EerrLifecycleStatus;
+  newLifecycleStatus?: EerrLifecycleStatus;
+  previousRevision?: number;
+  newRevision?: number;
+  changedArea?: string;
+};
+export type EerrAuditEvent = {
+  eventType: EerrAuditEventType;
+  eerrId: string;
+  branchId: string;
+  actorUserId: string;
+  occurredAt: string;
+  revision: number;
+  metadata?: EerrAuditMetadata;
+};
+
 export type {
   ComparisonMetric,
   ComparisonReason,
@@ -24,10 +52,14 @@ export type ComparisonMetricName =
   | "netResultPercent"
   | "breakEvenSales";
 export type ComparisonMetrics = Record<ComparisonMetricName, ComparisonMetric>;
-export type LocalGoalIndicators = Pick<AnalysisCalculation["projections"],
-  "targetSales" | "targetDifference" | "targetCompliance" | "trafficLight">;
+export type LocalGoalIndicators = Pick<
+  AnalysisCalculation["projections"],
+  "targetSales" | "targetDifference" | "targetCompliance" | "trafficLight"
+>;
 export type GoalComparisonMetrics = Record<
-  "targetSales" | "targetDifference" | "targetCompliance", ComparisonMetric>;
+  "targetSales" | "targetDifference" | "targetCompliance",
+  ComparisonMetric
+>;
 export type ComparisonSourceStatus =
   DashboardBranch["analysisStatus"] | "INVALID";
 export type ComparisonBranch = {
@@ -166,10 +198,11 @@ export type DashboardResponse = {
     inactiveWithoutHistory: number;
     excludedNotStarted: number;
   };
-  consolidated: Omit<AggregateCalculation, "targetSales"> & ConsolidatedGoalCalculation & {
-    label: string;
-    breakEvenAssumption: string | null;
-  };
+  consolidated: Omit<AggregateCalculation, "targetSales"> &
+    ConsolidatedGoalCalculation & {
+      label: string;
+      breakEvenAssumption: string | null;
+    };
   branches: DashboardBranch[];
   sources: {
     branchId: string;
