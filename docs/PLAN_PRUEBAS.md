@@ -550,3 +550,16 @@ Se aplicaron y restauraron seis mutaciones manuales en el modelo de presentació
 ## EP-06: objetivo consolidado transitorio
 
 Verificar el margen predeterminado 20 % y alternativo 25 % en agosto y septiembre de 2026 con las bases del manifiesto demo; comprobar el redondeo al centavo, diferencia, cumplimiento y semáforo. Cubrir margen 0, válido cercano a 100 % y al menos 100 %, objetivo cero, límites rojo/amarillo/verde y cobertura parcial. En HTTP sin Atlas, comprobar validación de query, permisos, ausencia de escrituras, conservación de metas locales y el mismo margen en los dos lados de la comparación. En web, comprobar aplicación explícita, URL compartible, refresh, Atrás/Adelante, estados neutrales y scroll en tamaños reducidos.
+
+## EP-07 PR 2: transiciones de lifecycle
+
+Las pruebas sin Atlas verifican autorización, revisión obligatoria, cierre y
+reapertura, pendientes monetarios activos, cantidades opcionales, borrado lógico
+deshabilitado por defecto, legacy sin campos de lifecycle, filtros de activos
+en EERR/analytics/estructura, CAS de estado y revisión, uso de la misma sesión
+para transición y auditoría, rollback simulado y carreras de transiciones.
+`npm run check` no abre conexión MongoDB. La semántica del índice parcial todavía
+no está validada contra MongoDB real en este PR. Antes de habilitar DELETE,
+repetir en MongoDB local o staging controlado la colisión activo+activo y la
+coexistencia soft-deleted+activo, junto al rollout documentado en ARQUITECTURA.
+Mantener `EERR_SOFT_DELETE_ENABLED` deshabilitado hasta completar esa prueba.

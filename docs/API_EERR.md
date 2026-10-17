@@ -61,13 +61,37 @@ enviados por el cliente.
 | `GET /eerr?branchId=…` | ObjectId de sucursal | Lista de esa sucursal, año/mes descendentes |
 | `GET /eerr/context?year=2026&month=8` | Año y mes | Una entrada por cada sucursal accesible, incluso inactiva o sin EERR |
 | `GET /eerr/:id` | UUID v4 | Contenedor accesible o 404 |
+| `POST /eerr/:id/close` | `{ "expectedRevision": 0 }` | EERR cerrado, revisión nueva y `pendingAmountCount` |
+| `POST /eerr/:id/reopen` | `{ "expectedRevision": 1 }` | EERR reabierto, revisión nueva |
+| `DELETE /eerr/:id` | `{ "expectedRevision": 0 }` | Soft delete y revisión nueva; deshabilitado por defecto |
 
 Cada EERR público contiene `id`, `branchId`, `year`, `month`, `loadStatus`,
 `lifecycleStatus`, `everClosed`, `closedAt`, `closedBy`, `deletedAt`, `deletedBy`,
-`createdBy`, `createdAt` y `updatedAt`. Las fechas se serializan en ISO 8601;
+`revision`, `createdBy`, `createdAt` y `updatedAt`. Las fechas se serializan en ISO 8601;
 los campos de cierre/borrado ausentes se devuelven como `null`. Las consultas
 públicas de contenedores omiten los soft-deleted.
 No se exponen `__v` ni campos internos de Sucursal.
+
+### Transiciones de ciclo de vida (EP-07 PR 2)
+
+Administrador o Editor asignado pueden cerrar `OPEN → CLOSED` y reabrir
+`CLOSED → OPEN`. Lector asignado recibe 403; un Editor no asignado recibe el
+mismo 404 genérico que un UUID inexistente. Cada transición exige
+`expectedRevision`, incrementa la revisión mediante CAS y registra exactamente
+un evento en la misma transacción. Un estado incorrecto o una revisión obsoleta
+devuelven 409. Un EERR inexistente, ajeno o soft-deleted devuelve 404 genérico.
+`CLOSED` sigue siendo editable; la auditoría de ediciones post-cierre pertenece
+a otro PR. Al cerrar, `pendingAmountCount` cuenta únicamente importes activos
+`SIN_CARGAR`, sin bloquear ni completar ceros. Al reabrir, `everClosed` continúa
+en `true` y `closedAt/closedBy` conservan los datos del último cierre; el historial
+completo está en eventos.
+
+DELETE solo admite `OPEN` con `everClosed=false`; un cerrado o reabierto recibe
+409. Guarda `deletedAt/deletedBy`, aumenta revisión y crea `EERR_DELETED`, sin
+hard delete. `EERR_SOFT_DELETE_ENABLED` ausente o distinto de `true` produce
+503 `EERR_SOFT_DELETE_DISABLED` sin leer ni escribir el EERR. Activarlo solo
+después de la migración y verificación del índice parcial descritas en
+[ARQUITECTURA.md](ARQUITECTURA.md). La bandera no sustituye esa verificación.
 
 En la perspectiva mensual, cada entrada contiene:
 

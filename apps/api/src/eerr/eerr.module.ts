@@ -18,6 +18,7 @@ import { BranchesPersistenceModule } from '../branches/branches-persistence.modu
 import { UsersModule } from '../users/users.module.js';
 import { EerrController } from './eerr.controller.js';
 import { EerrService } from './eerr.service.js';
+import { EerrLifecycleService } from './eerr-lifecycle.service.js';
 import { EerrClock } from './eerr-clock.js';
 import { Eerr, EerrSchema } from './schemas/eerr.schema.js';
 import {
@@ -56,6 +57,7 @@ import { StructureRepository } from './structure.repository.js';
     ImportService,
     ImportToken,
     EerrService,
+    EerrLifecycleService,
     EerrClock,
     StructureService,
     StructureRepository,

@@ -115,9 +115,10 @@ Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
   una operación administrativa: el EERR cerrado sigue siendo editable, con
   advertencia y auditoría de las ediciones posteriores. No equivale a bloqueo.
 - Administrador y Editor asignado pueden cerrar, reabrir y eliminar. Lector nunca.
-- `closedAt`/`closedBy` describen el cierre vigente; `everClosed` persiste si
-  alguna vez se cerró. Un EERR nunca cerrado es potencialmente eliminable; uno
-  alguna vez cerrado nunca se elimina. El historial de ciclos vive en eventos.
+- `closedAt`/`closedBy` describen el último cierre, incluso después de reabrir;
+  `everClosed` persiste si alguna vez se cerró. Un EERR nunca cerrado es
+  potencialmente eliminable; uno alguna vez cerrado nunca se elimina. El
+  historial de ciclos vive en eventos.
 - El borrado es lógico (`deletedAt`, `deletedBy`), excluye el EERR de vistas
   activas y libera sucursal/año/mes para uno nuevo. No borra el historial.
 - Para un documento legacy sin estos campos se interpreta `OPEN`,
@@ -125,8 +126,8 @@ Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
 - La advertencia de cierre cuenta importes activos `SIN_CARGAR`; las cantidades
   opcionales `SIN_CARGAR` no participan.
 - Las transiciones de cierre, reapertura y eliminación requieren revisión CAS
-  (`expectedRevision`) y evento en la misma transacción. Los endpoints y las
-  reglas de mutaciones post-cierre se incorporarán en PR posteriores.
+  (`expectedRevision`) y evento en la misma transacción. PR 2 incorpora los
+  endpoints; la auditoría de mutaciones post-cierre queda para un PR posterior.
 
 ## Estructura e ingreso manual básico (EP-04A)
 

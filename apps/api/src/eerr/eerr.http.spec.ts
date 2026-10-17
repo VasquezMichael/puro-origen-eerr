@@ -240,6 +240,7 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
         'year',
         'month',
         'loadStatus',
+        'revision',
         'lifecycleStatus',
         'everClosed',
         'closedAt',
@@ -484,18 +485,32 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
     expect(eerrModel.create).not.toHaveBeenCalled();
     expect(rows).toHaveLength(1);
   });
-  it('no monta modificaciones, borrado ni transiciones de ciclo de vida', async () => {
+  it('no monta PATCH y mantiene DELETE deshabilitado por defecto', async () => {
     const row = seed(branchId);
     await api()
       .patch(`/eerr/${row._id}`)
       .set('Cookie', cookie)
       .send({ branchId: otherId })
       .expect(404);
-    await api().delete(`/eerr/${row._id}`).set('Cookie', cookie).expect(404);
-    await api()
-      .post(`/eerr/${row._id}/close`)
-      .set('Cookie', cookie)
-      .expect(404);
+    const disabled = await api().delete(`/eerr/${row._id}`)
+      .set('Cookie', cookie).send({ expectedRevision: 0 }).expect(503);
+    expect(disabled.body.code).toBe('EERR_SOFT_DELETE_DISABLED');
+    expect(rows[0]).toEqual(row);
+  });
+  it('valida expectedRevision y deniega transiciones a Reader o Editor no asignado', async () => {
+    const row = seed(branchId);
+    await api().post(`/eerr/${row._id}/close`).set('Cookie', cookie).send({}).expect(400);
+    await api().post(`/eerr/${row._id}/reopen`).set('Cookie', cookie)
+      .send({ expectedRevision: -1 }).expect(400);
+    await api().post(`/eerr/${row._id}/close`).set('Cookie', cookie)
+      .send({ expectedRevision: 0, extra: true }).expect(400);
+    viewer.isAdmin = false;
+    viewer.branchAccesses = [{ branchId, role: BranchRole.READER }];
+    await api().post(`/eerr/${row._id}/close`).set('Cookie', cookie)
+      .send({ expectedRevision: 0 }).expect(403);
+    viewer.branchAccesses = [{ branchId: otherId, role: BranchRole.EDITOR }];
+    await api().post(`/eerr/${row._id}/close`).set('Cookie', cookie)
+      .send({ expectedRevision: 0 }).expect(404);
     expect(rows[0]).toEqual(row);
   });
 });

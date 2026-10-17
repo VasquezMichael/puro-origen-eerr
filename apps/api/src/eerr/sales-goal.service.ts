@@ -12,6 +12,7 @@ import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import { BranchRole } from '../users/user-role.js';
 import { EerrService } from './eerr.service.js';
 import { EerrClock } from './eerr-clock.js';
+import { ACTIVE_EERR_FILTER } from './eerr-lifecycle.js';
 import { revisionFilter } from './structure.repository.js';
 import { Eerr, type EerrDocument } from './schemas/eerr.schema.js';
 import { publicSalesGoal } from './schemas/sales-goal.schema.js';
@@ -99,7 +100,7 @@ export class SalesGoalService {
           };
     const saved = await this.model
       .findOneAndUpdate(
-        { _id: row._id, ...revisionFilter(revision), structure: { $ne: null } },
+        { _id: row._id, ...ACTIVE_EERR_FILTER, ...revisionFilter(revision), structure: { $ne: null } },
         update,
         { returnDocument: 'after', runValidators: true, timestamps: false },
       )

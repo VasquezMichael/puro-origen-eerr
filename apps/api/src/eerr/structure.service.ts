@@ -95,6 +95,10 @@ export class StructureService {
   private requireRevision(row: Row, expected: number) {
     if ((row.revision ?? 0) !== expected) throw conflict();
   }
+  private requireActive(row: Row | null | undefined): Row {
+    if (!row) throw new NotFoundException('EERR no encontrado');
+    return row;
+  }
   private requireStructure(row: Row): EerrStructure {
     const structure = publicStructure(row.structure);
     if (!structure)
@@ -134,7 +138,7 @@ export class StructureService {
         keyOf(accessible),
         session,
       );
-      const row = (await this.store.get(accessible.id, session))!;
+      const row = this.requireActive(await this.store.get(accessible.id, session));
       if (row.structure) return this.response(row); // Repetir la misma intención es idempotente.
       this.requireRevision(row, expected);
       const structure: EerrStructure = {
@@ -152,7 +156,7 @@ export class StructureService {
   async createItem(id: string, input: ItemDto, viewer: Viewer) {
     const accessible = await this.access(id, viewer, true);
     return this.store.transaction(async (session) => {
-      const row = (await this.store.get(accessible.id, session))!;
+      const row = this.requireActive(await this.store.get(accessible.id, session));
       this.requireRevision(row, input.expectedRevision);
       const structure = this.requireStructure(row);
       const parent = structure.nodes.find(
@@ -215,7 +219,7 @@ export class StructureService {
     edit: (node: StructureNode, structure: EerrStructure) => void,
   ) {
     const accessible = await this.access(id, viewer, true);
-    const row = (await this.store.get(accessible.id))!;
+    const row = this.requireActive(await this.store.get(accessible.id));
     this.requireRevision(row, expected);
     const structure = this.requireStructure(row);
     const node = structure.nodes.find(
@@ -250,7 +254,7 @@ export class StructureService {
     viewer: Viewer,
   ) {
     const accessible = await this.access(id, viewer, true);
-    const row = (await this.store.get(accessible.id))!;
+    const row = this.requireActive(await this.store.get(accessible.id));
     this.requireRevision(row, input.expectedRevision);
     const structure = this.requireStructure(row);
     const item = structure.nodes.find(
@@ -283,7 +287,7 @@ export class StructureService {
     viewer: Viewer,
   ) {
     const accessible = await this.access(id, viewer, true);
-    const row = (await this.store.get(accessible.id))!;
+    const row = this.requireActive(await this.store.get(accessible.id));
     this.requireRevision(row, expected);
     const structure = this.requireStructure(row);
     const node = structure.nodes.find(
@@ -466,7 +470,7 @@ export class StructureService {
   ): Promise<CategoryMovePreviewResponse> {
     const accessible = await this.access(id, viewer, true);
     const rows = await this.store.period(accessible.year, accessible.month);
-    const own = rows.find((r) => r._id === accessible.id)!;
+    const own = this.requireActive(rows.find((r) => r._id === accessible.id));
     this.requireRevision(own, input.expectedRevision);
     const structure = this.requireStructure(own);
     const node = structure.nodes.find(
@@ -573,7 +577,7 @@ export class StructureService {
     )
       throw new BadRequestException('Campos incompatibles con la operación');
     const rows = await this.store.period(accessible.year, accessible.month);
-    const own = rows.find((row) => row._id === accessible.id)!;
+    const own = this.requireActive(rows.find((row) => row._id === accessible.id));
     this.requireRevision(own, input.expectedRevision);
     const template = await this.store.template(keyOf(accessible));
     const existing = template.categories.find(
@@ -667,7 +671,7 @@ export class StructureService {
         preview.month,
         session,
       );
-      const own = rows.find((row) => row._id === accessible.id)!;
+      const own = this.requireActive(rows.find((row) => row._id === accessible.id));
       this.requireRevision(own, input.expectedRevision);
       const template = await this.store.template(keyOf(accessible), session);
       if (

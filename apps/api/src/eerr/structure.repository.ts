@@ -4,11 +4,13 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import type { EerrLifecycleStatus } from '@puro-origen/shared-types';
 import {
   Types,
   type Connection,
   type Model,
   type ClientSession,
+  type QueryFilter,
 } from 'mongoose';
 import {
   loadProgress,
@@ -17,6 +19,7 @@ import {
   type ImportChange,
   type StructureNode,
 } from '@puro-origen/domain';
+import { ACTIVE_EERR_FILTER } from './eerr-lifecycle.js';
 import {
   Eerr,
   EerrLoadStatus,
@@ -81,14 +84,60 @@ export class StructureRepository {
   }
   get(id: string, session?: ClientSession) {
     return this.eerrs
-      .findById(id)
+      .findOne({ _id: id, ...ACTIVE_EERR_FILTER })
       .session(session ?? null)
+      .lean()
+      .exec();
+  }
+  /** CAS de lifecycle; la sesión proviene de transaction y se comparte con auditoría. */
+  transition(
+    id: string,
+    revision: number,
+    from: EerrLifecycleStatus,
+    to: EerrLifecycleStatus | 'DELETED',
+    actorUserId: string,
+    now: Date,
+    session: ClientSession,
+  ) {
+    const expectedState =
+      from === 'OPEN'
+        ? {
+            $or: [
+              { lifecycleStatus: 'OPEN' },
+              { lifecycleStatus: { $exists: false } },
+            ],
+          }
+        : { lifecycleStatus: 'CLOSED' };
+    const conditions: Record<string, unknown>[] = [
+      revisionFilter(revision),
+      expectedState,
+    ];
+    if (to === 'DELETED')
+      conditions.push({
+        $or: [{ everClosed: false }, { everClosed: { $exists: false } }],
+      });
+    const fields =
+      to === 'CLOSED'
+        ? { lifecycleStatus: 'CLOSED', everClosed: true, closedAt: now, closedBy: actorUserId }
+        : to === 'OPEN'
+          ? { lifecycleStatus: 'OPEN' }
+          : { deletedAt: now, deletedBy: actorUserId };
+    return this.eerrs
+      .findOneAndUpdate(
+        {
+          _id: id,
+          ...ACTIVE_EERR_FILTER,
+          $and: conditions,
+        } as QueryFilter<EerrDocument>,
+        { $set: { ...fields, updatedAt: now }, $inc: { revision: 1 } },
+        { returnDocument: 'after', runValidators: true, timestamps: false, session },
+      )
       .lean()
       .exec();
   }
   async period(year: number, month: number, session?: ClientSession) {
     const rows = await this.eerrs
-      .find({ year, month })
+      .find({ year, month, ...ACTIVE_EERR_FILTER })
       .sort({ _id: 1 })
       .limit(STRUCTURE_LIMITS.periodEerrs + 1)
       .session(session ?? null)
@@ -110,6 +159,7 @@ export class StructureRepository {
   cloneCandidates(branchIds: string[], year: number, month: number) {
     return this.eerrs
       .find({
+        ...ACTIVE_EERR_FILTER,
         branchId: { $in: branchIds },
         structure: { $ne: null },
         $or: [{ year: { $lt: year } }, { year, month: { $lte: month } }],
@@ -128,6 +178,7 @@ export class StructureRepository {
       .findOneAndUpdate(
         {
           _id: id,
+          ...ACTIVE_EERR_FILTER,
           ...revisionFilter(0),
           structure: null,
           note: { $exists: false },
@@ -194,7 +245,7 @@ export class StructureRepository {
     fields.loadStatus = loadProgress(nodes).status;
     const row = await this.eerrs
       .findOneAndUpdate(
-        { _id: id, ...revisionFilter(revision) },
+        { _id: id, ...ACTIVE_EERR_FILTER, ...revisionFilter(revision) },
         { $set: fields, $inc: { revision: 1 } },
         {
           returnDocument: 'after',
@@ -246,7 +297,7 @@ export class StructureRepository {
   ) {
     const row = await this.eerrs
       .findOneAndUpdate(
-        { _id: id, ...revisionFilter(revision) },
+        { _id: id, ...ACTIVE_EERR_FILTER, ...revisionFilter(revision) },
         {
           $set: {
             structure: storedStructure(structure),
@@ -283,7 +334,7 @@ export class StructureRepository {
     });
     const row = await this.eerrs
       .findOneAndUpdate(
-        { _id: id, ...revisionFilter(revision) },
+        { _id: id, ...ACTIVE_EERR_FILTER, ...revisionFilter(revision) },
         {
           $set: fields,
           $inc: { revision: 1, 'structure.structureVersion': 1 },
@@ -326,6 +377,7 @@ export class StructureRepository {
       .findOneAndUpdate(
         {
           _id: id,
+          ...ACTIVE_EERR_FILTER,
           ...revisionFilter(revision),
           'structure.nodes': { $elemMatch: { nodeId, kind: 'ITEM' } },
         },
@@ -355,7 +407,7 @@ export class StructureRepository {
   async writeNote(id: string, revision: number, note: string | null) {
     const row = await this.eerrs
       .findOneAndUpdate(
-        { _id: id, ...revisionFilter(revision) },
+        { _id: id, ...ACTIVE_EERR_FILTER, ...revisionFilter(revision) },
         {
           ...(note === null ? { $unset: { note: 1 } } : { $set: { note } }),
           $inc: { revision: 1 },

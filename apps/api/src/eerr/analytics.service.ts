@@ -45,6 +45,7 @@ import { BranchesService } from '../branches/branches.service.js';
 import { UsersService } from '../users/users.service.js';
 import type { BranchRole } from '../users/user-role.js';
 import { Eerr, type EerrDocument } from './schemas/eerr.schema.js';
+import { ACTIVE_EERR_FILTER } from './eerr-lifecycle.js';
 import {
   publicStructure,
   type StoredStructure,
@@ -495,6 +496,7 @@ export class AnalyticsService {
     if (branches.length === 0) return [];
     const rows = await this.eerrs
       .find({
+        ...ACTIVE_EERR_FILTER,
         year: period.year,
         month: period.month,
         branchId: { $in: branches.map((branch) => branch.id) },

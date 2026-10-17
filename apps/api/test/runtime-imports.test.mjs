@@ -23,6 +23,8 @@ for (const [modulePath, exportName] of [
   ['eerr/structure.service.js', 'StructureService'],
   ['eerr/structure.controller.js', 'StructureController'],
   ['eerr/eerr.service.js', 'EerrService'],
+  ['eerr/eerr-lifecycle.service.js', 'EerrLifecycleService'],
+  ['eerr/eerr.controller.js', 'EerrController'],
   ['branches/branches.service.js', 'BranchesService'],
   ['users/users.service.js', 'UsersService'],
 ]) {

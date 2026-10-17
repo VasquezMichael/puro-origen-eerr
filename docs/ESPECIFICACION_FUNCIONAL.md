@@ -53,7 +53,8 @@ En EP-07, Administrador y Editor asignado podrán cerrar, reabrir y eliminar;
 Lector no. Solo podrá eliminarse un EERR que nunca haya estado cerrado. El
 soft delete libera sucursal y período para crear otro EERR, preservando el
 histórico. El aviso de cierre contará importes activos `SIN_CARGAR`, sin contar
-cantidades opcionales pendientes. PR 1 prepara el modelo; no expone esas acciones.
+cantidades opcionales pendientes. Al reabrir se conserva la fecha y el actor
+del último cierre; el historial completo vive en eventos de auditoría.
 
 ### Carga y estructura
 

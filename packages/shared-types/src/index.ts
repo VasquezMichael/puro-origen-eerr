@@ -21,6 +21,20 @@ export type EerrLifecycleState = {
   deletedAt: string | null;
   deletedBy: string | null;
 };
+export type EerrTransitionRequest = { expectedRevision: number };
+export type EerrTransitionResponse = EerrLifecycleState & {
+  id: string;
+  branchId: string;
+  year: number;
+  month: number;
+  revision: number;
+  loadStatus: "SIN_CARGAR" | "PARCIAL" | "CARGADO";
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Solo en la respuesta de cierre; cuenta importes activos SIN_CARGAR. */
+  pendingAmountCount?: number;
+};
 export type EerrAuditMetadata = {
   previousLifecycleStatus?: EerrLifecycleStatus;
   newLifecycleStatus?: EerrLifecycleStatus;

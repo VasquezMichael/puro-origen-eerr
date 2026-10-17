@@ -31,6 +31,7 @@ type Row = {
   structure: ReturnType<typeof storedStructure> | null;
   loadStatus: string;
   salesGoal?: unknown;
+  deletedAt?: Date;
 };
 
 function structure(
@@ -102,6 +103,7 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
         year: number;
         month: number;
         branchId: { $in: string[] };
+        deletedAt: null;
       }) => ({
         select: function () {
           return this;
@@ -116,6 +118,7 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
               (row) =>
                 row.year === filter.year &&
                 row.month === filter.month &&
+                (filter.deletedAt !== null || row.deletedAt == null) &&
                 filter.branchId.$in.includes(row.branchId),
             )
             .map((row) => ({ ...row }));
@@ -263,6 +266,15 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     expect(response.body.sources).toHaveLength(4);
     expect(response.body.sourceSignature).toMatch(/^[a-f\d]{64}$/);
     expect(reads).toBe(2);
+    expect(writes).toBe(0);
+  });
+
+  it('no incluye un EERR soft-deleted en Dashboard ni en sus fuentes', async () => {
+    const removedId = rows[0]!._id;
+    rows[0]!.deletedAt = new Date('2026-10-01T00:00:00Z');
+    const response = await get().expect(200);
+    expect(response.body.coverage).toMatchObject({ withEerr: 1, complete: 1 });
+    expect(response.body.sources.some((source: { eerrId?: string }) => source.eerrId === removedId)).toBe(false);
     expect(writes).toBe(0);
   });
 

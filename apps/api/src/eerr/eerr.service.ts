@@ -145,6 +145,7 @@ export class EerrService {
       branchId: row.branchId.toString(),
       year: row.year,
       month: row.month,
+      revision: row.revision ?? 0,
       loadStatus: row.loadStatus,
       ...eerrLifecycle(row),
       createdBy: row.createdBy.toString(),
