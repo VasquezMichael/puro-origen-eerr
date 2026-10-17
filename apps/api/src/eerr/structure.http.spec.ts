@@ -176,6 +176,53 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     expect(store.state.templates).toEqual({});
     expect((await api().get(`/eerr/${id}/structure`)).status).toBe(401);
   });
+  it('inicialización devuelve 404 si el EERR desaparece tras autorizar, sin publicar plantilla', async () => {
+    const before = JSON.stringify(store.state);
+    vi.spyOn(store, 'get').mockResolvedValueOnce(null);
+    expect((await init()).status).toBe(404);
+    expect(JSON.stringify(store.state)).toBe(before);
+    expect(store.writes).toBe(0);
+  });
+  it('mutaciones individuales devuelven 404 si desaparece el EERR entre autorización y lectura', async () => {
+    await init();
+    const root = (await read()).body.structure.nodes[0];
+    vi.spyOn(store, 'get').mockResolvedValueOnce(null);
+    expect((await send('items', { expectedRevision: 1, parentId: root.nodeId, name: 'Nuevo' })).status).toBe(404);
+    const item = (await createItem()).body.structure.nodes[3];
+    const before = JSON.stringify(store.state);
+    const writes = store.writes;
+    const requests = [
+      () => api().patch(`/eerr/${id}/items/${item.nodeId}`).set('Cookie', `${SESSION_COOKIE}=offline`)
+        .send({ expectedRevision: 2, name: 'Otro' }),
+      () => api().patch(`/eerr/${id}/items/${item.nodeId}/move`).set('Cookie', `${SESSION_COOKIE}=offline`)
+        .send({ expectedRevision: 2, parentId: root.nodeId, position: 0 }),
+      () => api().patch(`/eerr/${id}/items/${item.nodeId}/archive`).set('Cookie', `${SESSION_COOKIE}=offline`)
+        .send({ expectedRevision: 2 }),
+    ];
+    for (const makeRequest of requests) {
+      vi.spyOn(store, 'get').mockResolvedValueOnce(null);
+      expect((await makeRequest()).status).toBe(404);
+      expect(JSON.stringify(store.state)).toBe(before);
+      expect(store.writes).toBe(writes);
+    }
+  });
+  it('edición no modifica un EERR borrado entre autorización y segunda lectura', async () => {
+    await init();
+    const item = (await createItem()).body.structure.nodes[3];
+    const row = store.state.rows.find((entry) => entry._id === id)!;
+    const beforeStructure = JSON.stringify(row.structure);
+    const beforeRevision = row.revision;
+    const writes = store.writes;
+    vi.spyOn(store, 'get').mockImplementationOnce(async () => {
+      row.deletedAt = new Date(fixtureNow);
+      return null;
+    });
+    expect((await amount(item.nodeId, 2, 'CARGADO', '5')).status).toBe(404);
+    expect(row.deletedAt).toBeDefined();
+    expect(JSON.stringify(row.structure)).toBe(beforeStructure);
+    expect(row.revision).toBe(beforeRevision);
+    expect(store.writes).toBe(writes);
+  });
   it('Editor puede publicar desde un EERR aún sin preparar sin inicializarlo', async () => {
     viewer = {
       ...viewer,
@@ -428,6 +475,67 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     id = pending._id;
     const prepared = await init();
     expect(prepared.body.structure.nodes[3].code).toBe(code);
+  });
+  it('previews globales devuelven 404 si el EERR propio desaparece tras autorizar', async () => {
+    await init();
+    const before = JSON.stringify(store.state);
+    vi.spyOn(store, 'period').mockResolvedValueOnce([]);
+    const categoryPreview = await send('categories/preview', {
+      expectedRevision: 1,
+      operation: 'CREATE',
+      parentCode: ROOTS[0].code,
+      name: 'Nueva',
+    });
+    expect(categoryPreview.status).toBe(404);
+    const root = (await read()).body.structure.nodes[0];
+    vi.spyOn(store, 'period').mockResolvedValueOnce([]);
+    const movePreviewResult = await send('categories/move/preview', {
+      expectedRevision: 1,
+      nodeId: root.nodeId,
+      parentId: root.nodeId,
+      position: 0,
+    });
+    expect(movePreviewResult.status).toBe(404);
+    expect(JSON.stringify(store.state)).toBe(before);
+    expect(store.writes).toBe(1);
+  });
+  it('confirmación global devuelve 404 si el EERR propio desaparece y revierte la transacción', async () => {
+    await init();
+    const preview = await category();
+    const before = JSON.stringify(store.state);
+    const writes = store.writes;
+    vi.spyOn(store, 'period').mockResolvedValueOnce([]);
+    expect((await confirm(preview.body.previewId, 1)).status).toBe(404);
+    expect(JSON.stringify(store.state)).toBe(before);
+    expect(store.writes).toBe(writes);
+  });
+  it('confirmación global aborta si otro EERR del preview fue eliminado', async () => {
+    const other = store.seed(fixtureOtherBranch);
+    await init();
+    const preview = await category();
+    const deleted = store.state.rows.find((row) => row._id === other._id)!;
+    deleted.deletedAt = new Date(fixtureNow);
+    const before = JSON.stringify(store.state);
+    const writes = store.writes;
+    const period = store.period.bind(store);
+    vi.spyOn(store, 'period').mockImplementationOnce(async (year, month) =>
+      (await period(year, month)).filter((row) => !row.deletedAt),
+    );
+    expect((await confirm(preview.body.previewId, 1)).status).toBe(409);
+    expect(JSON.stringify(store.state)).toBe(before);
+    expect(store.writes).toBe(writes);
+  });
+  it('un EERR CLOSED sigue editable sin cambiar su lifecycle', async () => {
+    await init();
+    const item = (await createItem()).body.structure.nodes[3];
+    const row = store.state.rows.find((entry) => entry._id === id)!;
+    const closedAt = new Date(fixtureNow);
+    Object.assign(row, { lifecycleStatus: 'CLOSED', everClosed: true, closedAt, closedBy: fixtureUser });
+    const result = await amount(item.nodeId, 2, 'CARGADO', '5');
+    expect(result.status).toBe(200);
+    expect(result.body.revision).toBe(3);
+    expect(row).toMatchObject({ lifecycleStatus: 'CLOSED', everClosed: true, closedAt, closedBy: fixtureUser });
+    expect(row.structure!.nodes[3].amount?.value?.toString()).toBe('5.00');
   });
   it('renombrar categoría global conserva código, nodeId y subcategorías sin tocar otro mes', async () => {
     await init();
@@ -1204,6 +1312,22 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
       confirm: true,
       expectedRevision: (await read()).body.revision,
     });
+  it('confirmación de movimiento global devuelve 404 sin cambios si desaparece el EERR propio', async () => {
+    const { categories, root } = await globalMoveFixture();
+    const preview = await movePreview(categories[1].nodeId, root.nodeId, 0);
+    const before = JSON.stringify(store.state);
+    const writes = store.writes;
+    const expectedRevision = (await read()).body.revision;
+    vi.spyOn(store, 'period').mockResolvedValueOnce([]);
+    const result = await send('categories/move/confirm', {
+      previewId: preview.body.previewId,
+      confirm: true,
+      expectedRevision,
+    });
+    expect(result.status).toBe(404);
+    expect(JSON.stringify(store.state)).toBe(before);
+    expect(store.writes).toBe(writes);
+  });
   it('categoría global: preview sin cambios, publicación atómica e histórico intacto', async () => {
     const { categories, root, other } = await globalMoveFixture();
     const historical = store.seed(fixtureBranch, 8);

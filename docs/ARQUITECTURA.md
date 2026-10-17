@@ -56,19 +56,20 @@ listados, contexto y lectura por id de `EerrService` usan el filtro.
 `eerr_audit_events` es una colección separada de inserción solamente en la
 aplicación. Su esquema conserva tipo, EERR, sucursal, actor, instante, revisión
 y metadata acotada; no almacena snapshots ni secretos. `EerrAuditRepository.append`
-exige la `ClientSession` del llamador. PR 2 compondrá ese insert con el CAS del
-EERR dentro de `StructureRepository.transaction` (snapshot/majority). No hay
-transiciones ni endpoints de historial en PR 1.
+exige la `ClientSession` del llamador. PR 2 compone ese insert con el CAS del
+EERR dentro de `StructureRepository.transaction` (snapshot/majority).
+`closedAt/closedBy` conservan el último cierre al reabrir; el historial completo
+vive en eventos. No hay endpoint de historial en PR 2.
 
-Antes de habilitar DELETE deben filtrar activos las consultas directas de
-`AnalyticsService` (Dashboard y comparaciones), `StructureRepository` (get,
-períodos, candidatos de clonación y publicación global) y los filtros CAS de
-escritura. Esto afecta estructura, metas (`SalesGoalService`), clonación,
-importación y complete pending: aunque consultan primero mediante `EerrService`,
-vuelven a leer o escribir por rutas directas. `AnalysisService` ya delega su
-lectura en `EerrService.readAuthorized`. La herramienta demo también requiere
-revisión antes de operar sobre históricos borrados. PR 1 no cambia masivamente
-esos flujos ni activa el borrado.
+PR 2 filtra activos en consultas directas de `AnalyticsService`,
+`StructureRepository` y CAS de estructura, metas, importación, clonación y
+complete pending. `AnalysisService` delega su lectura en
+`EerrService.readAuthorized`. Antes de ejecutar `demo:dataset apply`, `clean` o
+`restore` con históricos soft-deleted, revisar sus consultas y reemplazos: la
+herramienta demo no filtra esos históricos y no forma parte de la aplicación normal.
+DELETE permanece deshabilitado por defecto mediante `EERR_SOFT_DELETE_ENABLED`.
+Solo `true`, después del rollout controlado del índice, habilita la operación.
+La bandera no ejecuta migraciones ni verifica índices por sí sola.
 
 El índice anterior `{ branchId: 1, year: -1, month: -1 }` es único global. El
 esquema declara como destino el índice único parcial
@@ -76,8 +77,9 @@ esquema declara como destino el índice único parcial
 activos nuevos y legacy sin `deletedAt`, y excluye históricos borrados. En una
 base existente el índice global **no cambia por actualizar el esquema** y
 seguiría impidiendo recrear un período. En producción `autoIndex: false` impide
-que desplegar PR 1 intente crearlo automáticamente. Antes de desplegar o habilitar
-DELETE en PR 2, ejecutar esta secuencia controlada (no forma parte de PR 1):
+que desplegar PR 1 intente crearlo automáticamente. PR 2 puede integrarse con
+DELETE deshabilitado. Antes de habilitarlo, ejecutar esta secuencia controlada
+(no forma parte de PR 2):
 
 1. Mantener DELETE deshabilitado y verificar `autoIndex: false` en producción.
 2. Inspeccionar con `getIndexes()` el índice global existente y comprobar que no
@@ -93,7 +95,8 @@ DELETE en PR 2, ejecutar esta secuencia controlada (no forma parte de PR 1):
    dos activos colisionan y que un histórico soft-deleted puede coexistir con
    uno activo de la misma sucursal/período.
 6. Reanudar escritores solo con el índice correcto verificado. Recién entonces
-   desplegar y habilitar DELETE, tras cubrir todas las rutas activas y el CAS.
+   habilitar DELETE con `EERR_SOFT_DELETE_ENABLED=true` y conservar la bandera
+   deshabilitada en los entornos sin índice verificado.
 
 No se ejecuta DDL ni se consulta Atlas en este PR.
 

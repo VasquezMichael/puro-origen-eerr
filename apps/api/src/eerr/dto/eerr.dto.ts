@@ -16,6 +16,12 @@ export class CreateEerrDto {
   month!: number;
 }
 
+export class EerrTransitionDto {
+  @IsInt({ message: 'expectedRevision debe ser un entero' })
+  @Min(0)
+  expectedRevision!: number;
+}
+
 export class ListEerrDto {
   @ValidateIf((_object, value) => value !== undefined)
   @IsMongoId({ message: 'Identificador de sucursal inválido' })
