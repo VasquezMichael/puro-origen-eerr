@@ -34,6 +34,8 @@ import { BranchRole } from '../users/user-role.js';
 import { EerrService } from './eerr.service.js';
 import { EerrClock } from './eerr-clock.js';
 import { StructureRepository } from './structure.repository.js';
+import { PostCloseEditService } from './post-close-edit.service.js';
+import type { EerrAuditChangedArea } from '@puro-origen/shared-types';
 import {
   publicStructure,
   type GlobalPreview,
@@ -74,6 +76,7 @@ export class StructureService {
     private readonly store: StructureRepository,
     private readonly eerrs: EerrService,
     private readonly clock: EerrClock,
+    private readonly postCloseEdit: PostCloseEditService,
   ) {}
   private async access(id: string, viewer: Viewer, write = false) {
     const row = await this.eerrs.get(id, viewer);
@@ -138,7 +141,9 @@ export class StructureService {
         keyOf(accessible),
         session,
       );
-      const row = this.requireActive(await this.store.get(accessible.id, session));
+      const row = this.requireActive(
+        await this.store.get(accessible.id, session),
+      );
       if (row.structure) return this.response(row); // Repetir la misma intención es idempotente.
       this.requireRevision(row, expected);
       const structure: EerrStructure = {
@@ -148,15 +153,29 @@ export class StructureService {
         initializedBy: viewer.sub,
         nodes: this.rule(() => initialNodes(template!.categories, randomUUID)),
       };
-      return this.response(
-        await this.store.write(row._id, expected, structure, session, true),
+      const updated = await this.store.write(
+        row._id,
+        expected,
+        structure,
+        session,
+        true,
       );
+      await this.postCloseEdit.appendIfClosed(
+        row,
+        updated,
+        viewer.sub,
+        'STRUCTURE',
+        session,
+      );
+      return this.response(updated);
     });
   }
   async createItem(id: string, input: ItemDto, viewer: Viewer) {
     const accessible = await this.access(id, viewer, true);
     return this.store.transaction(async (session) => {
-      const row = this.requireActive(await this.store.get(accessible.id, session));
+      const row = this.requireActive(
+        await this.store.get(accessible.id, session),
+      );
       this.requireRevision(row, input.expectedRevision);
       const structure = this.requireStructure(row);
       const parent = structure.nodes.find(
@@ -196,14 +215,20 @@ export class StructureService {
         session,
       );
       structure.structureVersion += 1;
-      return this.response(
-        await this.store.write(
-          row._id,
-          input.expectedRevision,
-          structure,
-          session,
-        ),
+      const updated = await this.store.write(
+        row._id,
+        input.expectedRevision,
+        structure,
+        session,
       );
+      await this.postCloseEdit.appendIfClosed(
+        row,
+        updated,
+        viewer.sub,
+        'STRUCTURE',
+        session,
+      );
+      return this.response(updated);
     });
   }
   private rootCode(node: StructureNode, nodes: StructureNode[]) {
@@ -216,24 +241,39 @@ export class StructureService {
     nodeId: string,
     expected: number,
     viewer: Viewer,
-    edit: (node: StructureNode, structure: EerrStructure) => void,
+    changedArea: EerrAuditChangedArea,
+    edit: (node: StructureNode, structure: EerrStructure) => boolean,
   ) {
     const accessible = await this.access(id, viewer, true);
-    const row = this.requireActive(await this.store.get(accessible.id));
-    this.requireRevision(row, expected);
-    const structure = this.requireStructure(row);
-    const node = structure.nodes.find(
-      (item) => item.nodeId === nodeId.toLowerCase(),
+    return this.postCloseEdit.run(
+      accessible.id,
+      viewer.sub,
+      changedArea,
+      async (row, session) => {
+        this.requireRevision(row, expected);
+        const structure = this.requireStructure(row);
+        const node = structure.nodes.find(
+          (item) => item.nodeId === nodeId.toLowerCase(),
+        );
+        if (!node || node.kind !== 'ITEM')
+          throw new BadRequestException('El nodo no es un ítem de este EERR');
+        if (isArchived(node))
+          throw new BadRequestException('Restaurá el ítem antes de editarlo');
+        const changed = this.rule(() => {
+          const result = edit(node, structure);
+          assertStructure(structure.nodes);
+          return result;
+        });
+        if (!changed) return { response: this.response(row) };
+        const updated = await this.store.write(
+          row._id,
+          expected,
+          structure,
+          session,
+        );
+        return { response: this.response(updated), updated };
+      },
     );
-    if (!node || node.kind !== 'ITEM')
-      throw new BadRequestException('El nodo no es un ítem de este EERR');
-    if (isArchived(node))
-      throw new BadRequestException('Restaurá el ítem antes de editarlo');
-    this.rule(() => {
-      edit(node, structure);
-      assertStructure(structure.nodes);
-    });
-    return this.response(await this.store.write(row._id, expected, structure));
   }
   renameItem(id: string, nodeId: string, input: RenameItemDto, viewer: Viewer) {
     return this.editItem(
@@ -241,9 +281,13 @@ export class StructureService {
       nodeId,
       input.expectedRevision,
       viewer,
+      'STRUCTURE',
       (node, structure) => {
-        node.name = cleanConceptName(input.name);
+        const name = cleanConceptName(input.name);
+        if (node.name === name) return false;
+        node.name = name;
         structure.structureVersion += 1;
+        return true;
       },
     );
   }
@@ -254,29 +298,35 @@ export class StructureService {
     viewer: Viewer,
   ) {
     const accessible = await this.access(id, viewer, true);
-    const row = this.requireActive(await this.store.get(accessible.id));
-    this.requireRevision(row, input.expectedRevision);
-    const structure = this.requireStructure(row);
-    const item = structure.nodes.find(
-      (node) => node.nodeId === nodeId.toLowerCase(),
-    );
-    if (!item || item.kind !== 'ITEM')
-      throw new BadRequestException('El nodo no es un ítem de este EERR');
-    const change = this.rule(() =>
-      moveNode(
-        structure.nodes,
-        item.nodeId,
-        input.parentId.toLowerCase(),
-        input.position,
-      ),
-    );
-    if (!change.changed) return this.response(row);
-    return this.response(
-      await this.store.writeOrder(
-        row._id,
-        input.expectedRevision,
-        change.nodes,
-      ),
+    return this.postCloseEdit.run(
+      accessible.id,
+      viewer.sub,
+      'STRUCTURE',
+      async (row, session) => {
+        this.requireRevision(row, input.expectedRevision);
+        const structure = this.requireStructure(row);
+        const item = structure.nodes.find(
+          (node) => node.nodeId === nodeId.toLowerCase(),
+        );
+        if (!item || item.kind !== 'ITEM')
+          throw new BadRequestException('El nodo no es un ítem de este EERR');
+        const change = this.rule(() =>
+          moveNode(
+            structure.nodes,
+            item.nodeId,
+            input.parentId.toLowerCase(),
+            input.position,
+          ),
+        );
+        if (!change.changed) return { response: this.response(row) };
+        const updated = await this.store.writeOrder(
+          row._id,
+          input.expectedRevision,
+          change.nodes,
+          session,
+        );
+        return { response: this.response(updated), updated };
+      },
     );
   }
   async changeArchive(
@@ -287,89 +337,151 @@ export class StructureService {
     viewer: Viewer,
   ) {
     const accessible = await this.access(id, viewer, true);
-    const row = this.requireActive(await this.store.get(accessible.id));
-    this.requireRevision(row, expected);
-    const structure = this.requireStructure(row);
-    const node = structure.nodes.find(
-      (item) => item.nodeId === nodeId.toLowerCase(),
-    );
-    if (!node || node.kind !== 'ITEM')
-      throw new BadRequestException('El nodo no es un ítem de este EERR');
-    if (isArchived(node) !== restore)
-      throw new BadRequestException(
-        restore ? 'El ítem ya está activo' : 'El ítem ya está archivado',
-      );
-    const parent = structure.nodes.find(
-      (item) => item.nodeId === node.parentId,
-    );
-    if (!parent || parent.kind === 'ITEM')
-      throw new BadRequestException(
-        'No se puede resolver la categoría o bloque padre del ítem',
-      );
-    node.archive = restore
-      ? { ...node.archive!, state: 'ACTIVE' }
-      : {
-          state: 'ARCHIVED',
-          at: this.clock.now().toISOString(),
-          by: viewer.sub,
-        };
-    if (restore) {
-      // Restore against the archived position, then insert among current active siblings.
-      node.archive = { ...node.archive!, state: 'ARCHIVED' };
-      structure.nodes = this.rule(() =>
-        restoreOrder(structure.nodes, node.nodeId),
-      );
-      node.archive.state = 'ACTIVE';
-    } else normalizeActiveOrder(structure.nodes, parent.nodeId);
-    this.rule(() => assertStructure(structure.nodes));
-    return this.response(
-      await this.store.writeArchive(
-        row._id,
-        expected,
-        node.nodeId,
-        node.archive,
-        loadProgress(structure.nodes).status,
-        structure.nodes,
-      ),
+    return this.postCloseEdit.run(
+      accessible.id,
+      viewer.sub,
+      'STRUCTURE',
+      async (row, session) => {
+        this.requireRevision(row, expected);
+        const structure = this.requireStructure(row);
+        const node = structure.nodes.find(
+          (item) => item.nodeId === nodeId.toLowerCase(),
+        );
+        if (!node || node.kind !== 'ITEM')
+          throw new BadRequestException('El nodo no es un ítem de este EERR');
+        if (isArchived(node) !== restore)
+          throw new BadRequestException(
+            restore ? 'El ítem ya está activo' : 'El ítem ya está archivado',
+          );
+        const parent = structure.nodes.find(
+          (item) => item.nodeId === node.parentId,
+        );
+        if (!parent || parent.kind === 'ITEM')
+          throw new BadRequestException(
+            'No se puede resolver la categoría o bloque padre del ítem',
+          );
+        node.archive = restore
+          ? { ...node.archive!, state: 'ACTIVE' }
+          : {
+              state: 'ARCHIVED',
+              at: this.clock.now().toISOString(),
+              by: viewer.sub,
+            };
+        if (restore) {
+          // Restore against the archived position, then insert among current active siblings.
+          node.archive = { ...node.archive!, state: 'ARCHIVED' };
+          structure.nodes = this.rule(() =>
+            restoreOrder(structure.nodes, node.nodeId),
+          );
+          node.archive.state = 'ACTIVE';
+        } else normalizeActiveOrder(structure.nodes, parent.nodeId);
+        this.rule(() => assertStructure(structure.nodes));
+        const updated = await this.store.writeArchive(
+          row._id,
+          expected,
+          node.nodeId,
+          node.archive,
+          loadProgress(structure.nodes).status,
+          structure.nodes,
+          session,
+        );
+        return { response: this.response(updated), updated };
+      },
     );
   }
   amount(id: string, nodeId: string, input: AmountDto, viewer: Viewer) {
     if (input.state === 'SIN_CARGAR' && input.input !== undefined)
       throw new BadRequestException('SIN_CARGAR no admite entrada');
-    return this.editItem(id, nodeId, input.expectedRevision, viewer, (node) => {
-      node.amount =
-        input.state === 'SIN_CARGAR'
-          ? emptyAmount()
-          : {
-              state: 'CARGADO',
-              ...evaluateMoneyExpression(input.input!),
-              currency: 'ARS',
-              scale: 2,
-            };
-    });
+    return this.editItem(
+      id,
+      nodeId,
+      input.expectedRevision,
+      viewer,
+      'VALUE',
+      (node) => {
+        const amount: NonNullable<StructureNode['amount']> =
+          input.state === 'SIN_CARGAR'
+            ? emptyAmount()
+            : {
+                state: 'CARGADO',
+                ...evaluateMoneyExpression(input.input!),
+                currency: 'ARS',
+                scale: 2,
+              };
+        const previous = node.amount ?? emptyAmount();
+        if (
+          previous.state === amount.state &&
+          previous.input === amount.input &&
+          previous.value === amount.value &&
+          previous.currency === amount.currency &&
+          previous.scale === amount.scale
+        )
+          return false;
+        node.amount = amount;
+        return true;
+      },
+    );
   }
   quantity(id: string, nodeId: string, input: QuantityDto, viewer: Viewer) {
     if (input.state === 'SIN_CARGAR' && input.input !== undefined)
       throw new BadRequestException('SIN_CARGAR no admite entrada');
-    return this.editItem(id, nodeId, input.expectedRevision, viewer, (node) => {
-      node.quantity =
-        input.state === 'SIN_CARGAR'
-          ? emptyQuantity()
-          : { state: 'CARGADO', value: normalizeQuantity(input.input!) };
-    });
+    return this.editItem(
+      id,
+      nodeId,
+      input.expectedRevision,
+      viewer,
+      'QUANTITY',
+      (node) => {
+        const quantity: NonNullable<StructureNode['quantity']> =
+          input.state === 'SIN_CARGAR'
+            ? emptyQuantity()
+            : { state: 'CARGADO', value: normalizeQuantity(input.input!) };
+        const previous = node.quantity ?? emptyQuantity();
+        if (
+          previous.state === quantity.state &&
+          previous.value === quantity.value
+        )
+          return false;
+        node.quantity = quantity;
+        return true;
+      },
+    );
   }
   itemNote(id: string, nodeId: string, input: ItemNoteDto, viewer: Viewer) {
-    return this.editItem(id, nodeId, input.expectedRevision, viewer, (node) => {
-      const note = normalizeNote(input.note, NOTE_LIMITS.item);
-      if (note === null) delete node.note;
-      else node.note = note;
-    });
+    return this.editItem(
+      id,
+      nodeId,
+      input.expectedRevision,
+      viewer,
+      'NOTE',
+      (node) => {
+        const note = normalizeNote(input.note, NOTE_LIMITS.item);
+        if ((node.note ?? null) === note) return false;
+        if (note === null) delete node.note;
+        else node.note = note;
+        return true;
+      },
+    );
   }
   async periodNote(id: string, input: PeriodNoteDto, viewer: Viewer) {
     const accessible = await this.access(id, viewer, true);
     const note = this.rule(() => normalizeNote(input.note, NOTE_LIMITS.period));
-    return this.response(
-      await this.store.writeNote(accessible.id, input.expectedRevision, note),
+    return this.postCloseEdit.run(
+      accessible.id,
+      viewer.sub,
+      'NOTE',
+      async (row, session) => {
+        this.requireRevision(row, input.expectedRevision);
+        if ((row.note ?? null) === note)
+          return { response: this.response(row) };
+        const updated = await this.store.writeNote(
+          row._id,
+          input.expectedRevision,
+          note,
+          session,
+        );
+        return { response: this.response(updated), updated };
+      },
     );
   }
   private categoryMove(
@@ -577,7 +689,9 @@ export class StructureService {
     )
       throw new BadRequestException('Campos incompatibles con la operación');
     const rows = await this.store.period(accessible.year, accessible.month);
-    const own = this.requireActive(rows.find((row) => row._id === accessible.id));
+    const own = this.requireActive(
+      rows.find((row) => row._id === accessible.id),
+    );
     this.requireRevision(own, input.expectedRevision);
     const template = await this.store.template(keyOf(accessible));
     const existing = template.categories.find(
@@ -648,8 +762,6 @@ export class StructureService {
   ) {
     const accessible = await this.access(id, viewer, true);
     return this.store.transaction(async (session) => {
-      if (operation !== 'MOVE')
-        await this.store.lockTemplate(keyOf(accessible), session);
       const preview = await this.store.preview(
         input.previewId.toLowerCase(),
         session,
@@ -671,7 +783,9 @@ export class StructureService {
         preview.month,
         session,
       );
-      const own = this.requireActive(rows.find((row) => row._id === accessible.id));
+      const own = this.requireActive(
+        rows.find((row) => row._id === accessible.id),
+      );
       this.requireRevision(own, input.expectedRevision);
       const template = await this.store.template(keyOf(accessible), session);
       if (
@@ -679,6 +793,14 @@ export class StructureService {
         JSON.stringify(revisionsOf(rows)) !== JSON.stringify(preview.revisions)
       )
         throw conflict();
+      if (
+        preview.operation === 'RENAME' &&
+        template.categories.find((category) => category.code === preview.code)
+          ?.name === preview.name
+      ) {
+        await this.store.consumePreview(preview._id, session);
+        return this.response(own);
+      }
       if (preview.operation === 'MOVE') {
         const change = this.categoryMove(template, rows, preview);
         if (!change.changed) {
@@ -700,6 +822,13 @@ export class StructureService {
             nodes,
             session,
           );
+          await this.postCloseEdit.appendIfClosed(
+            row,
+            updated,
+            viewer.sub,
+            'GLOBAL_STRUCTURE',
+            session,
+          );
           if (row._id === own._id) result = updated;
         }
         await this.store.consumePreview(preview._id, session);
@@ -707,6 +836,7 @@ export class StructureService {
       }
       const categories = this.updatedCategories(template, preview);
       this.validatePublication(rows, categories);
+      await this.store.lockTemplate(keyOf(accessible), session);
       if (preview.operation === 'CREATE') {
         const templateNodes = initialNodes(categories, randomUUID);
         await this.store.addConcept(
@@ -736,6 +866,13 @@ export class StructureService {
           row._id,
           row.revision ?? 0,
           structure,
+          session,
+        );
+        await this.postCloseEdit.appendIfClosed(
+          row,
+          updated,
+          viewer.sub,
+          'GLOBAL_STRUCTURE',
           session,
         );
         if (row._id === own._id) result = updated;

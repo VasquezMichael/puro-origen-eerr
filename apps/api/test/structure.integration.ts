@@ -27,6 +27,12 @@ import {
   type EerrDocument,
 } from '../src/eerr/schemas/eerr.schema.js';
 import { StructureRepository } from '../src/eerr/structure.repository.js';
+import { PostCloseEditService } from '../src/eerr/post-close-edit.service.js';
+import { EerrAuditRepository } from '../src/eerr/eerr-audit.repository.js';
+import {
+  EerrAuditEventRecord,
+  EerrAuditEventSchema,
+} from '../src/eerr/schemas/eerr-audit-event.schema.js';
 import { storedStructure } from '../src/eerr/schemas/structure.schema.js';
 import { StructureService } from '../src/eerr/structure.service.js';
 import { EerrService } from '../src/eerr/eerr.service.js';
@@ -141,6 +147,16 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       model as unknown as Model<EerrDocument>,
       connection,
     );
+    const auditModel = connection.model(
+      EerrAuditEventRecord.name,
+      EerrAuditEventSchema,
+    );
+    await auditModel.init();
+    const postCloseEdit = new PostCloseEditService(
+      repository,
+      new EerrAuditRepository(auditModel as never),
+      clock,
+    );
     const branches = {
       list: async () => [
         { id: '123456789012345678901234', name: 'Central', active: false },
@@ -151,6 +167,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       repository,
       new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
       clock,
+      postCloseEdit,
     );
     analysis = new AnalysisService(
       new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
@@ -159,6 +176,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
       model as unknown as Model<EerrDocument>,
       new EerrService(model as unknown as Model<EerrDocument>, branches, clock),
       clock,
+      postCloseEdit,
     );
     imports = new ImportService(
       repository,
@@ -171,6 +189,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
         }),
         clock,
       ),
+      postCloseEdit,
     );
     completePending = new CompletePendingService(
       repository,
@@ -183,6 +202,7 @@ describe('EP-04A en replica set MongoDB efímero y local', () => {
         }),
         clock,
       ),
+      postCloseEdit,
     );
     clones = new CloneService(
       repository,

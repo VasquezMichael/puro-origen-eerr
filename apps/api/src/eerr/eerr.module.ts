@@ -26,6 +26,7 @@ import {
   EerrAuditEventSchema,
 } from './schemas/eerr-audit-event.schema.js';
 import { EerrAuditRepository } from './eerr-audit.repository.js';
+import { PostCloseEditService } from './post-close-edit.service.js';
 import { StructureController } from './structure.controller.js';
 import { StructureService } from './structure.service.js';
 import { StructureRepository } from './structure.repository.js';
@@ -62,6 +63,7 @@ import { StructureRepository } from './structure.repository.js';
     StructureService,
     StructureRepository,
     EerrAuditRepository,
+    PostCloseEditService,
     CloneService,
     ClonePreviewToken,
   ],

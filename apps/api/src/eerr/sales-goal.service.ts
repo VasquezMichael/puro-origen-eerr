@@ -16,6 +16,7 @@ import { ACTIVE_EERR_FILTER } from './eerr-lifecycle.js';
 import { revisionFilter } from './structure.repository.js';
 import { Eerr, type EerrDocument } from './schemas/eerr.schema.js';
 import { publicSalesGoal } from './schemas/sales-goal.schema.js';
+import { PostCloseEditService } from './post-close-edit.service.js';
 
 type Viewer = NonNullable<AuthenticatedRequest['user']>;
 const conflict = () =>
@@ -27,6 +28,7 @@ export class SalesGoalService {
     @InjectModel(Eerr.name) private readonly model: Model<EerrDocument>,
     private readonly eerrs: EerrService,
     private readonly clock: EerrClock,
+    private readonly postCloseEdit: PostCloseEditService,
   ) {}
 
   async put(
@@ -66,50 +68,72 @@ export class SalesGoalService {
         error instanceof Error ? error.message : 'Meta inválida',
       );
     }
-    const revision = row.revision ?? 0;
-    if (revision !== body.expectedRevision) throw conflict();
-    if (row.structure == null)
-      throw new BadRequestException('Primero prepará la estructura');
-    const current = publicSalesGoal(row.salesGoal);
-    if (
-      (goal === null && current === null) ||
-      (goal !== null &&
-        current?.mode === goal.mode &&
-        current.value === goal.value)
-    )
-      return { eerrId: row._id, revision, salesGoal: current };
-    const now = this.clock.now();
-    const update =
-      goal === null
-        ? {
-            $unset: { salesGoal: 1 },
-            $set: { updatedAt: now },
-            $inc: { revision: 1 },
-          }
-        : {
-            $set: {
-              salesGoal: {
-                mode: goal.mode,
-                value: Types.Decimal128.fromString(goal.value),
-                updatedAt: now,
-                updatedBy: viewer.sub,
-              },
-              updatedAt: now,
-            },
-            $inc: { revision: 1 },
+    return this.postCloseEdit.run(
+      row._id,
+      viewer.sub,
+      'SALES_GOAL',
+      async (before, session) => {
+        const revision = before.revision ?? 0;
+        if (revision !== body.expectedRevision) throw conflict();
+        if (before.structure == null)
+          throw new BadRequestException('Primero prepará la estructura');
+        const current = publicSalesGoal(before.salesGoal);
+        if (
+          (goal === null && current === null) ||
+          (goal !== null &&
+            current?.mode === goal.mode &&
+            current.value === goal.value)
+        )
+          return {
+            response: { eerrId: before._id, revision, salesGoal: current },
           };
-    const saved = await this.model
-      .findOneAndUpdate(
-        { _id: row._id, ...ACTIVE_EERR_FILTER, ...revisionFilter(revision), structure: { $ne: null } },
-        update,
-        { returnDocument: 'after', runValidators: true, timestamps: false },
-      )
-      .exec();
-    if (!saved) throw conflict();
-    return {
-      eerrId: saved._id,
-      revision: saved.revision,
-      salesGoal: publicSalesGoal(saved.salesGoal),
-    };
+        const now = this.clock.now();
+        const update =
+          goal === null
+            ? {
+                $unset: { salesGoal: 1 },
+                $set: { updatedAt: now },
+                $inc: { revision: 1 },
+              }
+            : {
+                $set: {
+                  salesGoal: {
+                    mode: goal.mode,
+                    value: Types.Decimal128.fromString(goal.value),
+                    updatedAt: now,
+                    updatedBy: viewer.sub,
+                  },
+                  updatedAt: now,
+                },
+                $inc: { revision: 1 },
+              };
+        const saved = await this.model
+          .findOneAndUpdate(
+            {
+              _id: before._id,
+              ...ACTIVE_EERR_FILTER,
+              ...revisionFilter(revision),
+              structure: { $ne: null },
+            },
+            update,
+            {
+              returnDocument: 'after',
+              runValidators: true,
+              timestamps: false,
+              session,
+            },
+          )
+          .exec();
+        if (!saved) throw conflict();
+        return {
+          updated: saved,
+          response: {
+            eerrId: saved._id,
+            revision: saved.revision,
+            salesGoal: publicSalesGoal(saved.salesGoal),
+          },
+        };
+      },
+    );
   }
 }

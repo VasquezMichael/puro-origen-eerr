@@ -61,6 +61,15 @@ EERR dentro de `StructureRepository.transaction` (snapshot/majority).
 `closedAt/closedBy` conservan el último cierre al reabrir; el historial completo
 vive en eventos. No hay endpoint de historial en PR 2.
 
+EP-07 PR 3 compone las ediciones sobre `CLOSED` y su `POST_CLOSE_EDIT` en la
+misma `ClientSession` de `StructureRepository.transaction`. Las escrituras
+individuales de estructura, valores, cantidades, notas y metas ahora usan esa
+transacción; importación, completar pendientes y publicaciones globales reutilizan
+las que ya existían. Cada EERR efectivamente modificado recibe un solo evento
+acotado por operación. La consulta del estado dentro de la transacción y el CAS
+de revisión resuelven carreras con cierre y reapertura. No se persisten valores
+anteriores, contenido importado ni texto de notas en la auditoría.
+
 PR 2 filtra activos en consultas directas de `AnalyticsService`,
 `StructureRepository` y CAS de estructura, metas, importación, clonación y
 complete pending. `AnalysisService` delega su lectura en

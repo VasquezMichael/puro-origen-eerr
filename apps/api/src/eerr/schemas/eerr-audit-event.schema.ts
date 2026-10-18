@@ -6,6 +6,7 @@ import {
 } from 'mongoose';
 import type {
   EerrAuditEventType,
+  EerrAuditChangedArea,
   EerrLifecycleStatus,
 } from '@puro-origen/shared-types';
 import { EERR_LIFECYCLE_STATUSES } from './eerr.schema.js';
@@ -16,6 +17,16 @@ export const EERR_AUDIT_EVENT_TYPES = [
   'EERR_DELETED',
   'POST_CLOSE_EDIT',
 ] as const satisfies readonly EerrAuditEventType[];
+export const EERR_AUDIT_CHANGED_AREAS = [
+  'VALUE',
+  'QUANTITY',
+  'NOTE',
+  'STRUCTURE',
+  'SALES_GOAL',
+  'IMPORT',
+  'COMPLETE_PENDING',
+  'GLOBAL_STRUCTURE',
+] as const satisfies readonly EerrAuditChangedArea[];
 
 @Schema({ _id: false, strict: true })
 export class EerrAuditMetadata {
@@ -31,8 +42,11 @@ export class EerrAuditMetadata {
   @Prop({ type: Number, min: 0, validate: Number.isSafeInteger })
   newRevision?: number;
 
-  @Prop({ type: String, maxlength: 80 })
-  changedArea?: string;
+  @Prop({ type: String, enum: EERR_AUDIT_CHANGED_AREAS })
+  changedArea?: EerrAuditChangedArea;
+
+  @Prop({ type: Number, min: 0, validate: Number.isSafeInteger })
+  changedCount?: number;
 }
 
 const EerrAuditMetadataSchema = SchemaFactory.createForClass(EerrAuditMetadata);

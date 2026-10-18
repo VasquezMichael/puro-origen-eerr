@@ -3,6 +3,7 @@ import { Mongoose, Types } from 'mongoose';
 import {
   EerrAuditEventSchema,
   EERR_AUDIT_EVENT_TYPES,
+  EERR_AUDIT_CHANGED_AREAS,
 } from './eerr-audit-event.schema.js';
 
 describe('esquema append-only de auditoría EERR', () => {
@@ -43,6 +44,41 @@ describe('esquema append-only de auditoría EERR', () => {
     ).rejects.toThrow();
     await expect(
       new Model({ ...input, revision: -1 }).validate(),
+    ).rejects.toThrow();
+    expect(EERR_AUDIT_CHANGED_AREAS).toContain('GLOBAL_STRUCTURE');
+    const edit = new Model({
+      ...input,
+      eventType: 'POST_CLOSE_EDIT',
+      metadata: {
+        changedArea: 'VALUE',
+        previousRevision: 2,
+        newRevision: 3,
+        changedCount: 1,
+        note: 'never stored',
+      },
+    });
+    await expect(edit.validate()).resolves.toBeUndefined();
+    expect(edit.toObject().metadata).not.toHaveProperty('note');
+    await expect(
+      new Model({
+        ...input,
+        eventType: 'POST_CLOSE_EDIT',
+        metadata: {
+          changedArea: 'FREE_TEXT',
+          previousRevision: 2,
+          newRevision: 3,
+        },
+      }).validate(),
+    ).rejects.toThrow();
+    await expect(
+      new Model({
+        ...input,
+        eventType: 'POST_CLOSE_EDIT',
+        metadata: {
+          changedArea: 'VALUE',
+          changedCount: -1,
+        },
+      }).validate(),
     ).rejects.toThrow();
   });
 });
