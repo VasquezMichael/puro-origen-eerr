@@ -38,7 +38,8 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 - Crear período prepara una plantilla mensual por sucursal.
 - Contemplar el estado “sin cargar”.
 - Cierre operativo de períodos: un EERR cerrado sigue siendo editable con
-  advertencia y auditoría; el cierre no bloquea la edición.
+  advertencia y auditoría `POST_CLOSE_EDIT` por edición efectiva; el cierre no
+  bloquea la edición ni modifica las reglas de carga.
 - Acción para completar con cero las celdas sin movimiento.
 - La creación de períodos futuros permanece pendiente de definición.
 

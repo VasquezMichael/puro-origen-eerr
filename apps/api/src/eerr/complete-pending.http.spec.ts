@@ -8,6 +8,8 @@ import type { Model } from 'mongoose';
 import { initialNodes, emptyAmount } from '@puro-origen/domain';
 import { CompletePendingController } from './complete-pending.controller.js';
 import { CompletePendingService } from './complete-pending.service.js';
+import { PostCloseEditService } from './post-close-edit.service.js';
+import { EerrAuditRepository } from './eerr-audit.repository.js';
 import { ImportToken } from './import/import-token.js';
 import { EerrClock } from './eerr-clock.js';
 import { EerrService } from './eerr.service.js';
@@ -32,6 +34,7 @@ describe('EP-04C3 HTTP aislado', () => {
     store = new MemoryStructureRepository(),
     row: ReturnType<MemoryStructureRepository['seed']>,
     now: Date;
+  let auditEvents: unknown[] = [];
   let viewer: {
     id: string;
     active: boolean;
@@ -66,6 +69,15 @@ describe('EP-04C3 HTTP aislado', () => {
       controllers: [CompletePendingController],
       providers: [
         CompletePendingService,
+        PostCloseEditService,
+        {
+          provide: EerrAuditRepository,
+          useValue: {
+            append: async (event: unknown) => {
+              auditEvents.push(event);
+            },
+          },
+        },
         ImportToken,
         Reflector,
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -127,6 +139,7 @@ describe('EP-04C3 HTTP aislado', () => {
   });
   beforeEach(() => {
     store = new MemoryStructureRepository();
+    auditEvents = [];
     now = new Date(fixtureNow);
     viewer = {
       id: fixtureUser,
@@ -218,6 +231,31 @@ describe('EP-04C3 HTTP aislado', () => {
       month: 9,
     });
     expect(r.body.revision).toBe(5);
+  });
+  it('completar pendientes cerrado genera un evento por lote', async () => {
+    row.lifecycleStatus = 'CLOSED';
+    row.everClosed = true;
+    const preview = await post('preview');
+    expect(auditEvents).toHaveLength(0);
+    const result = await post('confirm', {
+      previewToken: preview.body.previewToken,
+    });
+    expect(result.status).toBe(201);
+    expect(auditEvents).toMatchObject([
+      {
+        eventType: 'POST_CLOSE_EDIT',
+        eerrId: row._id,
+        revision: 6,
+        metadata: {
+          changedArea: 'COMPLETE_PENDING',
+          previousRevision: 5,
+          newRevision: 6,
+          changedCount: 2,
+        },
+      },
+    ]);
+    expect(auditEvents).toHaveLength(1);
+    expect(row.lifecycleStatus).toBe('CLOSED');
   });
   it('confirmación conserva todo salvo importes pendientes, progreso, revisión y updatedAt', async () => {
     const before = await store.get(row._id),

@@ -118,7 +118,12 @@ export class StructureRepository {
       });
     const fields =
       to === 'CLOSED'
-        ? { lifecycleStatus: 'CLOSED', everClosed: true, closedAt: now, closedBy: actorUserId }
+        ? {
+            lifecycleStatus: 'CLOSED',
+            everClosed: true,
+            closedAt: now,
+            closedBy: actorUserId,
+          }
         : to === 'OPEN'
           ? { lifecycleStatus: 'OPEN' }
           : { deletedAt: now, deletedBy: actorUserId };
@@ -130,7 +135,12 @@ export class StructureRepository {
           $and: conditions,
         } as QueryFilter<EerrDocument>,
         { $set: { ...fields, updatedAt: now }, $inc: { revision: 1 } },
-        { returnDocument: 'after', runValidators: true, timestamps: false, session },
+        {
+          returnDocument: 'after',
+          runValidators: true,
+          timestamps: false,
+          session,
+        },
       )
       .lean()
       .exec();
@@ -359,6 +369,7 @@ export class StructureRepository {
     archive: NonNullable<EerrStructure['nodes'][number]['archive']>,
     loadStatus: ReturnType<typeof loadProgress>['status'],
     nodes?: StructureNode[],
+    session?: ClientSession,
   ) {
     const index = nodes?.findIndex(
       (node) => node.nodeId === nodeId && node.kind === 'ITEM',
@@ -394,6 +405,7 @@ export class StructureRepository {
           returnDocument: 'after',
           runValidators: true,
           timestamps: false,
+          session,
         },
       )
       .lean()
@@ -404,7 +416,12 @@ export class StructureRepository {
       );
     return row;
   }
-  async writeNote(id: string, revision: number, note: string | null) {
+  async writeNote(
+    id: string,
+    revision: number,
+    note: string | null,
+    session?: ClientSession,
+  ) {
     const row = await this.eerrs
       .findOneAndUpdate(
         { _id: id, ...ACTIVE_EERR_FILTER, ...revisionFilter(revision) },
@@ -412,7 +429,7 @@ export class StructureRepository {
           ...(note === null ? { $unset: { note: 1 } } : { $set: { note } }),
           $inc: { revision: 1 },
         },
-        { returnDocument: 'after', runValidators: true },
+        { returnDocument: 'after', runValidators: true, session },
       )
       .lean()
       .exec();

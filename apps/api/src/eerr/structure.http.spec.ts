@@ -17,6 +17,8 @@ import { EerrClock } from './eerr-clock.js';
 import { StructureController } from './structure.controller.js';
 import { StructureService } from './structure.service.js';
 import { StructureRepository } from './structure.repository.js';
+import { PostCloseEditService } from './post-close-edit.service.js';
+import { EerrAuditRepository } from './eerr-audit.repository.js';
 import {
   fixtureBranch,
   fixtureOtherBranch,
@@ -29,6 +31,7 @@ import type { EerrDocument } from './schemas/eerr.schema.js';
 describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
   let app: INestApplication;
   let store = new MemoryStructureRepository();
+  let auditEvents: unknown[] = [];
   let now: Date;
   let viewer: {
     id: string;
@@ -110,6 +113,15 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
       controllers: [StructureController],
       providers: [
         StructureService,
+        PostCloseEditService,
+        {
+          provide: EerrAuditRepository,
+          useValue: {
+            append: async (event: unknown) => {
+              auditEvents.push(event);
+            },
+          },
+        },
         Reflector,
         { provide: APP_GUARD, useClass: AuthGuard },
         {
@@ -161,6 +173,7 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
   afterAll(() => app?.close());
   beforeEach(() => {
     store = new MemoryStructureRepository();
+    auditEvents = [];
     now = new Date(fixtureNow);
     id = store.seed()._id;
     viewer = {
@@ -187,17 +200,34 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     await init();
     const root = (await read()).body.structure.nodes[0];
     vi.spyOn(store, 'get').mockResolvedValueOnce(null);
-    expect((await send('items', { expectedRevision: 1, parentId: root.nodeId, name: 'Nuevo' })).status).toBe(404);
+    expect(
+      (
+        await send('items', {
+          expectedRevision: 1,
+          parentId: root.nodeId,
+          name: 'Nuevo',
+        })
+      ).status,
+    ).toBe(404);
     const item = (await createItem()).body.structure.nodes[3];
     const before = JSON.stringify(store.state);
     const writes = store.writes;
     const requests = [
-      () => api().patch(`/eerr/${id}/items/${item.nodeId}`).set('Cookie', `${SESSION_COOKIE}=offline`)
-        .send({ expectedRevision: 2, name: 'Otro' }),
-      () => api().patch(`/eerr/${id}/items/${item.nodeId}/move`).set('Cookie', `${SESSION_COOKIE}=offline`)
-        .send({ expectedRevision: 2, parentId: root.nodeId, position: 0 }),
-      () => api().patch(`/eerr/${id}/items/${item.nodeId}/archive`).set('Cookie', `${SESSION_COOKIE}=offline`)
-        .send({ expectedRevision: 2 }),
+      () =>
+        api()
+          .patch(`/eerr/${id}/items/${item.nodeId}`)
+          .set('Cookie', `${SESSION_COOKIE}=offline`)
+          .send({ expectedRevision: 2, name: 'Otro' }),
+      () =>
+        api()
+          .patch(`/eerr/${id}/items/${item.nodeId}/move`)
+          .set('Cookie', `${SESSION_COOKIE}=offline`)
+          .send({ expectedRevision: 2, parentId: root.nodeId, position: 0 }),
+      () =>
+        api()
+          .patch(`/eerr/${id}/items/${item.nodeId}/archive`)
+          .set('Cookie', `${SESSION_COOKIE}=offline`)
+          .send({ expectedRevision: 2 }),
     ];
     for (const makeRequest of requests) {
       vi.spyOn(store, 'get').mockResolvedValueOnce(null);
@@ -222,6 +252,41 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     expect(JSON.stringify(row.structure)).toBe(beforeStructure);
     expect(row.revision).toBe(beforeRevision);
     expect(store.writes).toBe(writes);
+    expect(auditEvents).toHaveLength(0);
+  });
+  it('cierre y reapertura entre autorización y lectura transaccional respetan CAS y estado ganador', async () => {
+    await init();
+    const item = (await createItem()).body.structure.nodes[3];
+    const eerrs = app.get(EerrService);
+    const originalGet = eerrs.get.bind(eerrs);
+    vi.spyOn(eerrs, 'get').mockImplementationOnce(async (target, principal) => {
+      const accessible = await originalGet(target, principal);
+      const active = store.state.rows.find((entry) => entry._id === id)!;
+      active.lifecycleStatus = 'CLOSED';
+      active.everClosed = true;
+      active.closedAt = new Date(fixtureNow);
+      active.closedBy = active.createdBy;
+      active.revision = 3;
+      return accessible;
+    });
+    expect((await amount(item.nodeId, 2, 'CARGADO', '1')).status).toBe(409);
+    expect(auditEvents).toHaveLength(0);
+    await amount(item.nodeId, 3, 'CARGADO', '1').expect(200);
+    expect(auditEvents).toHaveLength(1);
+    vi.spyOn(eerrs, 'get').mockImplementationOnce(async (target, principal) => {
+      const accessible = await originalGet(target, principal);
+      const active = store.state.rows.find((entry) => entry._id === id)!;
+      active.lifecycleStatus = 'OPEN';
+      active.revision = 5;
+      return accessible;
+    });
+    expect((await amount(item.nodeId, 4, 'CARGADO', '2')).status).toBe(409);
+    expect(auditEvents).toHaveLength(1);
+    await amount(item.nodeId, 5, 'CARGADO', '2').expect(200);
+    expect(auditEvents).toHaveLength(1);
+    expect(
+      store.state.rows.find((entry) => entry._id === id)?.lifecycleStatus,
+    ).toBe('OPEN');
   });
   it('Editor puede publicar desde un EERR aún sin preparar sin inicializarlo', async () => {
     viewer = {
@@ -289,6 +354,160 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     });
     expect(store.state.concepts[0]._id).toBe(node.code);
   });
+  it('audita una vez cada edición efectiva de un EERR cerrado y conserva el cierre', async () => {
+    await init();
+    const item = (await createItem()).body.structure.nodes[3];
+    const row = store.state.rows.find((entry) => entry._id === id)!;
+    row.lifecycleStatus = 'CLOSED';
+    row.everClosed = true;
+    row.closedAt = new Date(fixtureNow);
+    row.closedBy = row.createdBy;
+    await amount(item.nodeId, 2, 'CARGADO', '12').expect(200);
+    await api()
+      .put(`/eerr/${id}/items/${item.nodeId}/quantity`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 3, state: 'CARGADO', input: '2' })
+      .expect(200);
+    await api()
+      .put(`/eerr/${id}/items/${item.nodeId}/note`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 4, note: 'Prueba' })
+      .expect(200);
+    await api()
+      .put(`/eerr/${id}/note`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 5, note: 'Nota del período' })
+      .expect(200);
+    const stale = await amount(item.nodeId, 5, 'CARGADO', '99');
+    expect(stale.status).toBe(409);
+    expect(auditEvents).toHaveLength(4);
+    expect(auditEvents).toMatchObject([
+      {
+        eventType: 'POST_CLOSE_EDIT',
+        revision: 3,
+        metadata: { changedArea: 'VALUE', previousRevision: 2, newRevision: 3 },
+      },
+      {
+        eventType: 'POST_CLOSE_EDIT',
+        revision: 4,
+        metadata: {
+          changedArea: 'QUANTITY',
+          previousRevision: 3,
+          newRevision: 4,
+        },
+      },
+      {
+        eventType: 'POST_CLOSE_EDIT',
+        revision: 5,
+        metadata: { changedArea: 'NOTE', previousRevision: 4, newRevision: 5 },
+      },
+      {
+        eventType: 'POST_CLOSE_EDIT',
+        revision: 6,
+        metadata: { changedArea: 'NOTE', previousRevision: 5, newRevision: 6 },
+      },
+    ]);
+    expect(row).toMatchObject({
+      lifecycleStatus: 'CLOSED',
+      everClosed: true,
+      revision: 6,
+    });
+    expect(row.closedAt).toEqual(fixtureNow);
+  });
+  it('no escribe ni audita valores, notas o renombres equivalentes en CLOSED', async () => {
+    await init();
+    const item = (await createItem()).body.structure.nodes[3];
+    const row = store.state.rows.find((entry) => entry._id === id)!;
+    Object.assign(row, {
+      lifecycleStatus: 'CLOSED',
+      everClosed: true,
+      closedAt: new Date(fixtureNow),
+      closedBy: fixtureUser,
+    });
+    const put = (path: string, body: object) =>
+      api()
+        .put(`/eerr/${id}/${path}`)
+        .set('Cookie', `${SESSION_COOKIE}=offline`)
+        .send(body);
+    const rename = (expectedRevision: number, name: string) =>
+      api()
+        .patch(`/eerr/${id}/items/${item.nodeId}`)
+        .set('Cookie', `${SESSION_COOKIE}=offline`)
+        .send({ expectedRevision, name });
+    let revision = 2;
+    const assertNoop = async (operation: Promise<request.Response>) => {
+      const writes = store.writes;
+      const events = auditEvents.length;
+      const before = JSON.stringify(row);
+      const result = await operation;
+      expect(result.status).toBe(200);
+      expect(result.body.revision).toBe(revision);
+      expect(store.writes).toBe(writes);
+      expect(auditEvents).toHaveLength(events);
+      expect(JSON.stringify(row)).toBe(before);
+    };
+    await assertNoop(amount(item.nodeId, revision, 'SIN_CARGAR'));
+    await assertNoop(
+      put(`items/${item.nodeId}/note`, {
+        expectedRevision: revision,
+        note: '',
+      }),
+    );
+    await assertNoop(put('note', { expectedRevision: revision, note: '' }));
+    await amount(item.nodeId, revision++, 'CARGADO', '100').expect(200);
+    await assertNoop(amount(item.nodeId, revision, 'CARGADO', ' 100 '));
+    await put(`items/${item.nodeId}/quantity`, {
+      expectedRevision: revision++,
+      state: 'CARGADO',
+      input: '2',
+    }).expect(200);
+    await assertNoop(
+      put(`items/${item.nodeId}/quantity`, {
+        expectedRevision: revision,
+        state: 'CARGADO',
+        input: '02',
+      }),
+    );
+    await put(`items/${item.nodeId}/note`, {
+      expectedRevision: revision++,
+      note: 'Nota',
+    }).expect(200);
+    await assertNoop(
+      put(`items/${item.nodeId}/note`, {
+        expectedRevision: revision,
+        note: ' Nota ',
+      }),
+    );
+    await put('note', { expectedRevision: revision++, note: 'General' }).expect(
+      200,
+    );
+    await assertNoop(
+      put('note', { expectedRevision: revision, note: ' General ' }),
+    );
+    await rename(revision++, 'Ventas sala').expect(200);
+    await assertNoop(rename(revision, ' Ventas   sala '));
+    expect((await rename(revision - 1, 'Ventas sala')).status).toBe(409);
+    expect(auditEvents).toHaveLength(5);
+    expect(row).toMatchObject({
+      lifecycleStatus: 'CLOSED',
+      everClosed: true,
+      revision,
+      closedAt: fixtureNow,
+      closedBy: fixtureUser,
+    });
+  });
+  it('un valor equivalente en OPEN conserva la revisión sin auditoría', async () => {
+    await init();
+    const item = (await createItem()).body.structure.nodes[3];
+    await amount(item.nodeId, 2, 'CARGADO', '100').expect(200);
+    const writes = store.writes;
+    const result = await amount(item.nodeId, 3, 'CARGADO', ' 100 ');
+    expect(result.status).toBe(200);
+    expect(result.body.revision).toBe(3);
+    expect(store.writes).toBe(writes);
+    expect(auditEvents).toHaveLength(0);
+  });
+
   it('importes exactos, cero, limpieza y progreso; no sobreescribe revisión antigua', async () => {
     await init();
     const row = (await createItem()).body;
@@ -530,12 +749,130 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
     const item = (await createItem()).body.structure.nodes[3];
     const row = store.state.rows.find((entry) => entry._id === id)!;
     const closedAt = new Date(fixtureNow);
-    Object.assign(row, { lifecycleStatus: 'CLOSED', everClosed: true, closedAt, closedBy: fixtureUser });
+    Object.assign(row, {
+      lifecycleStatus: 'CLOSED',
+      everClosed: true,
+      closedAt,
+      closedBy: fixtureUser,
+    });
     const result = await amount(item.nodeId, 2, 'CARGADO', '5');
     expect(result.status).toBe(200);
     expect(result.body.revision).toBe(3);
-    expect(row).toMatchObject({ lifecycleStatus: 'CLOSED', everClosed: true, closedAt, closedBy: fixtureUser });
+    expect(row).toMatchObject({
+      lifecycleStatus: 'CLOSED',
+      everClosed: true,
+      closedAt,
+      closedBy: fixtureUser,
+    });
     expect(row.structure!.nodes[3].amount?.value?.toString()).toBe('5.00');
+  });
+  it('un EERR CLOSED admite crear, renombrar, mover, archivar y restaurar ítems', async () => {
+    await init();
+    const row = store.state.rows.find((entry) => entry._id === id)!;
+    Object.assign(row, {
+      lifecycleStatus: 'CLOSED',
+      everClosed: true,
+      closedAt: new Date(fixtureNow),
+      closedBy: fixtureUser,
+    });
+    const first = await createItem('Primero');
+    expect(first.status).toBe(201);
+    expect(auditEvents).toHaveLength(1);
+    const second = await createItem('Segundo');
+    expect(second.status).toBe(201);
+    expect(auditEvents).toHaveLength(2);
+    const firstId = first.body.structure.nodes[3].nodeId;
+    const secondId = second.body.structure.nodes[4].nodeId;
+    const renamed = await api()
+      .patch(`/eerr/${id}/items/${firstId}`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 3, name: 'Primero nuevo' });
+    expect(renamed.status).toBe(200);
+    expect(auditEvents).toHaveLength(3);
+    const moved = await api()
+      .patch(`/eerr/${id}/items/${secondId}/move`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({
+        expectedRevision: 4,
+        parentId: second.body.structure.nodes[0].nodeId,
+        position: 0,
+      });
+    expect(moved.status).toBe(200);
+    expect(auditEvents).toHaveLength(4);
+    const archived = await api()
+      .patch(`/eerr/${id}/items/${firstId}/archive`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 5 });
+    expect(archived.status).toBe(200);
+    expect(auditEvents).toHaveLength(5);
+    const restored = await api()
+      .patch(`/eerr/${id}/items/${firstId}/restore`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 6 });
+    expect(restored.status).toBe(200);
+    expect(auditEvents).toHaveLength(6);
+    expect(restored.body.revision).toBe(7);
+    expect(auditEvents).toHaveLength(6);
+    expect(auditEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: 'POST_CLOSE_EDIT',
+          revision: 7,
+          metadata: expect.objectContaining({ changedArea: 'STRUCTURE' }),
+        }),
+      ]),
+    );
+    expect(row).toMatchObject({
+      lifecycleStatus: 'CLOSED',
+      everClosed: true,
+      closedAt: fixtureNow,
+      closedBy: fixtureUser,
+      revision: 7,
+    });
+  });
+  it('renombrar una categoría global con el mismo nombre no modifica plantilla ni EERR', async () => {
+    await init();
+    const createdPreview = await category();
+    const created = await confirm(createdPreview.body.previewId, 1);
+    expect(created.status).toBe(201);
+    const other = store.seed(fixtureOtherBranch);
+    await api()
+      .post(`/eerr/${other._id}/structure/initialize`)
+      .set('Cookie', `${SESSION_COOKIE}=offline`)
+      .send({ expectedRevision: 0 })
+      .expect(201);
+    const row = store.state.rows.find((entry) => entry._id === id)!;
+    Object.assign(row, {
+      lifecycleStatus: 'CLOSED',
+      everClosed: true,
+      closedAt: new Date(fixtureNow),
+      closedBy: fixtureUser,
+    });
+    const node = created.body.structure.nodes[3];
+    const preview = await send('categories/preview', {
+      expectedRevision: 2,
+      operation: 'RENAME',
+      code: node.code,
+      name: ' Servicios ',
+    });
+    expect(preview.status).toBe(201);
+    const before = JSON.stringify({
+      rows: store.state.rows,
+      templates: store.state.templates,
+    });
+    const writes = store.writes;
+    const events = auditEvents.length;
+    const result = await confirm(preview.body.previewId, 2);
+    expect(result.status).toBe(201);
+    expect(result.body.revision).toBe(2);
+    expect(
+      JSON.stringify({
+        rows: store.state.rows,
+        templates: store.state.templates,
+      }),
+    ).toBe(before);
+    expect(store.writes).toBe(writes);
+    expect(auditEvents).toHaveLength(events);
   });
   it('renombrar categoría global conserva código, nodeId y subcategorías sin tocar otro mes', async () => {
     await init();
@@ -1312,6 +1649,42 @@ describe('EP-04A HTTP, guard y dominio reales, persistencia aislada', () => {
       confirm: true,
       expectedRevision: (await read()).body.revision,
     });
+  it.each([1, 2])(
+    'publicación global con %i EERR cerrados audita solo esos EERR',
+    async (closedCount) => {
+      const { other } = await globalMoveFixture();
+      for (const row of store.state.rows.slice(0, closedCount)) {
+        row.lifecycleStatus = 'CLOSED';
+        row.everClosed = true;
+      }
+      const previous = new Map(
+        store.state.rows.map((row) => [row._id, row.revision]),
+      );
+      const preview = await category('Nueva global');
+      expect(
+        (await confirm(preview.body.previewId, (await read()).body.revision))
+          .status,
+      ).toBe(201);
+      expect(auditEvents).toHaveLength(closedCount);
+      for (const row of store.state.rows.slice(0, closedCount)) {
+        expect(auditEvents).toContainEqual(
+          expect.objectContaining({
+            eventType: 'POST_CLOSE_EDIT',
+            eerrId: row._id,
+            revision: row.revision,
+            metadata: {
+              changedArea: 'GLOBAL_STRUCTURE',
+              previousRevision: previous.get(row._id),
+              newRevision: row.revision,
+            },
+          }),
+        );
+      }
+      expect(
+        store.state.rows.find((row) => row._id === other._id)?.lifecycleStatus,
+      ).toBe(closedCount === 2 ? 'CLOSED' : undefined);
+    },
+  );
   it('confirmación de movimiento global devuelve 404 sin cambios si desaparece el EERR propio', async () => {
     const { categories, root } = await globalMoveFixture();
     const preview = await movePreview(categories[1].nodeId, root.nodeId, 0);

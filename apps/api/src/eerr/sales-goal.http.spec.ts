@@ -26,10 +26,14 @@ import { SalesGoalService } from './sales-goal.service.js';
 import { AnalysisController } from './analysis.controller.js';
 import { AnalysisService } from './analysis.service.js';
 import { EerrClock } from './eerr-clock.js';
+import { StructureRepository } from './structure.repository.js';
+import { PostCloseEditService } from './post-close-edit.service.js';
+import { EerrAuditRepository } from './eerr-audit.repository.js';
 
 describe('EP-05B.1 HTTP: meta por EERR', () => {
   let app: INestApplication;
   let store = new MemoryStructureRepository();
+  let auditEvents: unknown[] = [];
   let id: string;
   let viewer = {
     id: fixtureUser,
@@ -107,6 +111,27 @@ describe('EP-05B.1 HTTP: meta por EERR', () => {
       controllers: [SalesGoalController, AnalysisController],
       providers: [
         SalesGoalService,
+        PostCloseEditService,
+        {
+          provide: EerrAuditRepository,
+          useValue: {
+            append: async (event: unknown) => {
+              auditEvents.push(event);
+            },
+          },
+        },
+        {
+          provide: StructureRepository,
+          useValue: new Proxy(
+            {},
+            {
+              get: (_target, prop) => {
+                const value = store[prop as keyof MemoryStructureRepository];
+                return typeof value === 'function' ? value.bind(store) : value;
+              },
+            },
+          ),
+        },
         AnalysisService,
         Reflector,
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -141,6 +166,7 @@ describe('EP-05B.1 HTTP: meta por EERR', () => {
   afterAll(() => app?.close());
   beforeEach(() => {
     store = new MemoryStructureRepository();
+    auditEvents = [];
     const row = store.seed();
     id = row._id;
     row.revision = 1;
@@ -188,9 +214,21 @@ describe('EP-05B.1 HTTP: meta por EERR', () => {
       sourceRevision: 2,
       salesGoal: { value: '10.0000' },
       projections: {
-        targetDifference: { status: 'NOT_CALCULABLE', value: null, reason: 'EMPTY_INPUT' },
-        targetCompliance: { status: 'NOT_CALCULABLE', value: null, reason: 'EMPTY_INPUT' },
-        trafficLight: { status: 'NOT_CALCULABLE', value: 'NEUTRAL', reason: 'EMPTY_INPUT' },
+        targetDifference: {
+          status: 'NOT_CALCULABLE',
+          value: null,
+          reason: 'EMPTY_INPUT',
+        },
+        targetCompliance: {
+          status: 'NOT_CALCULABLE',
+          value: null,
+          reason: 'EMPTY_INPUT',
+        },
+        trafficLight: {
+          status: 'NOT_CALCULABLE',
+          value: 'NEUTRAL',
+          reason: 'EMPTY_INPUT',
+        },
       },
     });
     expect(store.writes).toBe(writes);
@@ -202,23 +240,72 @@ describe('EP-05B.1 HTTP: meta por EERR', () => {
     expect((await get().expect(200)).body.salesGoal).toBeNull();
   });
 
+  it('meta cerrada: escritura auditable, no-op y CAS sin eventos adicionales', async () => {
+    const row = store.state.rows[0]!;
+    row.lifecycleStatus = 'CLOSED';
+    row.everClosed = true;
+    await put({
+      expectedRevision: 1,
+      goal: { mode: 'NET_PROFIT_AMOUNT', value: '100' },
+    }).expect(200);
+    expect(auditEvents).toMatchObject([
+      {
+        eventType: 'POST_CLOSE_EDIT',
+        revision: 2,
+        metadata: {
+          changedArea: 'SALES_GOAL',
+          previousRevision: 1,
+          newRevision: 2,
+        },
+      },
+    ]);
+    await put({
+      expectedRevision: 2,
+      goal: { mode: 'NET_PROFIT_AMOUNT', value: '100.00' },
+    }).expect(200);
+    await put({ expectedRevision: 1, goal: null }).expect(409);
+    expect(auditEvents).toHaveLength(1);
+    expect(row.lifecycleStatus).toBe('CLOSED');
+  });
+
   it('propaga la meta porcentual corregida al análisis individual sin escribir desde GET', async () => {
     const roots = ROOTS.map((root, position) => ({
-      nodeId: randomUUID(), code: root.code, parentId: null, position,
-      name: root.name, kind: 'BLOCK' as const,
+      nodeId: randomUUID(),
+      code: root.code,
+      parentId: null,
+      position,
+      name: root.name,
+      kind: 'BLOCK' as const,
     }));
-    const nodes = roots.flatMap((root, index) => [root, {
-      nodeId: randomUUID(), code: randomUUID(), parentId: root.nodeId, position: 0,
-      name: `Ítem ${index}`, kind: 'ITEM' as const,
-      amount: { state: 'CARGADO' as const, input: null,
-        value: ['100.00', '60.00', '20.00'][index]!, currency: 'ARS' as const, scale: 2 as const },
-    }]);
+    const nodes = roots.flatMap((root, index) => [
+      root,
+      {
+        nodeId: randomUUID(),
+        code: randomUUID(),
+        parentId: root.nodeId,
+        position: 0,
+        name: `Ítem ${index}`,
+        kind: 'ITEM' as const,
+        amount: {
+          state: 'CARGADO' as const,
+          input: null,
+          value: ['100.00', '60.00', '20.00'][index]!,
+          currency: 'ARS' as const,
+          scale: 2 as const,
+        },
+      },
+    ]);
     store.state.rows[0]!.structure = storedStructure({
-      schemaVersion: 1, structureVersion: 1,
-      initializedAt: '2026-09-15T12:00:00Z', initializedBy: fixtureUser,
+      schemaVersion: 1,
+      structureVersion: 1,
+      initializedAt: '2026-09-15T12:00:00Z',
+      initializedBy: fixtureUser,
       nodes,
     });
-    await put({ expectedRevision: 1, goal: { mode: 'NET_MARGIN_PERCENT', value: '55' } }).expect(200);
+    await put({
+      expectedRevision: 1,
+      goal: { mode: 'NET_MARGIN_PERCENT', value: '55' },
+    }).expect(200);
     const writes = store.writes;
     const body = (await get().expect(200)).body;
     expect(body.calculationVersion).toBe(3);

@@ -13,10 +13,53 @@ it('la escritura de meta usa CAS activo aunque el EERR sea borrado después de l
   };
   const service = new SalesGoalService(
     model as never,
-    { readAuthorized: async () => ({ _id: id, branchId, revision: 0, structure: { nodes: [] }, salesGoal: null }) } as never,
+    {
+      readAuthorized: async () => ({
+        _id: id,
+        branchId,
+        revision: 0,
+        structure: { nodes: [] },
+        salesGoal: null,
+      }),
+    } as never,
     { now: () => new Date('2026-10-16T12:00:00Z') } as never,
+    {
+      run: async (
+        _id: string,
+        _actor: string,
+        _area: string,
+        edit: (
+          row: unknown,
+          session: unknown,
+        ) => Promise<{ response: unknown }>,
+      ) =>
+        (
+          await edit(
+            {
+              _id: id,
+              branchId,
+              revision: 0,
+              structure: { nodes: [] },
+              salesGoal: null,
+            },
+            {},
+          )
+        ).response,
+    } as never,
   );
-  await expect(service.put(id, { expectedRevision: 0, goal: { mode: 'NET_PROFIT_AMOUNT', value: '100.00' } },
-    { sub: userId, isAdmin: true, branchAccesses: [] } as never)).rejects.toMatchObject({ status: 409 });
-  expect(filter).toMatchObject({ _id: id, deletedAt: null, $or: [{ revision: 0 }, { revision: { $exists: false } }] });
+  await expect(
+    service.put(
+      id,
+      {
+        expectedRevision: 0,
+        goal: { mode: 'NET_PROFIT_AMOUNT', value: '100.00' },
+      },
+      { sub: userId, isAdmin: true, branchAccesses: [] } as never,
+    ),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(filter).toMatchObject({
+    _id: id,
+    deletedAt: null,
+    $or: [{ revision: 0 }, { revision: { $exists: false } }],
+  });
 });

@@ -126,8 +126,11 @@ Consultar [API_EERR.md](API_EERR.md) para contratos y validaciones.
 - La advertencia de cierre cuenta importes activos `SIN_CARGAR`; las cantidades
   opcionales `SIN_CARGAR` no participan.
 - Las transiciones de cierre, reapertura y eliminación requieren revisión CAS
-  (`expectedRevision`) y evento en la misma transacción. PR 2 incorpora los
-  endpoints; la auditoría de mutaciones post-cierre queda para un PR posterior.
+  (`expectedRevision`) y evento en la misma transacción. Toda mutación efectiva
+  iniciada sobre un EERR `CLOSED` agrega exactamente un `POST_CLOSE_EDIT` por EERR
+  y operación lógica, con área, revisión anterior/nueva y conteo opcional. No
+  registra valores, notas ni snapshots. En `OPEN` y en operaciones sin cambio no
+  agrega ese evento. El estado se comprueba dentro de la transacción de escritura.
 
 ## Estructura e ingreso manual básico (EP-04A)
 

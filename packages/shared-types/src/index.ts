@@ -13,6 +13,15 @@ import type { EerrPeriod } from "@puro-origen/domain";
 export type EerrLifecycleStatus = "OPEN" | "CLOSED";
 export type EerrAuditEventType =
   "EERR_CLOSED" | "EERR_REOPENED" | "EERR_DELETED" | "POST_CLOSE_EDIT";
+export type EerrAuditChangedArea =
+  | "VALUE"
+  | "QUANTITY"
+  | "NOTE"
+  | "STRUCTURE"
+  | "SALES_GOAL"
+  | "IMPORT"
+  | "COMPLETE_PENDING"
+  | "GLOBAL_STRUCTURE";
 export type EerrLifecycleState = {
   lifecycleStatus: EerrLifecycleStatus;
   everClosed: boolean;
@@ -40,7 +49,8 @@ export type EerrAuditMetadata = {
   newLifecycleStatus?: EerrLifecycleStatus;
   previousRevision?: number;
   newRevision?: number;
-  changedArea?: string;
+  changedArea?: EerrAuditChangedArea;
+  changedCount?: number;
 };
 export type EerrAuditEvent = {
   eventType: EerrAuditEventType;

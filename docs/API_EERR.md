@@ -80,8 +80,10 @@ mismo 404 genérico que un UUID inexistente. Cada transición exige
 `expectedRevision`, incrementa la revisión mediante CAS y registra exactamente
 un evento en la misma transacción. Un estado incorrecto o una revisión obsoleta
 devuelven 409. Un EERR inexistente, ajeno o soft-deleted devuelve 404 genérico.
-`CLOSED` sigue siendo editable; la auditoría de ediciones post-cierre pertenece
-a otro PR. Al cerrar, `pendingAmountCount` cuenta únicamente importes activos
+`CLOSED` sigue siendo editable. Una edición efectiva produce un evento interno
+`POST_CLOSE_EDIT` por EERR con `changedArea`, revisión anterior y nueva, y
+`changedCount` opcional; no cambia la respuesta HTTP ni expone un endpoint de
+auditoría. Al cerrar, `pendingAmountCount` cuenta únicamente importes activos
 `SIN_CARGAR`, sin bloquear ni completar ceros. Al reabrir, `everClosed` continúa
 en `true` y `closedAt/closedBy` conservan los datos del último cierre; el historial
 completo está en eventos.

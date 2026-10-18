@@ -19,6 +19,7 @@ import { BranchesService } from '../branches/branches.service.js';
 import { EerrService } from './eerr.service.js';
 import { EerrClock } from './eerr-clock.js';
 import { StructureRepository } from './structure.repository.js';
+import { PostCloseEditService } from './post-close-edit.service.js';
 import { publicStructure } from './schemas/structure.schema.js';
 import {
   ImportToken,
@@ -40,6 +41,7 @@ export class CompletePendingService {
     private readonly branches: BranchesService,
     private readonly clock: EerrClock,
     private readonly tokens: ImportToken,
+    private readonly postCloseEdit: PostCloseEditService,
   ) {}
   private async current(id: string, viewer: Viewer, session?: ClientSession) {
     const accessible = await this.eerrs.get(id, viewer);
@@ -135,6 +137,14 @@ export class CompletePendingService {
         current.plan.changes,
         this.clock.now(),
         session,
+      );
+      await this.postCloseEdit.appendIfClosed(
+        current.row,
+        updated,
+        viewer.sub,
+        'COMPLETE_PENDING',
+        session,
+        current.plan.changes.length,
       );
       const structure = publicStructure(updated.structure);
       return {

@@ -1,5 +1,18 @@
 # Plan de pruebas del EERR
 
+## EP-07 PR 3: ediciones post-cierre
+
+Sin Atlas, verificar que valores, cantidades, notas, estructura, metas,
+importación, completar pendientes y publicaciones globales creen un
+`POST_CLOSE_EDIT` por EERR `CLOSED` efectivamente modificado. El evento usa la
+misma sesión de la escritura, registra solo área, revisiones y conteo opcional;
+`OPEN`, no-op, validación fallida y CAS obsoleto no generan evento. Un fallo de
+auditoría debe revertir la escritura. Cubrir carreras con close/reopen mediante
+lectura del estado dentro de la transacción y conflicto de escritura. La
+clonación de destino `CLOSED` no es elegible: exige destino vacío en revisión 0,
+mientras que cerrar ya incrementó la revisión. Las pruebas unitarias y fixtures
+transaccionales no sustituyen la validación con MongoDB local o staging controlado.
+
 ## EP-07 PR 1: modelo, auditoría y soft delete
 
 Sin Atlas ni `.env`, comprobar defaults OPEN/false; normalización de documentos

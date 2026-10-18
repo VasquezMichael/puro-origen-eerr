@@ -8,6 +8,8 @@ import type { Model } from 'mongoose';
 import { initialNodes, emptyAmount, IMPORT_LIMITS } from '@puro-origen/domain';
 import { ImportController } from './import.controller.js';
 import { ImportService } from './import.service.js';
+import { PostCloseEditService } from '../post-close-edit.service.js';
+import { EerrAuditRepository } from '../eerr-audit.repository.js';
 import { ImportToken } from './import-token.js';
 import { readCsv, csvEscape } from './csv.js';
 import { EerrClock } from '../eerr-clock.js';
@@ -33,6 +35,7 @@ describe('EP-04C2 HTTP real aislado', () => {
     store = new MemoryStructureRepository(),
     row: ReturnType<MemoryStructureRepository['seed']>,
     now: Date;
+  let auditEvents: unknown[] = [];
   let viewer: {
     id: string;
     active: boolean;
@@ -67,6 +70,15 @@ describe('EP-04C2 HTTP real aislado', () => {
       controllers: [ImportController],
       providers: [
         ImportService,
+        PostCloseEditService,
+        {
+          provide: EerrAuditRepository,
+          useValue: {
+            append: async (event: unknown) => {
+              auditEvents.push(event);
+            },
+          },
+        },
         ImportToken,
         Reflector,
         { provide: APP_GUARD, useClass: AuthGuard },
@@ -128,6 +140,7 @@ describe('EP-04C2 HTTP real aislado', () => {
   });
   beforeEach(() => {
     store = new MemoryStructureRepository();
+    auditEvents = [];
     now = new Date(fixtureNow);
     viewer = {
       id: fixtureUser,
@@ -232,6 +245,30 @@ describe('EP-04C2 HTTP real aislado', () => {
     expect(p.status).toBe(201);
     expect(p.body.changedFields).toBe(0);
     expect(p.body.previewToken).toBeNull();
+  });
+  it('importación cerrada genera un evento por lote, sin payload de celdas', async () => {
+    row.lifecycleStatus = 'CLOSED';
+    row.everClosed = true;
+    const file = await upload();
+    const preview = await post('preview', file);
+    expect(auditEvents).toHaveLength(0);
+    const result = await post('confirm', file, preview.body.previewToken);
+    expect(result.status).toBe(201);
+    expect(auditEvents).toMatchObject([
+      {
+        eventType: 'POST_CLOSE_EDIT',
+        eerrId: row._id,
+        revision: 6,
+        metadata: {
+          changedArea: 'IMPORT',
+          previousRevision: 5,
+          newRevision: 6,
+          changedCount: 2,
+        },
+      },
+    ]);
+    expect(auditEvents).toHaveLength(1);
+    expect(row.lifecycleStatus).toBe('CLOSED');
   });
   it('preview no escribe y confirmación aplica varios campos preservando notas, identidad y orden', async () => {
     const file = await upload(),

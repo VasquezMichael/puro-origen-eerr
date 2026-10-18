@@ -23,6 +23,7 @@ import { BranchesService } from '../../branches/branches.service.js';
 import { EerrService } from '../eerr.service.js';
 import { EerrClock } from '../eerr-clock.js';
 import { StructureRepository } from '../structure.repository.js';
+import { PostCloseEditService } from '../post-close-edit.service.js';
 import { publicStructure } from '../schemas/structure.schema.js';
 import {
   ImportToken,
@@ -47,6 +48,7 @@ export class ImportService {
     private readonly branches: BranchesService,
     private readonly clock: EerrClock,
     private readonly tokens: ImportToken,
+    private readonly postCloseEdit: PostCloseEditService,
   ) {}
   private async current(
     id: string,
@@ -210,6 +212,14 @@ export class ImportService {
         plan.changes,
         this.clock.now(),
         session,
+      );
+      await this.postCloseEdit.appendIfClosed(
+        current.row,
+        updated,
+        viewer.sub,
+        'IMPORT',
+        session,
+        plan.changedFields,
       );
       const structure = publicStructure(updated.structure);
       return {
