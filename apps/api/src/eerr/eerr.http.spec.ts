@@ -217,6 +217,14 @@ describe('EERR HTTP con módulos y autorización reales; persistencia en memoria
     await create().expect(403);
     expect(eerrModel.create).not.toHaveBeenCalled();
   });
+
+  it('expone capability de DELETE autenticada, apagada por defecto y sin leer EERR', async () => {
+    await api().get('/eerr/capabilities').expect(401);
+    const response = await get('/eerr/capabilities').expect(200);
+    expect(response.body).toEqual({ softDeleteEnabled: false });
+    expect(eerrModel.find).not.toHaveBeenCalled();
+    expect(eerrModel.findOne).not.toHaveBeenCalled();
+  });
   it('administrador crea un contenedor con creador del principal, sin importes', async () => {
     const response = await create().expect(201);
     expect(response.body).toMatchObject({

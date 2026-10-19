@@ -6,6 +6,7 @@ export type EditorState = {
   conflict: boolean;
 };
 export type EditorEvent =
+  | { type: "RESET" }
   | { type: "RELOAD"; data: StructureResponse }
   | { type: "SAVED"; data: StructureResponse; draftKey?: string }
   | { type: "DRAFT"; draftKey: string; input: string }
@@ -22,6 +23,7 @@ export function editorReducer(
   state: EditorState,
   event: EditorEvent,
 ): EditorState {
+  if (event.type === "RESET") return initialEditorState;
   if (event.type === "CANCEL") {
     const drafts = { ...state.drafts };
     delete drafts[event.draftKey];

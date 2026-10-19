@@ -61,6 +61,7 @@ enviados por el cliente.
 | `GET /eerr?branchId=…` | ObjectId de sucursal | Lista de esa sucursal, año/mes descendentes |
 | `GET /eerr/context?year=2026&month=8` | Año y mes | Una entrada por cada sucursal accesible, incluso inactiva o sin EERR |
 | `GET /eerr/:id` | UUID v4 | Contenedor accesible o 404 |
+| `GET /eerr/capabilities` | Sin parámetros; requiere sesión | `{ "softDeleteEnabled": false }` por defecto. La API revalida permisos y estado en DELETE. |
 | `POST /eerr/:id/close` | `{ "expectedRevision": 0 }` | EERR cerrado, revisión nueva y `pendingAmountCount` |
 | `POST /eerr/:id/reopen` | `{ "expectedRevision": 1 }` | EERR reabierto, revisión nueva |
 | `DELETE /eerr/:id` | `{ "expectedRevision": 0 }` | Soft delete y revisión nueva; deshabilitado por defecto |
@@ -94,6 +95,12 @@ hard delete. `EERR_SOFT_DELETE_ENABLED` ausente o distinto de `true` produce
 503 `EERR_SOFT_DELETE_DISABLED` sin leer ni escribir el EERR. Activarlo solo
 después de la migración y verificación del índice parcial descritas en
 [ARQUITECTURA.md](ARQUITECTURA.md). La bandera no sustituye esa verificación.
+
+La web consulta esta capability pública para ofrecer DELETE solo cuando está
+habilitado; no expone la variable de entorno. `lifecycleStatus` se muestra
+separado de `loadStatus` en listados, detalle y Dashboard por sucursal. La API
+emite el estado del EERR individual (legacy se interpreta como `OPEN`), sin
+atribuir un lifecycle al consolidado.
 
 En la perspectiva mensual, cada entrada contiene:
 

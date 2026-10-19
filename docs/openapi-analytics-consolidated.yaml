@@ -217,7 +217,7 @@ components:
         revision: { type: [integer, 'null'] }
     Branch:
       type: object
-      required: [branchId, name, active, temporal, eerrId, revision, loadStatus, analysisStatus, reason, blocks, metrics, breakEvenSales, goalIndicators]
+      required: [branchId, name, active, temporal, eerrId, revision, loadStatus, lifecycleStatus, analysisStatus, reason, blocks, metrics, breakEvenSales, goalIndicators]
       properties:
         branchId: { type: string }
         name: { type: string }
@@ -226,6 +226,7 @@ components:
         eerrId: { type: [string, 'null'] }
         revision: { type: [integer, 'null'] }
         loadStatus: { type: [string, 'null'], enum: [SIN_CARGAR, PARCIAL, CARGADO, null] }
+        lifecycleStatus: { type: [string, 'null'], enum: [OPEN, CLOSED, null], description: Estado del EERR individual; null cuando no hay EERR. Respuestas anteriores pueden omitirlo. }
         analysisStatus: { type: string, enum: [COMPLETE, PARTIAL, PENDING, EMPTY, UNINITIALIZED, NO_EERR, EXCLUDED] }
         reason: { type: [string, 'null'], enum: [COMPLETE, PARTIAL, PENDING, EMPTY, UNINITIALIZED, NO_EERR, NOT_STARTED, INACTIVE_WITHOUT_HISTORY, null] }
         blocks: { type: [array, 'null'], items: { $ref: '#/components/schemas/Block' } }

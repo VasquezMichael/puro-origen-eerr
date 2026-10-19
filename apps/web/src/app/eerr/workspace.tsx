@@ -9,10 +9,12 @@ import styles from './layout.module.css';
 import { eerrApi as api } from './api';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { EERR_TIME_ZONE, businessMonthAt, eerrCalendarIssue } from '@puro-origen/domain';
+import type { EerrLifecycleStatus } from '@puro-origen/shared-types';
+import { LifecycleBadge } from './lifecycle';
 
 type User = { isAdmin: boolean; branchAccesses: { branchId: string; role: 'READER' | 'EDITOR' }[] };
 type Branch = { id: string; name: string; active: boolean; startDate: string };
-type Eerr = { id: string; branchId: string; year: number; month: number; loadStatus: 'SIN_CARGAR' | 'PARCIAL' | 'CARGADO'; createdAt: string };
+type Eerr = { id: string; branchId: string; year: number; month: number; loadStatus: 'SIN_CARGAR' | 'PARCIAL' | 'CARGADO'; lifecycleStatus?: EerrLifecycleStatus; createdAt: string };
 type MonthContext = { branch: Branch; exists: true; eerr: Eerr } | { branch: Branch; exists: false; eerr: null };
 const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const periodName = (year: number, month: number) => `${months[month - 1]} ${year}`;
@@ -23,7 +25,16 @@ export function EerrWorkspace() {
   const { user } = useSession();
   const [branches, setBranches] = useState<Branch[] | null>(null);
   const [error, setError] = useState('');
+  const [navigationNotice, setNavigationNotice] = useState('');
   const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const search = new URLSearchParams(window.location.search);
+      if (search.has('missing')) setNavigationNotice('Ese EERR ya no está disponible. Revisá los períodos existentes.');
+      else if (search.has('deleted')) setNavigationNotice('El período fue eliminado y ya no figura entre los EERR activos.');
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     const options = { signal: controller.signal };
@@ -33,6 +44,7 @@ export function EerrWorkspace() {
   }, [attempt]);
   return <WorkspaceShell section="eerr" title="Estados de resultados"><div className={shellStyles.moduleContent}>
     <div className="branches-title"><div><p className="eyebrow">Contexto de trabajo</p><h1>Estados de resultados</h1><p className="intro">Elegí una sucursal o un período para consultar sus EERR.</p></div></div>
+    {navigationNotice && <p className="notice" role="status">{navigationNotice}</p>}
     {error ? <div className="branch-feedback"><p className="error" role="alert">{error}</p><button className="text-button" onClick={() => { setError(''); setAttempt(attempt + 1); }}>Reintentar</button></div>
       : branches ? <ContextBrowser user={user} branches={branches} /> : <p role="status">Comprobando sesión y sucursales…</p>}
   </div></WorkspaceShell>;
@@ -99,8 +111,8 @@ function Results({ path, perspective, user, disabled, onCreate, onOpen }: { path
   </li>)}</ul>;
 }
 
-function EerrSummary({ row }: { row: Eerr }) {
-  return <><p><span className="branch-badge is-inactive">{{ SIN_CARGAR: 'Sin cargar', PARCIAL: 'Carga parcial', CARGADO: 'Cargado' }[row.loadStatus]}</span></p><p className="branch-date">Creado el {dateName(row.createdAt)}</p></>;
+export function EerrSummary({ row }: { row: Eerr }) {
+  return <><p className={shellStyles.actions}><LifecycleBadge status={row.lifecycleStatus ?? 'OPEN'} /><span className="branch-badge is-inactive">{{ SIN_CARGAR: 'Sin cargar', PARCIAL: 'Carga parcial', CARGADO: 'Cargado' }[row.loadStatus]}</span></p><p className="branch-date">Creado el {dateName(row.createdAt)}</p></>;
 }
 
 function CreateForm({ initial, onCancel, onCreated }: { initial: { branch: Branch; year: number; month: number }; onCancel: () => void; onCreated: (row: Eerr) => void }) {

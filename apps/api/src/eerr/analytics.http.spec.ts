@@ -30,6 +30,7 @@ type Row = {
   revision: number;
   structure: ReturnType<typeof storedStructure> | null;
   loadStatus: string;
+  lifecycleStatus?: 'OPEN' | 'CLOSED';
   salesGoal?: unknown;
   deletedAt?: Date;
 };
@@ -266,6 +267,15 @@ describe('EP-06A.1 HTTP: Dashboard agregado sin MongoDB ni AppModule', () => {
     expect(response.body.sources).toHaveLength(4);
     expect(response.body.sourceSignature).toMatch(/^[a-f\d]{64}$/);
     expect(reads).toBe(2);
+    expect(writes).toBe(0);
+  });
+
+  it('Dashboard entrega lifecycle por EERR individual y normaliza legacy a OPEN', async () => {
+    rows[0]!.lifecycleStatus = 'CLOSED';
+    const body = (await get().expect(200)).body;
+    expect(body.branches.find((branch: { branchId: string }) => branch.branchId === b1).lifecycleStatus).toBe('CLOSED');
+    expect(body.branches.find((branch: { branchId: string }) => branch.branchId === b2).lifecycleStatus).toBe('OPEN');
+    expect(body.branches.find((branch: { branchId: string }) => branch.branchId === b4).lifecycleStatus).toBeNull();
     expect(writes).toBe(0);
   });
 

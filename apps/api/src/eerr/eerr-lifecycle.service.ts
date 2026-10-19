@@ -33,6 +33,10 @@ export class EerrLifecycleService {
     private readonly config: ConfigService,
   ) {}
 
+  capabilities() {
+    return { softDeleteEnabled: this.config.get<string>('EERR_SOFT_DELETE_ENABLED') === 'true' };
+  }
+
   close(id: string, expectedRevision: number, viewer: Viewer) {
     return this.change('close', id, expectedRevision, viewer);
   }
@@ -42,7 +46,7 @@ export class EerrLifecycleService {
   }
 
   async delete(id: string, expectedRevision: number, viewer: Viewer) {
-    if (this.config.get<string>('EERR_SOFT_DELETE_ENABLED') !== 'true')
+    if (!this.capabilities().softDeleteEnabled)
       throw new ServiceUnavailableException({
         statusCode: 503,
         code: 'EERR_SOFT_DELETE_DISABLED',

@@ -68,6 +68,11 @@ export class EerrController {
     return this.eerr.byMonth(input, request.user!);
   }
 
+  @Get('capabilities')
+  capabilities() {
+    return this.lifecycle.capabilities();
+  }
+
   @Get(':id')
   get(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
