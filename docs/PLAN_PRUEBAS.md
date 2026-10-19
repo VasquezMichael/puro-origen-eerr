@@ -1,5 +1,8 @@
 # Plan de pruebas del EERR
 
+La revisión funcional de cierre de EP-07, con evidencias y condiciones previas
+a habilitar DELETE, está en `EP07_QA_CIERRE.md`.
+
 ## EP-07 PR 4: interfaz de ciclo de vida
 
 Verificar OPEN/CLOSED separado del estado de carga en listado, detalle, espacio
