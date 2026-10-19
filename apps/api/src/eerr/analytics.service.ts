@@ -64,10 +64,11 @@ type Row = {
   revision?: number;
   structure?: StoredStructure | null;
   loadStatus?: DashboardBranch['loadStatus'];
+  lifecycleStatus?: DashboardBranch['lifecycleStatus'];
   salesGoal?: StoredSalesGoal | null;
 };
 const MAX_BRANCHES = 200;
-const fullFields = '_id branchId revision structure loadStatus salesGoal';
+const fullFields = '_id branchId revision structure loadStatus lifecycleStatus salesGoal';
 const revisionFields = '_id branchId revision';
 const metricNames: ComparisonMetricName[] = [
   'income',
@@ -641,6 +642,7 @@ export class AnalyticsService {
         eerrId: row?._id ?? null,
         revision,
         loadStatus: row?.loadStatus ?? null,
+        lifecycleStatus: row ? row.lifecycleStatus ?? 'OPEN' : null,
         analysisStatus,
         reason,
         blocks: analysis?.blocks ?? null,

@@ -78,6 +78,17 @@ function setup(
 }
 
 describe('transiciones de lifecycle', () => {
+  it.each([
+    [undefined, false],
+    ['false', false],
+    ['otro', false],
+    ['true', true],
+  ])('capability de DELETE con bandera %s: %s, sin consultar datos', (flag, enabled) => {
+    const t = setup({}, false, flag);
+    expect(t.service.capabilities()).toEqual({ softDeleteEnabled: enabled });
+    expect(t.readAuthorized).not.toHaveBeenCalled();
+    expect(t.transaction).not.toHaveBeenCalled();
+  });
   it('cierra OPEN legacy, aumenta revisión y registra un solo evento en la sesión', async () => {
     const t = setup();
     const result = await t.service.close(id, 0, viewer() as never);

@@ -97,13 +97,17 @@ export function CompletePendingFlow({
   onBusy,
   onClose,
   onCompleted,
+  onConflict,
+  onMissing,
 }: {
   id: string;
   pending: boolean;
   blocked: boolean;
   onBusy: (busy: boolean) => void;
   onClose: () => void;
-  onCompleted: (result: CompletePendingConfirmResponse) => void;
+  onCompleted: (result: CompletePendingConfirmResponse) => void | Promise<void>;
+  onConflict?: () => void | Promise<void>;
+  onMissing?: () => void;
 }) {
   const [preview, setPreview] = useState<CompletePendingPreviewResponse | null>(
       null,
@@ -141,7 +145,7 @@ export function CompletePendingFlow({
           `/eerr/${id}/amounts/complete-pending/confirm`,
           options,
         );
-        onCompleted(result);
+        await onCompleted(result);
         onClose();
       } else {
         setPreview(
@@ -154,7 +158,11 @@ export function CompletePendingFlow({
       }
     } catch (cause) {
       setError((cause as Error).message);
-      if (cause instanceof EerrApiError && cause.status === 409) setStale(true);
+      if (cause instanceof EerrApiError && cause.status === 409) {
+        setStale(true);
+        await onConflict?.();
+      }
+      if (cause instanceof EerrApiError && cause.status === 404) onMissing?.();
     } finally {
       sending.current = false;
       setBusy(false);

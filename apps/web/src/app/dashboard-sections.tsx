@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { ROOTS } from "@puro-origen/domain";
 import type { DashboardBranch, DashboardResponse } from "@puro-origen/shared-types";
+import { LifecycleBadge } from "./eerr/lifecycle";
 import { branchStatus, formatDashboardMetric, marginFromInput, marginInput, metricReason, scopeLabel, trafficLightLabel, type Period, MONTHS, validPeriod, periodKey } from "./dashboard-model";
 import styles from "./dashboard.module.css";
 
@@ -105,7 +106,7 @@ function BranchCard({ branch }: { branch: DashboardBranch }) {
       {metric?.value === null && <small>{metricReason(metric.reason)}</small>}
       {metric?.status === "COMPLETE" && branch.analysisStatus !== "COMPLETE" && <small>Fuente parcial; EERR incompleto</small>}
     </dd></div>;
-  return <li className={styles.branch}><div className={styles.branchHead}><h3>{branch.name}</h3><span className={styles.state}>{branchStatus(branch)}</span></div><p>{branch.active ? "Activa" : branch.temporal === "EXPECTED" ? "Inactiva · EERR histórico" : "Inactiva"} · {branch.eerrId ? "Con EERR" : "Sin EERR"}</p>
+  return <li className={styles.branch}><div className={styles.branchHead}><h3>{branch.name}</h3><span className={styles.state}>{branchStatus(branch)}</span></div><p>{branch.active ? "Activa" : branch.temporal === "EXPECTED" ? "Inactiva · EERR histórico" : "Inactiva"} · {branch.eerrId ? "Con EERR" : "Sin EERR"}</p>{branch.eerrId && branch.lifecycleStatus && <p><LifecycleBadge status={branch.lifecycleStatus} /></p>}
     {branch.temporal === "EXPECTED" && branch.eerrId && <dl className={styles.branchValues}>{ROOTS.map((root) => { const block = amounts.find((item) => item.code === root.code); return <div key={root.code}><dt>{root.name}</dt><dd>{block?.value === null || block?.value === undefined ? "—" : formatDashboardMetric(block.value, "ARS")}{block && block.status !== "COMPLETE" && <small> {block.status === "PARTIAL" ? "Subtotal parcial" : "No completo"}</small>}</dd></div>; })}</dl>}
     {branch.temporal === "EXPECTED" && branch.eerrId && <dl className={styles.branchValues} aria-label="Indicadores financieros de la sucursal">
       {financialRow("Margen Bruto", financial?.grossMargin ?? null, financial?.grossMarginPercent)}

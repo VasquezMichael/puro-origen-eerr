@@ -1,5 +1,22 @@
 # Plan de pruebas del EERR
 
+## EP-07 PR 4: interfaz de ciclo de vida
+
+Verificar OPEN/CLOSED separado del estado de carga en listado, detalle, espacio
+de carga y Dashboard por sucursal. Admin y Editor asignado pueden cerrar y
+reabrir; Reader no ve acciones. Con importes pendientes, el cierre ofrece
+cancelar, completar con cero mediante el flujo existente o cerrar igualmente.
+`progress.pending` no incluye cantidades opcionales. CLOSED permanece editable
+y advierte sobre la auditoría post-cierre. DELETE solo aparece para OPEN nunca
+cerrado y cuando `GET /eerr/capabilities` lo informa habilitado; sigue apagado
+por defecto.
+
+QA visual con runner externo (PR 5): recorrer desktop, tablet y 390 px; foco
+inicial y restaurado, Escape, scroll, textos completos, doble clic, 409 con
+recarga sin reintento automático, 404 con redirección, 503 de DELETE, navegación
+y conservación de borradores. Transacciones e índice parcial requieren validación
+en MongoDB local/staging controlado antes de habilitar DELETE, nunca Atlas aquí.
+
 ## EP-07 PR 3: ediciones post-cierre
 
 Sin Atlas, verificar que valores, cantidades, notas, estructura, metas,

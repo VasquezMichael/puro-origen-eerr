@@ -9,6 +9,13 @@ const { Coverage, Consolidated, Branches, MarginPicker, PeriodPicker } = await i
 const { dashboardError } = await import("../src/app/dashboard.tsx");
 const { ROOTS } = await import("../../../packages/domain/dist/index.js");
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props));
+
+test("Dashboard muestra lifecycle solo para EERR individuales", () => {
+  const current = response(true, { branches: [branch("COMPLETE", { lifecycleStatus: "CLOSED" }), branch("NO_EERR", { branchId: "b", lifecycleStatus: null })] });
+  const html = render(Branches, { data: current });
+  assert.match(html, /Período cerrado/);
+  assert.equal((html.match(/Período cerrado/g) ?? []).length, 1);
+});
 const amount = (value, reason = null, unit = "ARS") => ({ value, reason, unit, status: value === null ? "BLOCKED" : "COMPLETE" });
 const branch = (status, overrides = {}) => ({ branchId: "a", name: "Sucursal Norte", active: true, temporal: "EXPECTED", eerrId: status === "NO_EERR" ? null : "eerr-1", revision: 1, loadStatus: "CARGADO", analysisStatus: status, reason: status === "COMPLETE" ? null : status, blocks: [
   { code: ROOTS[0].code, value: "9007199254740993.10", status: "COMPLETE" },

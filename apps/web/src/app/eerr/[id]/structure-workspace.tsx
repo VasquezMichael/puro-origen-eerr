@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useEffect,
   useReducer,
@@ -17,9 +19,13 @@ import type {
   CategoryPreviewResponse,
   CategoryMovePreviewResponse,
   StructureResponse,
+  EerrCapabilities,
+  EerrTransitionResponse,
 } from "@puro-origen/shared-types";
 import { eerrApi, EerrApiError } from "../api";
 import { CompletePendingFlow } from "./complete-pending-flow";
+import { LifecycleBadge, LifecycleDialog } from "../lifecycle";
+import { lifecycleActions, runLifecycleTransition } from "../lifecycle-model";
 import { ImportFlow } from "./import-flow";
 import { CloneFlow } from "./clone-flow";
 import { MovementForm, type MovementSelection } from "./movement-form";
@@ -48,14 +54,29 @@ type User = {
 type Context = {
   user: User;
   branch: { name: string; active: boolean };
-  eerr: { branchId: string; year: number; month: number };
+  eerr: EerrTransitionResponse;
 };
 type Overlay = {
   kind: NodeAction | "GENERAL" | "PREPARE" | "ARCHIVED";
   nodeId?: string;
 };
+async function readCoherentEerr(id: string, options: RequestInit = {}) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const [eerr, structure] = await Promise.all([
+      eerrApi<EerrTransitionResponse>(`/eerr/${id}`, options),
+      eerrApi<StructureResponse>(`/eerr/${id}/structure`, options),
+    ]);
+    if (eerr.revision === structure.revision) return { eerr, structure };
+  }
+  throw new Error("El EERR continúa cambiando. Esperá un momento y actualizá antes de confirmar.");
+}
 export function StructureWorkspace({ id }: { id: string }) {
+  const router = useRouter();
   const [context, setContext] = useState<Context | null>(null);
+  const [capabilities, setCapabilities] = useState<EerrCapabilities | null>(null);
+  const [lifecycleDialog, setLifecycleDialog] = useState<"close" | "reopen" | "delete" | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
+  const lifecycleSending = useRef(false);
   const [{ data, drafts, conflict }, dispatch] = useReducer(
     editorReducer,
     initialEditorState,
@@ -92,29 +113,97 @@ export function StructureWorkspace({ id }: { id: string }) {
     const options = { signal: controller.signal };
     Promise.all([
       eerrApi<{ user: User }>("/auth/me", options),
-      eerrApi<Context["eerr"]>(`/eerr/${id}`, options),
+      readCoherentEerr(id, options),
       eerrApi<{ id: string; name: string; active: boolean }[]>(
         "/branches",
         options,
       ),
-      eerrApi<StructureResponse>(`/eerr/${id}/structure`, options),
+      eerrApi<EerrCapabilities>("/eerr/capabilities", options).catch(() => ({ softDeleteEnabled: false })),
     ])
-      .then(([auth, eerr, branches, structure]) => {
+      .then(([auth, { eerr, structure }, branches, available]) => {
         if (controller.signal.aborted) return;
         const branch = branches.find((branch) => branch.id === eerr.branchId);
         if (!branch) throw new Error("Sucursal no accesible");
         setContext({ user: auth.user, eerr, branch });
+        setCapabilities(available);
         dispatch({ type: "RELOAD", data: structure });
       })
       .catch((error: Error) => {
-        if (!controller.signal.aborted) setError(error.message);
+        if (controller.signal.aborted) return;
+        if (error instanceof EerrApiError && error.status === 404) router.replace("/eerr?missing=1");
+        else setError(error.message);
       });
     return () => controller.abort();
-  }, [id, attempt]);
+  }, [id, attempt, router]);
   const canEdit = !!context && mayEdit(context.user, context.eerr.branchId);
   const nodes = data?.structure?.nodes ?? [];
   const node = nodes.find((n) => n.nodeId === overlay?.nodeId);
   const disabled = busy || conflict;
+  const lifecycleStatus = context?.eerr.lifecycleStatus ?? "OPEN";
+  const availableLifecycleActions = lifecycleActions(canEdit, lifecycleStatus, context?.eerr.everClosed ?? false, capabilities);
+  const lifecycleDisabled = busy || importBusy || completeBusy || goalBusy || lifecycleBusy;
+  function showMissingEerr(deleted = false) {
+    setLifecycleDialog(null);
+    setCompleteOpen(false);
+    setOverlay(null);
+    setContext(null);
+    dispatch({ type: "RESET" });
+    setError(deleted ? "Período eliminado. Volvemos al listado." : "Ese EERR ya no está disponible. Volvemos al listado de períodos.");
+    setStatus("");
+    router.replace(deleted ? "/eerr?deleted=1" : "/eerr?missing=1");
+  }
+  async function refreshLifecycle() {
+    try {
+      const { eerr, structure } = await readCoherentEerr(id);
+      setContext((current) => current ? { ...current, eerr } : current);
+      dispatch({ type: "RELOAD", data: structure });
+      return { eerr, structure };
+    } catch (cause) {
+      // Conservar borradores, pero ocultar un estado que ya no podemos afirmar vigente.
+      setContext(null);
+      throw cause;
+    }
+  }
+  async function confirmLifecycle() {
+    if (!lifecycleDialog || !data || !context || !canEdit || lifecycleSending.current) return;
+    const action = lifecycleDialog;
+    lifecycleSending.current = true;
+    setLifecycleBusy(true);
+    setError("");
+    try {
+      const outcome = await runLifecycleTransition(action, id, data.revision, eerrApi, refreshLifecycle);
+      setLifecycleDialog(null);
+      if (outcome.kind === "missing") {
+        showMissingEerr();
+        return;
+      }
+      if (outcome.kind === "disabled") {
+        setCapabilities({ softDeleteEnabled: false });
+        setError("La eliminación de períodos no está disponible en este entorno. No se modificó el EERR.");
+        return;
+      }
+      if (outcome.kind === "conflict") {
+        setError("El EERR cambió mientras confirmabas. Recargamos el estado y la revisión; revisalos antes de volver a intentar.");
+        return;
+      }
+      const { result } = outcome;
+      if (action === "delete") {
+        showMissingEerr(true);
+        return;
+      }
+      await refreshLifecycle();
+      setStatus(action === "close"
+        ? `Período cerrado. ${result.pendingAmountCount ?? 0} importes pendientes; sigue editable.`
+        : "Período reabierto. La información del último cierre se conserva.");
+    } catch (cause) {
+      setLifecycleDialog(null);
+      if (cause instanceof EerrApiError && cause.status === 404) showMissingEerr();
+      else setError((cause as Error).message);
+    } finally {
+      lifecycleSending.current = false;
+      setLifecycleBusy(false);
+    }
+  }
   function draft(key: string, input: string) {
     dispatch({ type: "DRAFT", draftKey: key, input });
     setFeedback((previous) => {
@@ -179,33 +268,43 @@ export function StructureWorkspace({ id }: { id: string }) {
       setBusy(false);
     }
   }
-  function reload() {
-    return perform<StructureResponse>(
-      "structure",
-      "GET",
-      undefined,
-      "reload",
-      "EERR",
-      (result) => {
-        dispatch({ type: "RELOAD", data: result });
-        setPreview(null);
-        setMovePreview(null);
-        setFeedback({});
-        setConflictLabel("");
-        setOverlay((current) => {
-          const item = result.structure?.nodes.find(
-            (n) => n.nodeId === current?.nodeId,
-          );
-          if (!current || !item || item.kind !== "ITEM") return current;
-          if (
-            (isArchived(item) && current.kind !== "RESTORE") ||
-            (!isArchived(item) && current.kind === "RESTORE")
-          )
-            return { kind: "DETAIL", nodeId: item.nodeId };
-          return current;
-        });
-      },
-    );
+  async function reload() {
+    if (sending.current) return false;
+    sending.current = true;
+    setBusy(true);
+    setError("");
+    setStatus("Recargando: EERR y estructura…");
+    try {
+      const { structure } = await refreshLifecycle();
+      setPreview(null);
+      setMovePreview(null);
+      setFeedback({});
+      setConflictLabel("");
+      setOverlay((current) => {
+        const item = structure.structure?.nodes.find(
+          (n) => n.nodeId === current?.nodeId,
+        );
+        if (!current || !item || item.kind !== "ITEM") return current;
+        if (
+          (isArchived(item) && current.kind !== "RESTORE") ||
+          (!isArchived(item) && current.kind === "RESTORE")
+        )
+          return { kind: "DETAIL", nodeId: item.nodeId };
+        return current;
+      });
+      setStatus("Datos actualizados. Revisá tus borradores antes de guardar.");
+      return true;
+    } catch (cause) {
+      if (cause instanceof EerrApiError && cause.status === 404) showMissingEerr();
+      else {
+        setError((cause as Error).message);
+        setStatus("No se pudo actualizar el EERR. Intentá nuevamente.");
+      }
+      return false;
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
   }
   function open(kind: Overlay["kind"], nodeId?: string) {
     setError("");
@@ -476,9 +575,9 @@ export function StructureWorkspace({ id }: { id: string }) {
       }
     >
       <DraftNavigationGuard
-        key={pending > 0 || importDirty || completeOpen || goalDirty ? "dirty" : "clean"}
-        dirty={pending > 0 || importDirty || completeOpen || goalDirty}
-        busy={busy || importBusy || completeBusy || goalBusy}
+        key={pending > 0 || importDirty || completeOpen || goalDirty || !!lifecycleDialog ? "dirty" : "clean"}
+        dirty={pending > 0 || importDirty || completeOpen || goalDirty || !!lifecycleDialog}
+        busy={lifecycleDisabled}
       />
       {!data || !context ? (
         <section>
@@ -486,6 +585,7 @@ export function StructureWorkspace({ id }: { id: string }) {
           {error ? (
             <>
               <p role="alert">{error}</p>
+              {error.includes("no encontrado") && <Link href="/eerr">Volver a Estados de resultados</Link>}
               <button
                 onClick={() => {
                   setError("");
@@ -506,6 +606,7 @@ export function StructureWorkspace({ id }: { id: string }) {
               <p className={styles.eyebrow}>Espacio de carga · {period}</p>
               <h1>{context.branch.name}</h1>
               <div className={styles.meta}>
+                <LifecycleBadge status={lifecycleStatus} />
                 <span className={styles.badge}>
                   {
                     {
@@ -523,6 +624,7 @@ export function StructureWorkspace({ id }: { id: string }) {
               </div>
             </div>
           </header>
+          {lifecycleStatus === "CLOSED" && <p className={styles.lifecycleWarning} role="status">Este período está cerrado, pero sigue editable. Los cambios efectivos posteriores al cierre quedan auditados.</p>}
           <div className={styles.toolbar}>
             <div className={styles.progress}>
               <strong>
@@ -538,6 +640,9 @@ export function StructureWorkspace({ id }: { id: string }) {
               />
             </div>
             <div className={styles.actions}>
+              {availableLifecycleActions.includes("close") && <button disabled={lifecycleDisabled} onClick={() => setLifecycleDialog("close")}>Cerrar período</button>}
+              {availableLifecycleActions.includes("reopen") && <button disabled={lifecycleDisabled} onClick={() => setLifecycleDialog("reopen")}>Reabrir período</button>}
+              {availableLifecycleActions.includes("delete") && <button disabled={lifecycleDisabled} onClick={() => setLifecycleDialog("delete")}>Eliminar período</button>}
               {data.structure && (
                 <ImportFlow
                   id={id}
@@ -591,12 +696,21 @@ export function StructureWorkspace({ id }: { id: string }) {
                 </button>
               )}
               {!conflict && (
-                <button disabled={busy} onClick={reload}>
+                <button disabled={lifecycleDisabled} onClick={() => void reload()}>
                   Actualizar
                 </button>
               )}
             </div>
           </div>
+          {lifecycleDialog && canEdit && <LifecycleDialog
+            action={lifecycleDialog}
+            pending={data.progress.pending}
+            busy={lifecycleBusy}
+            context={`${context.branch.name} · ${period}`}
+            onCancel={() => setLifecycleDialog(null)}
+            onConfirm={confirmLifecycle}
+            onCompletePending={() => { setLifecycleDialog(null); setCompleteOpen(true); }}
+          />}
           {completeOpen && canEdit && (
             <CompletePendingFlow
               id={id}
@@ -604,11 +718,28 @@ export function StructureWorkspace({ id }: { id: string }) {
               blocked={disabled}
               onBusy={setCompleteBusy}
               onClose={() => setCompleteOpen(false)}
-              onCompleted={(result) => {
+              onConflict={async () => {
+                try {
+                  await refreshLifecycle();
+                  setError("El EERR cambió durante la operación. Recargamos el estado y la revisión; revisalos antes de continuar.");
+                } catch (cause) {
+                  if (cause instanceof EerrApiError && cause.status === 404) showMissingEerr();
+                  else setError((cause as Error).message);
+                }
+              }}
+              onMissing={showMissingEerr}
+              onCompleted={async (result) => {
                 dispatch({ type: "RELOAD", data: result.result });
+                try { await refreshLifecycle(); }
+                catch (cause) {
+                  if (cause instanceof EerrApiError && cause.status === 404) showMissingEerr();
+                  else setError("Los pendientes se completaron, pero no pudimos actualizar el estado del EERR. Actualizá antes de cerrar.");
+                  return;
+                }
                 setStatus(
                   `Se completaron ${result.affectedItems} importes con cero. Cantidades y notas conservadas; el período sigue editable.`,
                 );
+                setLifecycleDialog("close");
               }}
             />
           )}

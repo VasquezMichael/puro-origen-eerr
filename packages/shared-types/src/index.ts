@@ -31,6 +31,7 @@ export type EerrLifecycleState = {
   deletedBy: string | null;
 };
 export type EerrTransitionRequest = { expectedRevision: number };
+export type EerrCapabilities = { softDeleteEnabled: boolean };
 export type EerrTransitionResponse = EerrLifecycleState & {
   id: string;
   branchId: string;
@@ -184,6 +185,8 @@ export type DashboardBranch = {
   eerrId: string | null;
   revision: number | null;
   loadStatus: "SIN_CARGAR" | "PARCIAL" | "CARGADO" | null;
+  /** Estado del EERR individual; ausente en respuestas históricas. */
+  lifecycleStatus?: EerrLifecycleStatus | null;
   analysisStatus:
     | "COMPLETE"
     | "PARTIAL"
