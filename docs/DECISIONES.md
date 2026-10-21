@@ -646,4 +646,6 @@ EP-05B; EP-06 conserva dashboard y comparación.
   decimal exacto y porcentajes a dos decimales; no aplica el límite numérico
   editable de XLSX. Los estados
   pendientes/parciales/no calculables y el semáforo se expresan también con texto.
-  Las acciones de exportación en la web quedan para PR 3.
+  El workspace individual ofrece ambas descargas a Admin, Editor asignado y
+  Lector asignado, incluso para EERR `CLOSED`. Cada formato se descarga mediante
+  una solicitud autenticada independiente; la API conserva la autorización final.

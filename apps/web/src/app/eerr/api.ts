@@ -4,6 +4,7 @@ export class EerrApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -36,6 +37,7 @@ async function eerrRequest(
           ? body.message.join(". ")
           : (body.message ?? "No se pudo completar la operación"),
       response.status,
+      typeof body.code === "string" ? body.code : undefined,
     );
   }
   return response;
@@ -49,4 +51,15 @@ export async function eerrApi<T>(
 }
 export async function eerrDownload(path: string): Promise<Blob> {
   return (await eerrRequest(path)).blob();
+}
+
+export async function eerrDownloadFile(path: string): Promise<{
+  blob: Blob;
+  contentDisposition: string | null;
+}> {
+  const response = await eerrRequest(path);
+  return {
+    blob: await response.blob(),
+    contentDisposition: response.headers.get("Content-Disposition"),
+  };
 }

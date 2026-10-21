@@ -621,7 +621,23 @@ Comprobar que el PDF conserva como texto importes que el XLSX numérico rechaza,
 sin fórmulas ni IDs internos. HTTP aislado: Admin, Editor/Lector asignados,
 no asignados, CLOSED, legacy y soft-deleted; verificar headers y que un fallo
 de render devuelve JSON sin descarga parcial. La inspección visual en lector PDF
-queda pendiente del QA de exportación. Acciones web de descarga: PR 3.
+se registra en el QA final de exportación.
+
+## MVP Closure — acciones web de exportación individual
+
+Con API simulada y sin Atlas: verificar acciones PDF/XLSX para Admin, Editor y
+Lector asignados, EERR `OPEN` y `CLOSED`, sin exigir permiso de edición. Probar
+solicitud autenticada, Blob, nombre de `filename`/`filename*` y fallback saneado,
+URL temporal y revocación, loading independiente y doble clic. Cubrir 401/403,
+404, error de red, 500 y `EXPORT_PRECISION_LIMIT` sin descarga PDF automática.
+Revisar layout desde 390 px a desktop, foco y operación por teclado. Abrir archivos
+de fixture local en Excel y visor PDF para inspección visual, sin datos reales.
+QA local del 21/10/2026: el XLSX generado desde fixture controlada abrió en
+Microsoft Excel; la hoja presentó jerarquía, importes, porcentajes, cantidades,
+notas, acentos y distinción entre `Sin cargar` y cero. La inspección visual
+por captura y la edición manual de celdas no pudieron completarse en esta sesión.
+La revisión visual del PDF multipágina en un visor queda pendiente; las pruebas
+automatizadas verifican estructura, texto, paginación y headers.
 
 Deuda operativa: el squash de PR #42 produjo `main` en `ac9526f`, pero GitHub
 Actions no registró un run de `push` para ese SHA aunque `ci.yml` lo declara.

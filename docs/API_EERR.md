@@ -601,5 +601,8 @@ Completa el PDF en memoria antes de enviar cabeceras: un error de render respond
 500 `PDF_RENDER_FAILED`, sin archivo parcial. El reporte A4 apaisado pagina la
 tabla y las notas, repite su encabezado y presenta valores decimales exactos como
 texto, incluso si Excel no pudiera conservarlos como celdas numéricas.
-Las acciones web de descarga quedan para PR 3; analytics, comparativas y
-consolidado, post-MVP.
+La web descarga ambos formatos como Blob con la sesión existente. CORS expone
+`Content-Disposition` para conservar el nombre de archivo de la respuesta;
+ante un nombre ausente o inválido usa `EERR.pdf` o `EERR.xlsx`. Una respuesta XLSX
+con `EXPORT_PRECISION_LIMIT` informa que el PDF puede conservar el valor exacto,
+sin iniciarlo automáticamente. Analytics, comparativas y consolidado, post-MVP.
