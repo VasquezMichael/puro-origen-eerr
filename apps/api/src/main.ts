@@ -9,6 +9,7 @@ async function bootstrap() {
   app.enableCors({
     origin: config.get('WEB_ORIGIN', 'http://localhost:3000'),
     credentials: true,
+    exposedHeaders: ['Content-Disposition'],
   });
   app.useGlobalPipes(
     new ValidationPipe({

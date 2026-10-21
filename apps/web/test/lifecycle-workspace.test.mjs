@@ -32,7 +32,7 @@ function fixture(status = "OPEN", pending = false) {
   return { row, eerr, get status() { return status; }, set status(value) { status = value; } };
 }
 
-async function mount(model, { conflict = false } = {}) {
+async function mount(model, { conflict = false, role = "EDITOR" } = {}) {
   const dom = new JSDOM("<!doctype html><html><body><div id='root'></div></body></html>", { url: `http://localhost:3000/eerr/${id}` });
   const old = Object.fromEntries(["window", "self", "document", "HTMLElement", "HTMLDialogElement", "location", "requestAnimationFrame", "fetch", "IS_REACT_ACT_ENVIRONMENT"].map(key => [key, globalThis[key]]));
   Object.assign(globalThis, {
@@ -52,7 +52,7 @@ async function mount(model, { conflict = false } = {}) {
     const body = options.body ? JSON.parse(options.body) : null;
     calls.push({ path, method, body });
     let output, status = 200;
-    if (path === "/auth/me") output = { user: { name: "Editor", isAdmin: false, branchAccesses: [{ branchId, role: "EDITOR" }] } };
+    if (path === "/auth/me") output = { user: { name: role === "READER" ? "Lector" : "Editor", isAdmin: role === "ADMIN", branchAccesses: role === "ADMIN" ? [] : [{ branchId, role }] } };
     else if (path === "/branches") output = [{ id: branchId, name: "CALLE 13", active: true }];
     else if (path === "/eerr/capabilities") output = { softDeleteEnabled: false };
     else if (path === `/eerr/${id}` && method === "GET") {
@@ -211,4 +211,21 @@ test("completar ceros seguido de close usa la revisión N+1", { concurrency: fal
     assert.equal(model.row.revision, 7);
     assert.match(ui.dom.window.document.body.textContent, /Período cerrado/);
   } finally { await ui.close(); }
+});
+
+test("Admin, Editor y Reader asignados ven ambas exportaciones en OPEN y CLOSED", { concurrency: false }, async () => {
+  for (const role of ["ADMIN", "EDITOR", "READER"]) {
+    for (const status of ["OPEN", "CLOSED"]) {
+      const ui = await mount(fixture(status), { role });
+      try {
+        assert.ok(ui.button("Exportar PDF"));
+        assert.ok(ui.button("Exportar Excel"));
+        if (role === "READER") {
+          assert.match(ui.dom.window.document.body.textContent, /Solo lectura/);
+          assert.equal(ui.dom.window.document.querySelector('button[aria-label="Editar importe de Ventas demo"]'), null);
+        }
+        if (status === "CLOSED") assert.match(ui.dom.window.document.body.textContent, /sigue editable/);
+      } finally { await ui.close(); }
+    }
+  }
 });

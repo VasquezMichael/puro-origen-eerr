@@ -36,6 +36,7 @@ import styles from "../workspace.module.css";
 import { editorReducer, initialEditorState } from "./editor-state";
 import { ValueEditor, NoteEditor, type FieldFeedback } from "./field-editors";
 import { ResultsStatement } from "./results-statement";
+import { ExportActions } from "./export-actions";
 import {
   visibleRows,
   availableActions,
@@ -640,6 +641,7 @@ export function StructureWorkspace({ id }: { id: string }) {
               />
             </div>
             <div className={styles.actions}>
+              <ExportActions id={id} onMissing={() => showMissingEerr()} />
               {availableLifecycleActions.includes("close") && <button disabled={lifecycleDisabled} onClick={() => setLifecycleDialog("close")}>Cerrar período</button>}
               {availableLifecycleActions.includes("reopen") && <button disabled={lifecycleDisabled} onClick={() => setLifecycleDialog("reopen")}>Reabrir período</button>}
               {availableLifecycleActions.includes("delete") && <button disabled={lifecycleDisabled} onClick={() => setLifecycleDialog("delete")}>Eliminar período</button>}
