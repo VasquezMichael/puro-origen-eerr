@@ -47,6 +47,26 @@ de cobertura ni simula pruebas en paquetes vacíos.
   conserve su condición de administrador.
 - Los accesos por sucursal se validan al crear usuarios o reasignarlos: identificadores
   MongoDB válidos, sucursales existentes y sin duplicados dentro del usuario.
+- Solo el Administrador activa o desactiva usuarios mediante `PATCH /users/:id/status`.
+  No puede desactivarse a sí mismo ni desactivar el último Administrador activo;
+  la reactivación conserva rol, accesos y credenciales. `isAdmin` sigue siendo
+  global y `branchAccesses[].role` solo admite Editor o Lector.
+- Cada usuario tiene `authVersion` (cero cuando falta en un documento legacy).
+  Los JWT nuevos incluyen esa versión; el guard la coteja con la persistida en
+  cada request. Un reset administrativo o cambio propio de contraseña incrementa
+  la versión e invalida todas las sesiones anteriores. El cambio propio emite
+  inmediatamente una nueva cookie válida. El reset exige cambio de contraseña
+  por defecto y nunca devuelve hash ni contraseña.
+- Desactivar un usuario incrementa `authVersion` en el mismo update que lo deja
+  inactivo e invalida inmediatamente sus sesiones. Reactivarlo conserva esa
+  versión: ningún JWT anterior revive y el usuario debe iniciar sesión de nuevo.
+  Repetir un estado ya vigente no incrementa la versión.
+- `mustChangePassword` se impone también en la API: solo permite login,
+  `GET /auth/me`, `POST /auth/password` y logout hasta completar el cambio.
+  El guard responde `PASSWORD_CHANGE_REQUIRED` al intentar otra operación.
+- La desactivación de Admin usa transacción de MongoDB con un documento de
+  contención compartido, lectura snapshot y escritura majority para impedir
+  que dos desactivaciones concurrentes dejen cero Admins activos.
 
 ## Decisiones confirmadas de sucursales (EP-02)
 

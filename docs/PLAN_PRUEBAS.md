@@ -1,5 +1,32 @@
 # Plan de pruebas del EERR
 
+## MVP Closure — administración de usuarios PR 1
+
+- HTTP con guard real y persistencia simulada: solo Admin activa/desactiva;
+  Editor y Lector reciben 403, usuario inexistente 404, self-disable y último
+  Admin reciben 409 con código estable. Reactivar conserva accesos y credenciales.
+- Login y request de negocio con JWT N; desactivar incrementa `authVersion` a
+  N+1 y rechaza el token; reactivar conserva N+1 y el mismo token sigue
+  rechazado; nuevo login emite JWT N+1 y recupera acceso. Un PATCH idempotente
+  no altera la versión. Self-disable con ObjectId en mayúsculas tampoco escribe.
+- Admin con contraseña temporal recibe `PASSWORD_CHANGE_REQUIRED` en `/users`;
+  reset con `requireChange=false` invalida la sesión previa sin imponer cambio.
+- Reset y cambio propio incrementan `authVersion`: JWT anterior devuelve 401,
+  login nuevo y cookie renovada funcionan. Documento legacy sin versión se
+  interpreta como cero. `mustChangePassword` permite `me`, cambio y logout,
+  pero bloquea EERR, sucursales, analytics y usuarios con código estable.
+- Verificar que creación y reset no devuelven hashes o contraseñas, que el
+  índice único de email en carrera se traduce a 409 y que el usuario inactivo
+  no puede iniciar sesión ni continuar usando un token emitido.
+- La suite HTTP no conecta a Atlas. La carrera real entre dos desactivaciones
+  administrativas y el rollback transaccional deben verificarse con MongoDB
+  local o staging controlado antes de confiar en ese caso operativo; no usar
+  datos reales para esta comprobación.
+- Un doble en memoria comprueba dos resets intercalados con `authVersion` final
+  incrementada dos veces y dos cambios propios con un solo ganador CAS. No
+  implementa aislamiento ni conflictos de escritura: la atomicidad real de
+  `$inc` y CAS queda pendiente de MongoDB local o staging controlado.
+
 La revisión funcional de cierre de EP-07, con evidencias y condiciones previas
 a habilitar DELETE, está en `EP07_QA_CIERRE.md`.
 

@@ -20,7 +20,10 @@ export class AuthService {
       throw new UnauthorizedException('Email o contraseña incorrectos');
     }
     return {
-      token: await this.tokens.sign({ sub: user.id as string }),
+      token: await this.tokens.sign({
+        sub: user.id as string,
+        authVersion: user.authVersion ?? 0,
+      }),
       user: this.users.toPublicUser(user),
     };
   }
@@ -37,6 +40,17 @@ export class AuthService {
     ) {
       throw new UnauthorizedException('La contraseña actual es incorrecta');
     }
-    return this.users.resetPassword(userId, newPassword, false);
+    const updated = await this.users.changeOwnPassword(
+      userId,
+      user.passwordHash,
+      newPassword,
+    );
+    return {
+      user: this.users.toPublicUser(updated),
+      token: await this.tokens.sign({
+        sub: updated.id as string,
+        authVersion: updated.authVersion ?? 0,
+      }),
+    };
   }
 }

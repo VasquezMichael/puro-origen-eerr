@@ -35,8 +35,15 @@ describe('UserSchema', () => {
     ['isAdmin', 'Boolean'],
     ['active', 'Boolean'],
     ['mustChangePassword', 'Boolean'],
+    ['authVersion', 'Number'],
+    ['adminStatusGuardVersion', 'Number'],
   ])('declara el campo %s como %s', (field, type) => {
     expect(UserSchema.path(field)?.instance).toBe(type);
+  });
+
+  it('normaliza la versión de sesión para usuarios nuevos y oculta el guard administrativo', () => {
+    expect(UserSchema.path('authVersion').options.default).toBe(0);
+    expect(UserSchema.path('adminStatusGuardVersion').options.select).toBe(false);
   });
 
   it('conserva los accesos como subdocumentos con identificador y rol de texto', () => {

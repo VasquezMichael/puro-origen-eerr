@@ -34,6 +34,18 @@ El módulo HTTP `BranchesModule` y `UsersModule` consumen
 `BranchesPersistenceModule`, que registra el esquema y el servicio de sucursales.
 Este módulo no importa Usuarios ni Autenticación. `AuthModule` consume Usuarios
 y registra el guard global que revalida el usuario y sus asignaciones por solicitud.
+El guard compara además `authVersion` del JWT con el usuario activo persistido
+(campo ausente legacy = 0) y limita las rutas cuando `mustChangePassword` es
+verdadero. `POST /auth/password` usa CAS sobre el hash anterior, incrementa la
+versión y renueva la cookie; el reset administrativo incrementa la versión.
+`PATCH /users/:id/status` usa transacción para coordinar la protección del
+último Admin activo: todas las desactivaciones de Admin escriben el mismo
+documento de guarda antes de contar Admins activos y actualizar el objetivo.
+La transición `active=true → false` incrementa `authVersion` en el mismo update
+transaccional; una reactivación y un PATCH idempotente no la incrementan. Así,
+el guard sigue rechazando JWT anteriores después de reactivar y exige nuevo login.
+La guarda es un campo interno no expuesto; la API no abre rutas de promoción
+o degradación de Admin.
 La interfaz `/admin/sucursales` consulta la API con la sesión existente; la API
 decide el acceso y restringe todas las operaciones administrativas.
 

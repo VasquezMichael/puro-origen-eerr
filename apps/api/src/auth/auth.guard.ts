@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { UsersService } from '../users/users.service.js';
-import { ADMIN_ONLY, IS_PUBLIC, SESSION_COOKIE } from './auth.constants.js';
+import { ADMIN_ONLY, IS_PUBLIC, PASSWORD_CHANGE_ALLOWED, SESSION_COOKIE } from './auth.constants.js';
 import { SessionTokenService } from './session-token.service.js';
 import type { BranchRole } from '../users/user-role.js';
 
@@ -39,10 +39,14 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.readCookie(request.headers.cookie, SESSION_COOKIE);
     if (!token) throw new UnauthorizedException('Sesión requerida');
+    let mustChangePassword = false;
     try {
       const payload = await this.tokens.verify(token);
       const user = await this.users.findActiveById(payload.sub);
       if (!user) throw new UnauthorizedException('Usuario no disponible');
+      if ((payload.authVersion ?? 0) !== (user.authVersion ?? 0))
+        throw new UnauthorizedException('Sesión invalidada');
+      mustChangePassword = user.mustChangePassword;
       request.user = {
         sub: user.id as string,
         isAdmin: user.isAdmin,
@@ -54,6 +58,16 @@ export class AuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Sesión inválida o vencida');
     }
+    const allowedWhileChanging = this.reflector.getAllAndOverride<boolean>(
+      PASSWORD_CHANGE_ALLOWED,
+      [context.getHandler(), context.getClass()],
+    );
+    if (mustChangePassword && !allowedWhileChanging)
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'PASSWORD_CHANGE_REQUIRED',
+        message: 'Debés cambiar tu contraseña antes de continuar',
+      });
     const adminOnly = this.reflector.getAllAndOverride<boolean>(ADMIN_ONLY, [
       context.getHandler(),
       context.getClass(),
