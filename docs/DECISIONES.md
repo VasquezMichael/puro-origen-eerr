@@ -625,8 +625,8 @@ EP-05B; EP-06 conserva dashboard y comparación.
 
 ## MVP Closure — exportación individual
 
-- El EERR individual se exporta como XLSX editable y, en el siguiente incremento,
-  PDF de reporte. Admin, Editor asignado y Lector asignado tienen acceso de lectura;
+- El EERR individual se exporta como XLSX editable y PDF de reporte. Admin,
+  Editor asignado y Lector asignado tienen acceso de lectura;
   la API aplica la autorización y excluye EERR soft-deleted.
 - Ambos formatos comparten un modelo derivado de un único snapshot autorizado,
   con su revisión, nombres y orden históricos, y resultados de calculation-engine
@@ -641,3 +641,9 @@ EP-05B; EP-06 conserva dashboard y comparación.
   Los porcentajes se guardan como fracción Excel (20 % → 0,20). El archivo de
   resultados editable no es la plantilla de importación, que exige importes texto.
 - Exportación de analytics, comparativas y consolidado queda post-MVP.
+- El PDF usa el mismo modelo y snapshot que XLSX, en A4 apaisado, con resumen,
+  jerarquía histórica, cantidades y notas paginadas. Muestra importes como texto
+  decimal exacto y porcentajes a dos decimales; no aplica el límite numérico
+  editable de XLSX. Los estados
+  pendientes/parciales/no calculables y el semáforo se expresan también con texto.
+  Las acciones de exportación en la web quedan para PR 3.

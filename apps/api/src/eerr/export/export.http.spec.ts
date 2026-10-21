@@ -10,8 +10,17 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import { Types, type Model } from 'mongoose';
 import ExcelJS from '@protobi/exceljs';
+import PDFDocument from 'pdfkit';
 import request from 'supertest';
-import { describe, beforeAll, afterAll, beforeEach, expect, it } from 'vitest';
+import {
+  describe,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { initialNodes, emptyAmount } from '@puro-origen/domain';
 import { BranchesService } from '../../branches/branches.service.js';
 import type { AuthenticatedRequest } from '../../auth/auth.guard.js';
@@ -27,6 +36,7 @@ import { storedStructure } from '../schemas/structure.schema.js';
 import { ExportController } from './export.controller.js';
 import { ExportService } from './export.service.js';
 import { XLSX_MIME } from './export-xlsx.js';
+import { PDF_MIME } from './export-pdf.js';
 
 const branchId = '123456789012345678901234';
 const id = randomUUID();
@@ -238,5 +248,79 @@ describe('GET /eerr/:id/export/xlsx aislado', () => {
       message: expect.any(String),
     });
     expect(reads).toBe(1);
+  });
+
+  it.each(['admin', 'editor-assigned', 'reader-assigned'])(
+    '%s exporta PDF de CLOSED con una sola lectura y headers seguros',
+    async (role) => {
+      const res = await request(app.getHttpServer())
+        .get(`/eerr/${id}/export/pdf`)
+        .set('x-test-role', role)
+        .buffer(true)
+        .parse((response, callback) => {
+          const chunks: Buffer[] = [];
+          response.on('data', (chunk: Buffer) => chunks.push(chunk));
+          response.on('end', () => callback(null, Buffer.concat(chunks)));
+          response.on('error', callback);
+        })
+        .expect(200);
+      expect(res.headers['content-type']).toContain(PDF_MIME);
+      expect(res.headers['content-disposition']).toBe(
+        'attachment; filename="EERR_CALLE-13_2026-09.pdf"',
+      );
+      expect(res.headers['cache-control']).toBe('private, no-store');
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect((res.body as Buffer).subarray(0, 5).toString()).toBe('%PDF-');
+      expect(reads).toBe(1);
+    },
+  );
+
+  it.each(['editor-unassigned', 'reader-unassigned'])(
+    '%s no exporta PDF de otra sucursal',
+    async (role) => {
+      await request(app.getHttpServer())
+        .get(`/eerr/${id}/export/pdf`)
+        .set('x-test-role', role)
+        .expect(404);
+    },
+  );
+
+  it('PDF oculta soft-deleted y acepta lifecycle legacy OPEN', async () => {
+    deletedAt = new Date();
+    await request(app.getHttpServer())
+      .get(`/eerr/${id}/export/pdf`)
+      .set('x-test-role', 'admin')
+      .expect(404);
+    deletedAt = null;
+    lifecycleStatus = undefined;
+    const res = await request(app.getHttpServer())
+      .get(`/eerr/${id}/export/pdf`)
+      .set('x-test-role', 'reader-assigned')
+      .expect(200);
+    expect(res.headers['content-type']).toContain(PDF_MIME);
+  });
+
+  it('un fallo de PDFKit devuelve 500 controlado sin descarga parcial', async () => {
+    const failure = vi
+      .spyOn(PDFDocument.prototype, 'addPage')
+      .mockImplementation(() => {
+        throw new Error('fallo simulado de PDFKit');
+      });
+    try {
+      const res = await request(app.getHttpServer())
+        .get(`/eerr/${id}/export/pdf`)
+        .set('x-test-role', 'admin')
+        .expect(500);
+      expect(res.body).toEqual({
+        statusCode: 500,
+        code: 'PDF_RENDER_FAILED',
+        message: 'No se pudo generar el PDF del EERR',
+      });
+      expect(res.headers['content-type']).toContain('application/json');
+      expect(res.headers['content-disposition']).toBeUndefined();
+      expect(reads).toBe(1);
+    } finally {
+      failure.mockRestore();
+    }
   });
 });

@@ -609,5 +609,21 @@ porcentajes negativos y mayores al 100 %, cantidad cero, notas extensas y
 archivo sin datos calculables. El 422 no debe incluir contenido de descarga.
 HTTP aislado: Admin, Editor/Lector asignados y no asignados, 401, 404 de
 soft-delete, headers, filename sin IDs y una sola lectura del EERR. La
-aceptación manual en Excel/LibreOffice y el render PDF pertenecen a los pasos
-posteriores del cierre MVP.
+aceptación manual en Excel/LibreOffice pertenece a los pasos posteriores del
+cierre MVP.
+
+## MVP Closure — exportación individual PDF
+
+Sin Atlas: cargar PDFKit por ESM desde el build Nest en Node 24; generar PDF A4
+apaisado y verificar firma `%PDF-`, cierre `%%EOF`, páginas únicas y múltiples,
+encabezados repetidos, jerarquía, notas largas y acentos españoles con Helvetica.
+Comprobar que el PDF conserva como texto importes que el XLSX numérico rechaza,
+sin fórmulas ni IDs internos. HTTP aislado: Admin, Editor/Lector asignados,
+no asignados, CLOSED, legacy y soft-deleted; verificar headers y que un fallo
+de render devuelve JSON sin descarga parcial. La inspección visual en lector PDF
+queda pendiente del QA de exportación. Acciones web de descarga: PR 3.
+
+Deuda operativa: el squash de PR #42 produjo `main` en `ac9526f`, pero GitHub
+Actions no registró un run de `push` para ese SHA aunque `ci.yml` lo declara.
+Investigar el disparador fuera del alcance del PR de PDF; su propio CI de PR
+debe aprobar antes de integrarlo.

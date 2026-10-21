@@ -18,6 +18,7 @@ for (const [modulePath, exportName] of [
   ['eerr/import/import-token.js', 'ImportToken'],
   ['eerr/export/export.service.js', 'ExportService'],
   ['eerr/export/export.controller.js', 'ExportController'],
+  ['eerr/export/export-pdf.js', 'renderEerrPdf'],
   ['eerr/clone.service.js', 'CloneService'],
   ['eerr/clone.controller.js', 'CloneController'],
   ['eerr/clone-preview-token.js', 'ClonePreviewToken'],
