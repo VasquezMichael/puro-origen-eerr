@@ -9,6 +9,8 @@ import { CompletePendingService } from './complete-pending.service.js';
 import { ImportController } from './import/import.controller.js';
 import { ImportService } from './import/import.service.js';
 import { ImportToken } from './import/import-token.js';
+import { ExportController } from './export/export.controller.js';
+import { ExportService } from './export/export.service.js';
 import { CloneController } from './clone.controller.js';
 import { CloneService } from './clone.service.js';
 import { ClonePreviewToken } from './clone-preview-token.js';
@@ -46,6 +48,7 @@ import { StructureRepository } from './structure.repository.js';
     SalesGoalController,
     CompletePendingController,
     ImportController,
+    ExportController,
     EerrController,
     StructureController,
     CloneController,
@@ -56,6 +59,7 @@ import { StructureRepository } from './structure.repository.js';
     SalesGoalService,
     CompletePendingService,
     ImportService,
+    ExportService,
     ImportToken,
     EerrService,
     EerrLifecycleService,

@@ -575,3 +575,22 @@ Cada importe distingue `NO_EXISTIA` (ítem ausente), `SIN_CARGAR` (celda pendien
 
 `GET /analytics/consolidated/compare` acepta el mismo `targetNetMargin` opcional y lo aplica a ambos períodos. `current.consolidated` y `reference.consolidated` conservan cobertura y métricas previas; `goalComparison` agrega las diferencias de las tres métricas numéricas mediante la regla existente. El semáforo se presenta por período, sin variación entre colores. La web conserva la simulación en `targetMargin` de la URL, con edición y aplicación explícita; actualizar y navegar Atrás/Adelante conservan el margen aplicado. [OpenAPI del consolidado](openapi-analytics-consolidated.yaml).
 Si una respuesta histórica v2 carece de `goalComparison`, la web conserva la tabla financiera y presenta la comparación de metas como no disponible.
+
+## MVP Closure — exportación individual XLSX
+
+`GET /eerr/:id/export/xlsx` requiere sesión y UUID v4; admite Admin, Editor y
+Lector con acceso a la sucursal. La API usa una sola lectura autorizada del EERR,
+excluye soft-deleted y responde 404 si no existe o está fuera de alcance.
+El archivo incluye revisión, estado de ciclo de vida y de carga, nota del período,
+snapshot histórico activo con ítems/notas/cantidades, y métricas/proyecciones del
+calculation-engine v3. `CLOSED` sigue exportable y los campos legacy de lifecycle
+se interpretan como `OPEN`. La ruta no escribe ni exige `expectedRevision`.
+
+Respuesta: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`,
+`Content-Disposition: attachment` con `EERR_<SUCURSAL>_AAAA-MM.xlsx` saneado,
+`Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
+Una conversión monetaria que no preserve centavos responde 422
+`EXPORT_PRECISION_LIMIT`; un snapshot persistido inválido, 500
+`INVALID_PERSISTED_DATA`. XLSX de resultados usa números y porcentajes Excel,
+sin fórmulas. No sustituye la plantilla XLSX de importación, cuyo importe es texto.
+PDF individual queda para el siguiente PR; analytics y consolidado, post-MVP.

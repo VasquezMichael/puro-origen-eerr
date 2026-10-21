@@ -8,6 +8,8 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
   comprobar por separado que no quedan otros datos de prueba.
 
 - Chatbot/IA para consultar y analizar EERR.
+- Post-MVP: exportaciones de Dashboard, comparaciones, consolidado y lotes.
+  El cierre MVP exporta únicamente el EERR individual en XLSX y PDF.
 - Interpretación de tendencias y dashboards.
 - Evaluar otras ayudas contextuales mediante tooltips. EP-05UX.1 incorpora solo
   la ayuda de la meta porcentual inalcanzable.

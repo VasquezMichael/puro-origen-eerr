@@ -622,3 +622,22 @@ EP-05B; EP-06 conserva dashboard y comparación.
 - Sobre bases completas agregadas, el Objetivo de Venta aplica la misma regla v3 individual: `(costos + gastos) / (1 - margen)`, redondeado hacia arriba al centavo. Diferencia, cumplimiento y semáforo reutilizan los indicadores del motor. No se suman ni promedian derivados o metas locales; `calculationVersion` permanece en 3.
 - Margen de al menos 100 % entrega `TARGET_MARGIN_UNATTAINABLE` antes de evaluar ingresos, contribución o cobertura; es un valor numérico inválido para la simulación, no una query mal formada. Objetivo no positivo conserva diferencia absoluta, pero deja cumplimiento no calculable y semáforo neutral con `NON_POSITIVE_TARGET`. Con margen válido, un subtotal conserva las bases disponibles y cobertura, sin indicadores definitivos; no interpreta pendientes como cero.
 - Dashboard y comparación temporal consolidada aceptan el mismo margen decimal opcional. En la comparación se aplica a ambos meses y se comparan solo métricas numéricas; los colores se muestran por lado. La web conserva el margen aplicado en URL y solicita datos solo al aplicarlo explícitamente.
+
+## MVP Closure — exportación individual
+
+- El EERR individual se exporta como XLSX editable y, en el siguiente incremento,
+  PDF de reporte. Admin, Editor asignado y Lector asignado tienen acceso de lectura;
+  la API aplica la autorización y excluye EERR soft-deleted.
+- Ambos formatos comparten un modelo derivado de un único snapshot autorizado,
+  con su revisión, nombres y orden históricos, y resultados de calculation-engine
+  v3. No se recalculan fórmulas en Excel ni en la web. `NO_EXISTIA` pertenece a
+  comparaciones, no al reporte individual.
+- XLSX conserva los estados pendientes/parciales/no calculables y el cero cargado.
+  Las celdas monetarias son numéricas solo si el decimal convertido a Number
+  conserva los mismos centavos al volver a texto y el importe respeta la
+  precisión de 15 dígitos significativos de Excel (del valor, no del entero
+  expresado en centavos). Si no, la descarga falla con
+  `EXPORT_PRECISION_LIMIT` (422). No se aplica un tope monetario fijo.
+  Los porcentajes se guardan como fracción Excel (20 % → 0,20). El archivo de
+  resultados editable no es la plantilla de importación, que exige importes texto.
+- Exportación de analytics, comparativas y consolidado queda post-MVP.

@@ -596,3 +596,18 @@ no está validada contra MongoDB real en este PR. Antes de habilitar DELETE,
 repetir en MongoDB local o staging controlado la colisión activo+activo y la
 coexistencia soft-deleted+activo, junto al rollout documentado en ARQUITECTURA.
 Mantener `EERR_SOFT_DELETE_ENABLED` deshabilitado hasta completar esa prueba.
+
+## MVP Closure — exportación individual XLSX
+
+Sin `.env` ni MongoDB: construir modelo desde snapshot histórico activo con orden,
+profundidad, cero cargado, pendiente, notas, lifecycle legacy/CLOSED y resultado
+v3; reabrir el XLSX con ExcelJS y comprobar números, porcentaje fraccional,
+cantidad entera, estados y ausencia de fórmulas incluso con texto `=`, `+`, `-`,
+`@`. Probar round-trip exacto de centavos con importes pequeños, negativos y
+grandes (`10000000000000.00` aceptado, `10000000000000.01` rechazado),
+porcentajes negativos y mayores al 100 %, cantidad cero, notas extensas y
+archivo sin datos calculables. El 422 no debe incluir contenido de descarga.
+HTTP aislado: Admin, Editor/Lector asignados y no asignados, 401, 404 de
+soft-delete, headers, filename sin IDs y una sola lectura del EERR. La
+aceptación manual en Excel/LibreOffice y el render PDF pertenecen a los pasos
+posteriores del cierre MVP.
