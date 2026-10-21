@@ -24,7 +24,7 @@ describe('AuthGuard: datos de autorización', () => {
         }),
     };
     const tokens = {
-      verify: vi.fn().mockResolvedValue({ sub: 'user', isAdmin: true }),
+      verify: vi.fn().mockResolvedValue({ sub: 'user', authVersion: 0, isAdmin: true }),
     };
     const guard = new AuthGuard(
       new Reflector(),

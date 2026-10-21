@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { jwtVerify, SignJWT } from 'jose';
 
-export type SessionPayload = { sub: string };
+export type SessionPayload = { sub: string; authVersion: number };
 
 @Injectable()
 export class SessionTokenService {
@@ -17,7 +17,7 @@ export class SessionTokenService {
   }
 
   sign(payload: SessionPayload) {
-    return new SignJWT({})
+    return new SignJWT({ authVersion: payload.authVersion })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(payload.sub)
       .setIssuedAt()
@@ -30,6 +30,10 @@ export class SessionTokenService {
       algorithms: ['HS256'],
     });
     if (!payload.sub) throw new Error('Token sin sujeto');
-    return { sub: payload.sub };
+    // Los JWT anteriores al despliegue equivalen a versión cero.
+    const version = payload.authVersion ?? 0;
+    if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0)
+      throw new Error('Versión de sesión inválida');
+    return { sub: payload.sub, authVersion: version };
   }
 }

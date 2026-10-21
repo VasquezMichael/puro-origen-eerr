@@ -11,7 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { UsersService } from '../users/users.service.js';
-import { Public } from './auth.decorators.js';
+import { AllowPasswordChangeRequired, Public } from './auth.decorators.js';
 import { SESSION_COOKIE } from './auth.constants.js';
 import { AuthService } from './auth.service.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -25,6 +25,16 @@ export class AuthController {
     private readonly config: ConfigService,
   ) {}
 
+  private setSessionCookie(response: Response, token: string) {
+    response.cookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: this.config.get('NODE_ENV') === 'production',
+      maxAge: 8 * 60 * 60 * 1000,
+      path: '/',
+    });
+  }
+
   @Public()
   @Post('login')
   @HttpCode(200)
@@ -33,16 +43,11 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const { token, user } = await this.auth.login(input.email, input.password);
-    response.cookie(SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: this.config.get('NODE_ENV') === 'production',
-      maxAge: 8 * 60 * 60 * 1000,
-      path: '/',
-    });
+    this.setSessionCookie(response, token);
     return { user };
   }
 
+  @AllowPasswordChangeRequired()
   @Get('me')
   async me(@Req() request: Request & { user?: { sub: string } }) {
     const user =
@@ -51,19 +56,21 @@ export class AuthController {
     return { user: this.users.toPublicUser(user) };
   }
 
+  @AllowPasswordChangeRequired()
   @Post('password')
   async changePassword(
     @Req() request: Request & { user?: { sub: string } },
     @Body() input: ChangePasswordDto,
+    @Res({ passthrough: true }) response: Response,
   ) {
     if (!request.user) throw new UnauthorizedException('Sesión requerida');
-    return {
-      user: await this.auth.changePassword(
-        request.user.sub,
-        input.currentPassword,
-        input.newPassword,
-      ),
-    };
+    const { user, token } = await this.auth.changePassword(
+      request.user.sub,
+      input.currentPassword,
+      input.newPassword,
+    );
+    this.setSessionCookie(response, token);
+    return { user };
   }
 
   @Public()

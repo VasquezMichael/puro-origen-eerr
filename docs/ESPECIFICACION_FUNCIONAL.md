@@ -19,6 +19,14 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 - Acceso cerrado mediante email y contraseña, sin registro público.
 - Administrador global para gestión de usuarios, accesos y recuperación manual.
 - Los permisos Lector y Editor se asignan por sucursal.
+- El Administrador puede activar y desactivar usuarios. No puede desactivarse
+  a sí mismo ni dejar el sistema sin otro Administrador activo. Reactivar
+  conserva los accesos y credenciales previos, pero exige un nuevo login:
+  desactivar invalida todas las sesiones existentes y reactivar no las restaura.
+- El reset administrativo y el cambio propio de contraseña invalidan las
+  sesiones anteriores. Después del cambio propio, la sesión actual se renueva.
+  Una contraseña temporal obliga a cambiarla también desde la API: hasta
+  entonces solo se permiten las operaciones necesarias de autenticación.
 
 ### Sucursales
 

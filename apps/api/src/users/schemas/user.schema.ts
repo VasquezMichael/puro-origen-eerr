@@ -42,6 +42,13 @@ export class User {
 
   @Prop({ type: Boolean, default: true })
   mustChangePassword!: boolean;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  authVersion!: number;
+
+  // Fuerza conflicto de escritura entre desactivaciones concurrentes de Admins.
+  @Prop({ type: Number, default: 0, select: false })
+  adminStatusGuardVersion!: number;
 }
 
 export type UserDocument = HydratedDocument<User>;
