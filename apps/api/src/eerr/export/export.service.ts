@@ -9,8 +9,12 @@ import { EerrService } from '../eerr.service.js';
 import { eerrLifecycle } from '../eerr-lifecycle.js';
 import { publicSalesGoal } from '../schemas/sales-goal.schema.js';
 import { publicStructure } from '../schemas/structure.schema.js';
-import { buildEerrExportViewModel } from './export-view-model.js';
+import {
+  buildEerrExportViewModel,
+  type EerrExportViewModel,
+} from './export-view-model.js';
 import { ExportPrecisionError, renderEerrXlsx } from './export-xlsx.js';
+import { renderEerrPdf } from './export-pdf.js';
 
 type Viewer = NonNullable<AuthenticatedRequest['user']>;
 
@@ -18,6 +22,7 @@ export function exportFilename(
   branchName: string,
   year: number,
   month: number,
+  extension: 'xlsx' | 'pdf' = 'xlsx',
 ): string {
   const slug =
     branchName
@@ -27,7 +32,7 @@ export function exportFilename(
       .replace(/[^A-Z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 48) || 'SUCURSAL';
-  return `EERR_${slug}_${year}-${String(month).padStart(2, '0')}.xlsx`;
+  return `EERR_${slug}_${year}-${String(month).padStart(2, '0')}.${extension}`;
 }
 
 @Injectable()
@@ -37,17 +42,17 @@ export class ExportService {
     private readonly branches: BranchesService,
   ) {}
 
-  async xlsx(
+  private async snapshot(
     id: string,
     viewer: Viewer,
-  ): Promise<{ buffer: Buffer; filename: string }> {
+  ): Promise<EerrExportViewModel> {
     const row = await this.eerrs.readAuthorized(id, viewer);
     const branch = await this.branches.get(row.branchId.toString(), viewer);
     try {
       const revision = row.revision ?? 0;
       if (!Number.isSafeInteger(revision) || revision < 0)
         throw new Error('Revisión inválida');
-      const model = buildEerrExportViewModel({
+      return buildEerrExportViewModel({
         branchName: branch.name,
         year: row.year,
         month: row.month,
@@ -58,9 +63,24 @@ export class ExportService {
         structure: publicStructure(row.structure),
         salesGoal: publicSalesGoal(row.salesGoal),
       });
+    } catch {
+      throw new InternalServerErrorException({
+        statusCode: 500,
+        code: 'INVALID_PERSISTED_DATA',
+        message: 'No se pudo exportar el EERR con los datos guardados',
+      });
+    }
+  }
+
+  async xlsx(
+    id: string,
+    viewer: Viewer,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const model = await this.snapshot(id, viewer);
+    try {
       return {
         buffer: await renderEerrXlsx(model),
-        filename: exportFilename(branch.name, row.year, row.month),
+        filename: exportFilename(model.branchName, model.year, model.month),
       };
     } catch (error) {
       if (error instanceof ExportPrecisionError)
@@ -73,6 +93,30 @@ export class ExportService {
         statusCode: 500,
         code: 'INVALID_PERSISTED_DATA',
         message: 'No se pudo exportar el EERR con los datos guardados',
+      });
+    }
+  }
+
+  async pdf(
+    id: string,
+    viewer: Viewer,
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const model = await this.snapshot(id, viewer);
+    try {
+      return {
+        buffer: await renderEerrPdf(model),
+        filename: exportFilename(
+          model.branchName,
+          model.year,
+          model.month,
+          'pdf',
+        ),
+      };
+    } catch {
+      throw new InternalServerErrorException({
+        statusCode: 500,
+        code: 'PDF_RENDER_FAILED',
+        message: 'No se pudo generar el PDF del EERR',
       });
     }
   }

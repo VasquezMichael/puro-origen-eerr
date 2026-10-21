@@ -1,5 +1,6 @@
 import ExcelJS from '@protobi/exceljs';
 import type { EerrExportViewModel, ExportValue } from './export-view-model.js';
+import { stateLabel } from './export-display.js';
 
 export const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -66,31 +67,6 @@ function quantityExcelNumber(value: string): number {
   if (!/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)))
     throw new Error('Cantidad persistida inválida');
   return Number(value);
-}
-
-function stateLabel(status: string, reason?: string | null): string {
-  const states: Record<string, string> = {
-    CARGADO: 'Cargado',
-    SIN_CARGAR: 'Sin cargar',
-    COMPLETE: 'Completo',
-    PARTIAL: 'Parcial',
-    PENDING: 'Pendiente',
-    EMPTY: 'Vacío',
-    BLOCKED: 'Bloqueado',
-    NOT_CALCULABLE: 'No calculable',
-  };
-  const reasons: Record<string, string> = {
-    UNINITIALIZED: 'EERR sin estructura',
-    PENDING_INPUTS: 'Importes pendientes',
-    EMPTY_INPUT: 'Sin importes',
-    ZERO_DENOMINATOR: 'Denominador cero',
-    ZERO_REVENUE: 'Ingresos cero',
-    NON_POSITIVE_CONTRIBUTION_MARGIN: 'Margen de contribución no positivo',
-    GOAL_NOT_CONFIGURED: 'Meta sin configurar',
-    TARGET_MARGIN_UNATTAINABLE: 'Meta de margen inalcanzable',
-    NON_POSITIVE_TARGET: 'Objetivo no positivo',
-  };
-  return `${states[status] ?? status}${reason ? ` — ${reasons[reason] ?? reason}` : ''}`;
 }
 
 function setAmount(

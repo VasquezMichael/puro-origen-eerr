@@ -593,4 +593,13 @@ Una conversión monetaria que no preserve centavos responde 422
 `EXPORT_PRECISION_LIMIT`; un snapshot persistido inválido, 500
 `INVALID_PERSISTED_DATA`. XLSX de resultados usa números y porcentajes Excel,
 sin fórmulas. No sustituye la plantilla XLSX de importación, cuyo importe es texto.
-PDF individual queda para el siguiente PR; analytics y consolidado, post-MVP.
+`GET /eerr/:id/export/pdf` comparte autorización, snapshot único, semántica
+legacy/CLOSED/soft-delete y filename saneado con XLSX. Responde
+`application/pdf`, `Content-Disposition: attachment` con extensión `.pdf`,
+`Cache-Control: private, no-store` y `X-Content-Type-Options: nosniff`.
+Completa el PDF en memoria antes de enviar cabeceras: un error de render responde
+500 `PDF_RENDER_FAILED`, sin archivo parcial. El reporte A4 apaisado pagina la
+tabla y las notas, repite su encabezado y presenta valores decimales exactos como
+texto, incluso si Excel no pudiera conservarlos como celdas numéricas.
+Las acciones web de descarga quedan para PR 3; analytics, comparativas y
+consolidado, post-MVP.

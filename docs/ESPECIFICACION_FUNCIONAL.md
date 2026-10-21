@@ -100,7 +100,8 @@ para EP-04C. Los siguientes resultados financieros pertenecen a EP-05/EP-06.
 
 Para el cierre MVP, la exportación corresponde al EERR individual: XLSX editable
 con valores calculados como snapshot numérico (sin fórmulas financieras de Excel)
-y PDF de reporte en el incremento siguiente. No incluye exportación de Dashboard,
+y PDF de reporte A4 apaisado desde el mismo snapshot. Las acciones de descarga en
+la web pertenecen al siguiente incremento. No incluye exportación de Dashboard,
 comparativas ni consolidado. La descarga respeta el acceso de lectura a la sucursal.
 
 ## Decisiones aceptadas
