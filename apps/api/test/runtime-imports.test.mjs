@@ -16,6 +16,8 @@ for (const [modulePath, exportName] of [
   ['eerr/import/import.service.js', 'ImportService'],
   ['eerr/import/import.controller.js', 'ImportController'],
   ['eerr/import/import-token.js', 'ImportToken'],
+  ['eerr/export/export.service.js', 'ExportService'],
+  ['eerr/export/export.controller.js', 'ExportController'],
   ['eerr/clone.service.js', 'CloneService'],
   ['eerr/clone.controller.js', 'CloneController'],
   ['eerr/clone-preview-token.js', 'ClonePreviewToken'],
