@@ -11,7 +11,6 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
 ### Acceso y navegación
 
 - Autenticación mediante login.
-- Wizard inicial.
 - Inicio autenticado en Dashboard, sin elección de modo de trabajo.
 - Perspectiva por sucursal: seleccionar sucursal y consultar sus períodos.
 - Perspectiva por período: seleccionar período y consultar sus sucursales.

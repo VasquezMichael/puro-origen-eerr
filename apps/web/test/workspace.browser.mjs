@@ -145,6 +145,7 @@ try {
       delay = false,
       writes = 0,
       pendingPreview;
+    let lifecycleStatus = "OPEN";
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.route("**/*", async (route) => {
@@ -281,8 +282,14 @@ try {
         };
       else if (path === "/branches")
         body = [{ id: branchId, name: "Sucursal de prueba", active: false }];
-      else if (path === `/eerr/${id}`)
-        body = { id, branchId, year: 2026, month: 9 };
+      else if (path === "/eerr/capabilities")
+        body = { softDeleteEnabled: false };
+      else if (path === `/eerr/${id}`) {
+        if (denied) {
+          status = 404;
+          body = { message: "EERR no encontrado" };
+        } else body = { id, branchId, year: 2026, month: 9, revision: row.revision, loadStatus: row.progress.status, lifecycleStatus, everClosed: lifecycleStatus === "CLOSED" };
+      }
       else if (path === `/eerr/${id}/structure`) {
         if (denied) {
           status = 404;
@@ -322,6 +329,11 @@ try {
     await page.goto(`${origin}/eerr/${id}`);
     await rowLocator().waitFor();
     assert.equal(writes, 0);
+    for (const name of ["Exportar PDF", "Exportar Excel"]) {
+      const action = page.getByRole("button", { name, exact: true });
+      const box = await action.boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= width + 1, `${name} desborda ${width}px`);
+    }
     assert.equal(await page.evaluate(() => window.beforeUnloadCount()), 0);
     assert.equal(
       await page.locator('tr[data-node-id="item"]').getAttribute("data-depth"),
@@ -926,6 +938,8 @@ try {
     role = "READER";
     await page.reload();
     await page.getByText("Solo lectura", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Exportar PDF" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "Exportar Excel" }).count(), 1);
     assert.equal(await page.locator("input,textarea").count(), 0);
     assert.equal(
       await page.getByRole("button", { name: /Acciones de/ }).count(),
@@ -950,10 +964,19 @@ try {
     await dialog.getByRole("button", { name: "Confirmar preparación" }).click();
     await dialog.waitFor({ state: "hidden" });
     assert.ok(row.structure);
+    lifecycleStatus = "CLOSED";
+    await page.reload();
+    await page.locator('[data-lifecycle="CLOSED"]').waitFor();
+    await page.getByText(/Este período está cerrado, pero sigue editable/).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Editar importe de Digitales", exact: true }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "Exportar PDF" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "Exportar Excel" }).count(), 1);
+    assert.equal(await page.getByRole("button", { name: "Eliminar período" }).count(), 0);
     denied = true;
     admin = false;
     await page.reload();
-    await page.getByText("EERR no accesible", { exact: true }).waitFor();
+    await page.waitForURL(`${origin}/eerr?missing=1`);
+    await page.getByText("Ese EERR ya no está disponible. Revisá los períodos existentes.", { exact: true }).waitFor();
     assert.equal(await page.getByRole("table").count(), 0);
     assert.deepEqual(errors, []);
     await context.close();

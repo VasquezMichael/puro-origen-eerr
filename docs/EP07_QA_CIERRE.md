@@ -2,6 +2,15 @@
 
 Fecha: 19 de octubre de 2026. Base revisada: `edddcb652d284502ee57a118e1c4c45f8e344bce`.
 
+Actualización de QA local (21 de octubre de 2026, sin Atlas): un MongoDB 7
+efímero con replica set permitió observar 12 conflictos de escritura y reintentos
+en 12 desactivaciones concurrentes de dos administradores; en cada carrera quedó
+exactamente uno activo. También se comprobó rollback del guard transaccional,
+CAS de cambio de contraseña y, de forma aislada, colisión entre dos EERR activos
+y coexistencia de uno soft-deleted con uno activo bajo el índice parcial.
+Esto no valida todavía la transacción lifecycle + auditoría, el rollback de
+DELETE ni el rollout del índice en un entorno desplegado. DELETE sigue apagado.
+
 ## Resultado
 
 **EP-07 está cerrada funcionalmente. DELETE no está habilitado operativamente.**

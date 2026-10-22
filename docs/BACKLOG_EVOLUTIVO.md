@@ -52,8 +52,8 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
 - Registrar fecha de baja o historial de vigencia de sucursales para reconstruir
   con precisión la población esperada de meses históricos. EP-06A.1 usa la fecha
   de inicio vigente e incluye inactivas solo cuando existe EERR del mes.
-- EP-05B.2: presentar y editar meta/proyecciones en web; explicar el supuesto
-  de gastos semivariables. Evaluar clasificación fija/variable detallada en un
+- La presentación y edición web de metas/proyecciones quedó implementada en
+  EP-05B.2. Evaluar una clasificación fija/variable detallada de gastos en un
   incremento posterior, con decisión funcional previa.
 - Al finalizar el MVP con su estado real definitivo, preparar un Manual de
   aceptación funcional para el responsable operativo, con escenarios de prueba,
