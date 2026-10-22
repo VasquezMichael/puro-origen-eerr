@@ -1,5 +1,12 @@
 # Plan de pruebas del EERR
 
+La actualización de QA local del 21 de octubre de 2026 consta en
+`EP07_QA_CIERRE.md`: se verificaron en MongoDB efímero `LAST_ACTIVE_ADMIN`,
+conflicto de escritura/reintento, rollback, CAS e índice parcial básico. Las
+referencias históricas de cada PR a pruebas entonces pendientes no equivalen
+a aprobar el rollout de DELETE; su transacción y auditoría reales siguen
+pendientes de validación controlada.
+
 ## MVP Closure — administración de usuarios PR 2
 
 - Web sin Atlas: navegación Usuarios solo para Admin y URL directa denegada a

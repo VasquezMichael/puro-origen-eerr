@@ -157,8 +157,10 @@ try {
         };
       else if (path === "/branches")
         body = [{ id: branchId, name: "Sucursal de prueba", active: false }];
+      else if (path === "/eerr/capabilities")
+        body = { softDeleteEnabled: false };
       else if (path === `/eerr/${id}`)
-        body = { id, branchId, year: 2026, month: 9 };
+        body = { id, branchId, year: 2026, month: 9, revision: row.revision, loadStatus: row.progress.status, lifecycleStatus: "OPEN", everClosed: false };
       else if (path === `/eerr/${id}/structure`) body = row;
       else if (path === `/eerr/${id}/analysis`) body = emptyAnalysis(row, id);
       else if (path === "/eerr") body = [];

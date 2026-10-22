@@ -79,7 +79,8 @@ try {
       let body, status = 200;
       if (path === "/auth/me") body = { user: { isAdmin: role === "ADMIN", branchAccesses: [{ branchId, role }] } };
       else if (path === "/branches") body = [{ id: branchId, name: "Sucursal ficticia", active: true }];
-      else if (path === `/eerr/${id}`) body = { id, branchId, year: 2026, month: 9 };
+      else if (path === "/eerr/capabilities") body = { softDeleteEnabled: false };
+      else if (path === `/eerr/${id}`) body = { id, branchId, year: 2026, month: 9, revision: row.revision, loadStatus: row.progress.status, lifecycleStatus: "OPEN", everClosed: false };
       else if (path === `/eerr/${id}/structure`) body = row;
       else if (path === `/eerr/${id}/analysis`) {
         reads++;
@@ -103,7 +104,8 @@ try {
     assert.equal(writes.length, 0);
     assert.match(await projections.innerText(), /Punto de Equilibrio[\s\S]*33,34 ARS/);
     assert.match(await projections.innerText(), /Configurá una meta para calcular el Objetivo de Venta/);
-    assert.equal(await projections.getByText("—").count(), 2);
+    // Objetivo, diferencia, cumplimiento y referencia carecen de valor sin meta.
+    assert.equal(await projections.getByText("—").count(), 4);
     await page.screenshot({ path: join(tmpdir(), `ep05b2-${width}-sin-meta.png`), fullPage: true });
     await projections.getByRole("button", { name: "Configurar meta" }).click();
     const dialog = page.getByRole("dialog", { name: "Configurar meta del EERR" });
@@ -229,7 +231,7 @@ try {
     await remove.waitFor({ state: "hidden" });
     assert.equal(writes.at(-1).goal, null);
     assert.match(await projections.innerText(), /33,34 ARS/);
-    assert.equal(await projections.getByText("—").count(), 2);
+    assert.equal(await projections.getByText("—").count(), 4);
     role = "READER"; currentGoal = goal("NET_MARGIN_PERCENT", "65.0000"); scenario = "unattainable";
     await page.reload(); await projections.waitFor();
     assert.equal(await projections.getByRole("button", { name: "¿Por qué esta meta es inalcanzable?" }).count(), 1);

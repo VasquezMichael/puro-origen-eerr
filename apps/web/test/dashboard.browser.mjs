@@ -28,8 +28,9 @@ try {
       if (url.pathname === "/auth/me") body = { user: { id: "fixture", name: "Persona", email: "persona@example.invalid", isAdmin: role === "ADMIN", branchAccesses: role === "ADMIN" ? [] : [{ branchId, role }], mustChangePassword: false } };
       else if (url.pathname === "/branches") body = [{ id: branchId, name: "Sucursal ficticia", active: true, startDate: "2025-01-01T12:00:00Z" }];
       else if (url.pathname === "/eerr") body = [];
+      else if (url.pathname === "/eerr/capabilities") body = { softDeleteEnabled: false };
       else if (url.pathname === "/analytics/dashboard") { reads++; requested.push(`${url.searchParams.get("year")}-${url.searchParams.get("month")}`); if (delay) await new Promise((resolve) => setTimeout(resolve, delay)); if (fail) { status = fail; body = { message: "Error simulado" }; } else body = dashboardFixture({ year: Number(url.searchParams.get("year")), month: Number(url.searchParams.get("month")), mode, role, signature, targetMargin: url.searchParams.get("targetNetMargin") ?? "0.20" }); }
-      else if (url.pathname === `/eerr/${eerrId}`) body = { id: eerrId, branchId, year: 2026, month: 9 };
+      else if (url.pathname === `/eerr/${eerrId}`) body = { id: eerrId, branchId, year: 2026, month: 9, revision: 2, loadStatus: "SIN_CARGAR", lifecycleStatus: "OPEN", everClosed: false };
       else if (url.pathname === `/eerr/${eerrId}/structure`) body = { id: eerrId, revision: 2, progress: { total: 0, loaded: 0, pending: 0, status: "SIN_CARGAR" }, structure: null };
       else if (url.pathname === `/eerr/${eerrId}/analysis`) body = { initialized: false, sourceRevision: 2, blocks: [], categories: [], metrics: {}, projections: {} };
       else { errors.push(`API inesperada ${url.pathname}`); return route.abort(); }

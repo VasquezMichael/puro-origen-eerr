@@ -29,7 +29,8 @@ try {for(const [width,height] of [[1440,900],[1280,720],[1024,768],[768,1024],[3
  else {errors.push('Unexpected write '+path);return route.abort();}}
  else if(path==='/auth/me')body={user:{name:'Persona',isAdmin:false,branchAccesses:[{branchId,role}]}};
  else if(path==='/branches')body=[{id:branchId,name:'Sucursal ficticia',active:true,startDate:'2020-01-01T03:00:00Z'}];
- else if(path===`/eerr/${id}`)body={id,branchId,year:2026,month:9,loadStatus:'CARGADO',createdAt:'2026-09-23T12:00:00Z'};
+ else if(path==='/eerr/capabilities')body={softDeleteEnabled:false};
+ else if(path===`/eerr/${id}`)body={id,branchId,year:2026,month:9,revision:row.revision,loadStatus:row.progress.status,lifecycleStatus:'OPEN',everClosed:false,createdAt:'2026-09-23T12:00:00Z'};
  else if(path.endsWith('/structure'))body=row;
  else if(path.endsWith('/analysis'))body=emptyAnalysis(row,id);
  else {errors.push('Unexpected API '+path);return route.abort();}

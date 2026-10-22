@@ -60,7 +60,8 @@ try {
       let body, status = 200;
       if (path === "/auth/me") body = { user: { isAdmin: false, branchAccesses: [{ branchId, role }] } };
       else if (path === "/branches") body = [{ id: branchId, name: "Sucursal ficticia", active: true }];
-      else if (path === `/eerr/${id}`) body = { id, branchId, year: 2026, month: 9 };
+      else if (path === "/eerr/capabilities") body = { softDeleteEnabled: false };
+      else if (path === `/eerr/${id}`) body = { id, branchId, year: 2026, month: 9, revision: row.revision, loadStatus: row.progress.status, lifecycleStatus: "OPEN", everClosed: false };
       else if (path === `/eerr/${id}/structure`) body = row;
       else if (path === `/eerr/${id}/analysis`) { reads++; if (fail) { status = 500; body = { message: "Error interno ficticio" }; } else { body = fixture(mismatch ? row.revision - 1 : row.revision, mode); if (delayOld && body.sourceRevision === 2) await new Promise((resolve) => setTimeout(resolve, 700)); if (delayNew && body.sourceRevision === 3) await new Promise((resolve) => setTimeout(resolve, 500)); } }
       else if (path === `/eerr/${id}/items/item/amount` && request.method() === "PUT") { writes++; const input = request.postDataJSON(); assert.equal(input.expectedRevision, row.revision); row = { ...row, revision: row.revision + 1, structure: { ...row.structure, nodes: row.structure.nodes.map((node) => node.nodeId === "item" ? { ...node, amount: { ...node.amount, input: input.input, value: "25.00" } } : node) } }; body = row; }

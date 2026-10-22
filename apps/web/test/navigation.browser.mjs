@@ -72,7 +72,10 @@ try {
       branchId,
       year: 2026,
       month: 9,
+      revision: 0,
       loadStatus: "SIN_CARGAR",
+      lifecycleStatus: "OPEN",
+      everClosed: false,
       createdAt: "2026-09-01T12:00:00Z",
     };
     const structure = {
@@ -179,6 +182,8 @@ try {
         }
       } else if (path === "/eerr/context")
         body = branches.map((branch) => ({ branch, exists: true, eerr: row }));
+      else if (path === "/eerr/capabilities" && method === "GET")
+        body = { softDeleteEnabled: false };
       else if (path === "/eerr" && method === "GET") body = [row];
       else if (path === `/eerr/${id}`) body = row;
       else if (path === `/eerr/${id}/structure`) body = structure;
