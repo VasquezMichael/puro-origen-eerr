@@ -48,6 +48,12 @@ La guarda es un campo interno no expuesto; la API no abre rutas de promoción
 o degradación de Admin.
 La interfaz `/admin/sucursales` consulta la API con la sesión existente; la API
 decide el acceso y restringe todas las operaciones administrativas.
+`/admin/usuarios` reutiliza `SessionProvider`, `WorkspaceShell` y `Modal`.
+Solo presenta controles cuando la sesión es Admin; consulta `GET /users` y
+`GET /branches` con credenciales, y refresca el listado desde la API tras cada
+mutación. La contraseña permanece en el estado local del modal, que se desmonta
+al cerrar. `UsersController` conserva la autorización y validación definitivas;
+la web no replica reglas de último Admin ni expone campos internos.
 
 `EerrModule` consume `BranchesPersistenceModule` y registra su propio esquema y
 servicio. No importa `AuthModule`; usa el principal revalidado por el guard

@@ -11,6 +11,9 @@ incorpora al MVP ni establece prioridad o fecha de implementación.
 - Post-MVP: exportaciones de Dashboard, comparaciones, consolidado y lotes.
   El cierre MVP ya exporta el EERR individual en XLSX y PDF desde la web.
 - Interpretación de tendencias y dashboards.
+- Administración de usuarios post-MVP: editar nombre/email, convertir cuentas
+  existentes entre Admin y no Admin, recuperación por email, MFA, invitaciones,
+  SSO y audit trail completo. La UI mínima `/admin/usuarios` no los incorpora.
 - Evaluar otras ayudas contextuales mediante tooltips. EP-05UX.1 incorpora solo
   la ayuda de la meta porcentual inalcanzable.
 - Evaluar creación de períodos futuros; EP-03 los rechaza y no habilita esta mejora.

@@ -32,12 +32,13 @@ for (const [role, admin, label] of [
     assert.equal(roleLabel(session), label);
     assert.deepEqual(
       navigationItems(admin).map((item) => item.href),
-      admin ? ["/", "/eerr", "/admin/sucursales"] : ["/", "/eerr"],
+      admin ? ["/", "/eerr", "/admin/sucursales", "/admin/usuarios"] : ["/", "/eerr"],
     );
     const html = render(WorkspaceShell, { isAdmin: admin, section: "dashboard", title: "Dashboard", children: React.createElement("h1", null, "Dashboard") });
     assert.equal((html.match(/data-app-shell/g) ?? []).length, 1);
     assert.match(html, /href="\/eerr"/);
     assert.equal(html.includes('href="/admin/sucursales"'), admin);
+    assert.equal(html.includes('href="/admin/usuarios"'), admin);
     assert.doesNotMatch(html, /Modo Análisis|Modo Editor|¿Qué querés hacer hoy/);
     assert.match(html, /Cerrar sesión/);
   });
@@ -59,6 +60,7 @@ for (const [section, label] of [
   ["dashboard", "Dashboard"],
   ["eerr", "Estados de resultados"],
   ["branches", "Sucursales"],
+  ["users", "Usuarios"],
 ]) {
   test(`Shell identifica únicamente ${section} como página activa`, () => {
     const html = render(WorkspaceShell, {

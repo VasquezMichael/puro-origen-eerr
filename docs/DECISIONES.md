@@ -67,6 +67,13 @@ de cobertura ni simula pruebas en paquetes vacíos.
 - La desactivación de Admin usa transacción de MongoDB con un documento de
   contención compartido, lectura snapshot y escritura majority para impedir
   que dos desactivaciones concurrentes dejen cero Admins activos.
+- `/admin/usuarios` usa los endpoints administrativos existentes. La búsqueda es
+  local por nombre/email; crear cuenta exige contraseña inicial de 12 caracteres
+  y confirmación en la UI, sin almacenar el secreto fuera del formulario. Editar
+  accesos envía la lista completa; el Admin conserva alcance global. La UI no
+  calcula si queda el último Admin activo: presenta el rechazo de la API.
+  Desactivar exige confirmación y avisa que invalida sesiones; reactivar requiere
+  un nuevo login. El reset exige cambio de contraseña por defecto.
 
 ## Decisiones confirmadas de sucursales (EP-02)
 

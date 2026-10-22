@@ -1,5 +1,20 @@
 # Plan de pruebas del EERR
 
+## MVP Closure — administración de usuarios PR 2
+
+- Web sin Atlas: navegación Usuarios solo para Admin y URL directa denegada a
+  Editor/Lector; listado, búsqueda local y badges de estado/rol/cambio pendiente.
+- Crear usuario y Admin con contraseña inicial confirmada; validar longitud,
+  email duplicado y formulario conservado ante error. Accesos completos sin
+  duplicados, Editor/Lector/sin acceso y sucursales inactivas visibles.
+- Desactivar con confirmación e invalidación de sesiones comunicada, self-disable
+  omitido en UI, `LAST_ACTIVE_ADMIN` explicado, reactivar con nuevo login.
+  Reset con `requireChange` verdadero/falso y limpieza del secreto al cerrar.
+- Cada mutación refresca `GET /users`; loading y doble submit se verifican por
+  operación. Errores 400/401/403/404/409/500 y de red no exponen detalles.
+- QA visual en desktop, tablet y 390px con fixture local si hay runner externo;
+  no usar Atlas ni datos reales.
+
 ## MVP Closure — administración de usuarios PR 1
 
 - HTTP con guard real y persistencia simulada: solo Admin activa/desactiva;
