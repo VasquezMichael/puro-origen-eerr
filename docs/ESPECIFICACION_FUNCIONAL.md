@@ -27,6 +27,12 @@ No se definen fórmulas, permisos detallados ni criterios no provistos por el us
   sesiones anteriores. Después del cambio propio, la sesión actual se renueva.
   Una contraseña temporal obliga a cambiarla también desde la API: hasta
   entonces solo se permiten las operaciones necesarias de autenticación.
+- La pantalla `/admin/usuarios` es exclusiva del Administrador: lista y filtra
+  localmente por nombre/email, crea cuentas, reemplaza accesos por sucursal,
+  activa/desactiva y restablece contraseñas. Muestra estado activo y cambio de
+  contraseña pendiente. El Administrador tiene alcance global aunque también
+  tenga accesos por sucursal; sucursales inactivas siguen visibles y asignables.
+  La UI no edita nombre/email ni cambia el rol Admin de cuentas existentes.
 
 ### Sucursales
 

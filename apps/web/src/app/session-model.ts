@@ -16,7 +16,7 @@ export function roleLabel(
   if (roles.has("EDITOR")) return "Editor";
   return roles.has("READER") ? "Lector" : "Sin sucursales asignadas";
 }
-export type Section = "dashboard" | "eerr" | "branches";
+export type Section = "dashboard" | "eerr" | "branches" | "users";
 export function navigationItems(isAdmin: boolean) {
   return [
     { section: "dashboard", href: "/", label: "Dashboard" },
@@ -27,6 +27,11 @@ export function navigationItems(isAdmin: boolean) {
             section: "branches",
             href: "/admin/sucursales",
             label: "Sucursales",
+          },
+          {
+            section: "users",
+            href: "/admin/usuarios",
+            label: "Usuarios",
           },
         ]
       : []),
