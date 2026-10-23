@@ -16,7 +16,7 @@
   "dependencies": {
     "@puro-origen/domain": "0.1.0",
     "@puro-origen/shared-types": "^0.1.0",
-    "next": "16.3.4",
+    "next": "16.4.2",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -26,7 +26,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.2",
     "jsdom": "^30.1.3",
     "tailwindcss": "^4",
     "typescript": "^5"
