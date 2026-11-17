@@ -340,6 +340,7 @@ export type ClonePreviewResponse = {
   issues: string[];
   seedTemplate: boolean;
   crossBranchWarning: string | null;
+  laterPeriodWarning: string | null;
   included: string[];
   excluded: string[];
   revisions: { source: number; destination: number; template: number | null };

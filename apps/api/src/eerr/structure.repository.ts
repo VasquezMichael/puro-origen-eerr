@@ -166,13 +166,16 @@ export class StructureRepository {
       .lean()
       .exec();
   }
-  cloneCandidates(branchIds: string[], year: number, month: number) {
+  cloneCandidates(branchIds: string[], maxYear: number, maxMonth: number) {
     return this.eerrs
       .find({
         ...ACTIVE_EERR_FILTER,
         branchId: { $in: branchIds },
         structure: { $ne: null },
-        $or: [{ year: { $lt: year } }, { year, month: { $lte: month } }],
+        $or: [
+          { year: { $lt: maxYear } },
+          { year: maxYear, month: { $lte: maxMonth } },
+        ],
       })
       .sort({ year: -1, month: -1, _id: 1 })
       .lean()

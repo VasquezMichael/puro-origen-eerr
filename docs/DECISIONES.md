@@ -409,9 +409,12 @@ entre bloques, archivo de categorías, eliminación, auditoría y cálculos deri
 - Decisión confirmada: conservar createdAt y createdBy del contenedor destino; registrar
   initializedAt/initializedBy actuales y actualizar updatedAt con la operación. No
   copiar revisiones del origen: primera inicialización incrementa revision de 0 a 1.
-- Origen accesible, inicializado, válido y no posterior al destino; nunca el mismo EERR.
+- Origen accesible, inicializado, válido y nunca el mismo EERR. Para
+  `ESTRUCTURA` puede pertenecer a un período posterior al destino, siempre que
+  ambos períodos no sean futuros respecto del mes de negocio actual. Para
+  `ESTRUCTURA_Y_VALORES` el origen no puede ser posterior al destino.
   Se admite mismo período de otra sucursal e históricos inactivos. La API ordena primero
-  períodos previos de la misma sucursal (más reciente primero), luego mismo período de
+  candidatos de la misma sucursal (más reciente primero), luego mismo período de
   otra y finalmente restantes accesibles. Para valores se preselecciona misma sucursal.
 - Valores de otra sucursal exigen advertencia y confirmCrossBranchValues=true ligado al
   preview concreto. No se exige para solo estructura o valores de la misma sucursal.

@@ -6,8 +6,14 @@ import {
   MinLength,
   ValidateIf,
   IsBoolean,
+  IsOptional,
 } from 'class-validator';
 import type { CloneMode } from '@puro-origen/domain';
+export class CloneSourcesQueryDto {
+  @IsOptional()
+  @IsIn(['ESTRUCTURA', 'ESTRUCTURA_Y_VALORES'])
+  mode?: CloneMode;
+}
 export class ClonePreviewDto {
   @IsUUID('4') sourceEerrId!: string;
   @IsIn(['ESTRUCTURA', 'ESTRUCTURA_Y_VALORES']) mode!: CloneMode;

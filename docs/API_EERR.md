@@ -350,7 +350,7 @@ Prefijo `/eerr/:id`, UUID v4:
 
 | Método y ruta | Cuerpo | Respuesta |
 | --- | --- | --- |
-| GET /clone-sources | Sin cuerpo | CloneSource[] ordenado por API |
+| GET /clone-sources?mode=ESTRUCTURA\|ESTRUCTURA_Y_VALORES | Query `mode` opcional; por defecto `ESTRUCTURA_Y_VALORES` | CloneSource[] ordenado por API |
 | POST /clone/preview | `{ sourceEerrId, mode }` | ClonePreviewResponse |
 | POST /clone/confirm | `{ sourceEerrId, mode, previewToken, confirmCrossBranchValues? }` | StructureResponse |
 
@@ -360,13 +360,19 @@ importes calculados, identidades nuevas, timestamps ni revisiones arbitrarias de
 Token válido cinco minutos y ligado a actor/origen/destino/modo/revisiones/contenido.
 
 CloneSource: id, branchId, branchName, year/month, loadStatus, initialized=true, categories,
-items, loadedAmounts, sameBranch/samePeriod. Solo accesibles, válidos, preparados, no
-posteriores y distintos del destino. GET nunca escribe; Lector puede listar consultables.
+items, loadedAmounts, sameBranch/samePeriod. Solo accesibles, válidos, preparados y
+distintos del destino. En modo `ESTRUCTURA` se admiten orígenes posteriores al
+destino hasta el mes de negocio actual; con valores solo hasta el período destino.
+Ningún modo admite un destino futuro. GET nunca escribe; Lector puede listar consultables.
 
 Preview: source/destination (contextos), mode, counts (blocks/categories/items,
 loadedAmounts/loadedQuantities, zeroAmounts/zeroQuantities, unloadedAmounts/unloadedQuantities),
-destinationCategories, compatible, issues, seedTemplate, crossBranchWarning, included,
+destinationCategories, compatible, issues, seedTemplate, crossBranchWarning,
+laterPeriodWarning, included,
 excluded, revisions (source/destination/template), previewToken nullable y expiresAt.
+`laterPeriodWarning` informa la copia exclusiva de estructura desde un período
+posterior; no exige consentimiento adicional. La plantilla del destino conserva
+su autoridad y una incompatibilidad sigue impidiendo generar el token.
 Incompatibilidad devuelve preview sin token y confirmación bloqueada. Fuente inconsistente
 no se corrige automáticamente. Plantilla existente puede contener categorías adicionales
 u otro orden; conserva nombres y parentescos autoritativos. Ausencia de categoría requerida

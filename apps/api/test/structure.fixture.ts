@@ -78,13 +78,13 @@ export class MemoryStructureRepository {
   async existingTemplate(key: string) {
     return copy(this.state.templates[key] ?? null);
   }
-  async cloneCandidates(branchIds: string[], year: number, month: number) {
+  async cloneCandidates(branchIds: string[], maxYear: number, maxMonth: number) {
     return copy(
       this.state.rows.filter(
         (row) =>
           branchIds.includes(row.branchId.toString()) &&
           row.structure &&
-          row.year * 12 + row.month <= year * 12 + month,
+          row.year * 12 + row.month <= maxYear * 12 + maxMonth,
       ),
     );
   }
