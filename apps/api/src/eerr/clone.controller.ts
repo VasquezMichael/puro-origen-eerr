@@ -6,19 +6,21 @@ import {
   Body,
   Req,
   ParseUUIDPipe,
+  Query,
 } from '@nestjs/common';
 import type { AuthenticatedRequest } from '../auth/auth.guard.js';
 import { CloneService } from './clone.service.js';
-import { ClonePreviewDto, CloneConfirmDto } from './dto/clone.dto.js';
+import { ClonePreviewDto, CloneConfirmDto, CloneSourcesQueryDto } from './dto/clone.dto.js';
 const uuid = new ParseUUIDPipe({ version: '4' });
 @Controller('eerr')
 export class CloneController {
   constructor(private readonly clones: CloneService) {}
   @Get(':id/clone-sources') sources(
     @Param('id', uuid) id: string,
+    @Query() query: CloneSourcesQueryDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.clones.sources(id, req.user!);
+    return this.clones.sources(id, req.user!, query.mode);
   }
   @Post(':id/clone/preview') preview(
     @Param('id', uuid) id: string,

@@ -198,10 +198,63 @@ describe('EP-04C1 HTTP aislado con guard, token y dominio reales', () => {
       previewToken: token,
       ...extra,
     });
-  const sources = () =>
+  const sources = (mode?: string) =>
     request(app.getHttpServer())
-      .get(`/eerr/${destination._id}/clone-sources`)
+      .get(`/eerr/${destination._id}/clone-sources${mode ? `?mode=${mode}` : ''}`)
       .set('Cookie', `${SESSION_COOKIE}=offline`);
+  it('origen posterior no futuro: solo estructura, con preview y confirmación', async () => {
+    now = new Date('2026-11-15T12:00:00Z');
+    source.month = 10;
+    expect((await sources('ESTRUCTURA')).body.map((row: { id: string }) => row.id)).toContain(source._id);
+    expect((await sources('ESTRUCTURA_Y_VALORES')).body).toEqual([]);
+    expect((await sources()).body).toEqual([]);
+    expect((await sources('INVALIDO')).status).toBe(400);
+    expect((await preview('ESTRUCTURA_Y_VALORES')).status).toBe(400);
+    const p = await preview('ESTRUCTURA');
+    expect(p.status).toBe(201);
+    expect(p.body.compatible).toBe(true);
+    expect(p.body.previewToken).toBeTruthy();
+    expect(p.body.laterPeriodWarning).toContain('no se copiarán valores');
+    expect((await confirm(p.body.previewToken)).status).toBe(201);
+    const stored = store.state.rows.find((row) => row._id === destination._id)!;
+    const item = publicStructure(stored.structure)!.nodes.find((node) => node.kind === 'ITEM')!;
+    expect(item.amount?.state).toBe('SIN_CARGAR');
+    expect(item.quantity?.state).toBe('SIN_CARGAR');
+  });
+  it('origen posterior incompatible con plantilla destino no genera token', async () => {
+    now = new Date('2026-11-15T12:00:00Z');
+    source.month = 10;
+    store.state.templates['2026-9'] = {
+      _id: '2026-9', version: 1, gate: 1, categories: [],
+    };
+    const p = await preview('ESTRUCTURA');
+    expect(p.status).toBe(201);
+    expect(p.body.compatible).toBe(false);
+    expect(p.body.previewToken).toBeNull();
+    expect(p.body.issues.length).toBeGreaterThan(0);
+  });
+  it('origen anterior hacia destino posterior conserva ambos modos', async () => {
+    now = new Date('2026-11-15T12:00:00Z');
+    source.month = 9;
+    destination.month = 10;
+    for (const mode of ['ESTRUCTURA', 'ESTRUCTURA_Y_VALORES'] as const) {
+      expect((await sources(mode)).body.map((row: { id: string }) => row.id)).toContain(source._id);
+      const p = await preview(mode);
+      expect(p.status).toBe(201);
+      expect(p.body.laterPeriodWarning).toBeNull();
+      expect(p.body.previewToken).toBeTruthy();
+    }
+  });
+  it('origen y destino futuros se rechazan en listado y preview', async () => {
+    now = new Date('2026-11-15T12:00:00Z');
+    source.month = 12;
+    expect((await sources('ESTRUCTURA')).body).toEqual([]);
+    expect((await preview('ESTRUCTURA')).status).toBe(400);
+    source.month = 9;
+    destination.month = 12;
+    expect((await sources('ESTRUCTURA')).status).toBe(400);
+    expect((await preview('ESTRUCTURA')).status).toBe(400);
+  });
   it('listado prioriza misma sucursal, excluye vacío, futuro, inválido y destino sin escribir', async () => {
     const other = store.seed(fixtureOtherBranch, 9);
     other.structure = source.structure;

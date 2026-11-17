@@ -14,6 +14,7 @@ import {
   loadProgress,
   businessMonthAt,
   type EerrStructure,
+  type CloneMode,
 } from '@puro-origen/domain';
 import type {
   CloneContext,
@@ -90,17 +91,30 @@ export class CloneService {
       month: row.month,
     };
   }
-  async sources(id: string, viewer: Viewer): Promise<CloneSource[]> {
+  async sources(
+    id: string,
+    viewer: Viewer,
+    mode: CloneMode = 'ESTRUCTURA_Y_VALORES',
+  ): Promise<CloneSource[]> {
     const destination = await this.access(id, viewer),
       branches = await this.branches.list(viewer);
+    const currentMonth = businessMonthAt(this.clock.now());
+    if (period(destination) > period(currentMonth))
+      throw new BadRequestException('El período destino es futuro');
+    const latest = mode === 'ESTRUCTURA' ? currentMonth : destination;
     const rows = await this.store.cloneCandidates(
       branches.map((b) => b.id),
-      destination.year,
-      destination.month,
+      latest.year,
+      latest.month,
     );
     const result: CloneSource[] = [];
     for (const row of rows) {
-      if (row._id === destination.id || period(row) > period(destination))
+      if (
+        row._id === destination.id ||
+        period(row) > period(currentMonth) ||
+        (mode === 'ESTRUCTURA_Y_VALORES' &&
+          period(row) > period(destination))
+      )
         continue;
       try {
         const structure = publicStructure(row.structure);
@@ -143,12 +157,20 @@ export class CloneService {
     this.eligible(destination);
     if (source._id === destination._id)
       throw new BadRequestException('Origen y destino deben ser distintos');
+    const currentMonth = businessMonthAt(this.clock.now());
     if (
-      period(source) > period(destination) ||
-      period(destination) > period(businessMonthAt(this.clock.now()))
+      period(source) > period(currentMonth) ||
+      period(destination) > period(currentMonth)
     )
       throw new BadRequestException(
-        'No se permiten períodos posteriores al destino ni futuros',
+        'No se permiten períodos futuros',
+      );
+    if (
+      input.mode === 'ESTRUCTURA_Y_VALORES' &&
+      period(source) > period(destination)
+    )
+      throw new BadRequestException(
+        'No se permite copiar valores desde un período posterior al destino',
       );
     const branches = await this.branches.list(viewer),
       sourceContext = this.context(source, branches),
@@ -251,6 +273,11 @@ export class CloneService {
         input.mode === 'ESTRUCTURA_Y_VALORES' &&
         plan.sourceContext.branchId !== plan.destinationContext.branchId
           ? 'Estás por copiar valores desde otra sucursal. Los importes y cantidades pueden no representar la operación del destino.'
+          : null,
+      laterPeriodWarning:
+        input.mode === 'ESTRUCTURA' &&
+        period(plan.source) > period(plan.destination)
+          ? 'El origen pertenece a un período posterior al destino. Se copiará únicamente la estructura; no se copiarán valores.'
           : null,
       included:
         input.mode === 'ESTRUCTURA'

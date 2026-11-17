@@ -35,6 +35,7 @@ const preview = {
   issues: [],
   seedTemplate: false,
   crossBranchWarning: "Estás por copiar valores desde otra sucursal.",
+  laterPeriodWarning: null,
   included: ["Importes", "Cantidades"],
   excluded: ["Notas", "Archivados", "Auditoría"],
   revisions: { source: 4, destination: 0, template: 2 },
@@ -98,6 +99,26 @@ test("Preview muestra sucursales, alcance y exclusiones sin UUID protagonistas",
   assert.match(html, /Archivados/);
   assert.doesNotMatch(html, /source-uuid|destination-uuid|fixture-token/);
   assert.match(html, /type="checkbox"/);
+});
+test("Preview de estructura posterior muestra aviso sin consentimiento adicional", () => {
+  const html = render(CloneSummary, {
+    preview: {
+      ...preview,
+      mode: "ESTRUCTURA",
+      crossBranchWarning: null,
+      laterPeriodWarning:
+        "El origen pertenece a un período posterior al destino. Se copiará únicamente la estructura; no se copiarán valores.",
+    },
+    accepted: false,
+    busy: false,
+    onAccept: noWrite,
+    onConfirm: noWrite,
+    onBack: noWrite,
+  });
+  assert.match(html, /período posterior al destino/);
+  assert.match(html, /no se copiarán valores/);
+  assert.doesNotMatch(html, /type="checkbox"/);
+  assert.doesNotMatch(html, /Confirmar clonación" disabled/);
 });
 for (const condition of ["cross", "incompatible", "busy", "token"])
   test(`Confirmación bloqueada por ${condition}`, () => {

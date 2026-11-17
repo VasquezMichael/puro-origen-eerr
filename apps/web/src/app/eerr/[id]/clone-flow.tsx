@@ -105,6 +105,11 @@ export function CloneSummary({
           </label>
         </div>
       )}
+      {preview.laterPeriodWarning && (
+        <p className={styles.notice} role="note">
+          {preview.laterPeriodWarning}
+        </p>
+      )}
       <div className={styles.actions}>
         <button
           className={styles.primary}
@@ -159,13 +164,16 @@ export function CloneFlow({
     setMode(mode);
     setOpen(true);
     setPreview(null);
+    setSources(null);
     setAccepted(false);
     setError("");
     setConflict(false);
     sending.current = true;
     setBusy(true);
     try {
-      const rows = await eerrApi<CloneSource[]>(`/eerr/${id}/clone-sources`);
+      const rows = await eerrApi<CloneSource[]>(
+        `/eerr/${id}/clone-sources?mode=${mode}`,
+      );
       setSources(rows);
       setSourceId((previous) =>
         rows.some((row) => row.id === previous)
@@ -329,8 +337,7 @@ export function CloneFlow({
                   value={mode}
                   disabled={busy}
                   onChange={(event) => {
-                    setMode(event.target.value as CloneMode);
-                    setAccepted(false);
+                    void load(event.target.value as CloneMode);
                   }}
                 >
                   <option value="ESTRUCTURA">Clonar estructura</option>
@@ -354,7 +361,7 @@ export function CloneFlow({
                     <option value={row.id} key={row.id}>
                       {row.branchName} · {row.month}/{row.year} ·{" "}
                       {row.sameBranch ? "Misma sucursal" : "Otra sucursal"} ·{" "}
-                      {row.samePeriod ? "Mismo período" : "Período anterior"}
+                      {row.samePeriod ? "Mismo período" : "Otro período"}
                     </option>
                   ))}
                 </select>
