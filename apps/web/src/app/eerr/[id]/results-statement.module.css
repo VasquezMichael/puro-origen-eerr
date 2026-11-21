@@ -4,7 +4,9 @@
 .eyebrow { margin: 0 0 .2rem; color: var(--text-muted); font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; }
 .savedNotice { margin: 0; color: var(--text-muted); font-size: .88rem; }
 .loading, .message { min-height: 6rem; display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; color: var(--text-muted); }
+.staleNotice { position: fixed; z-index: 20; right: 1rem; bottom: 1rem; width: min(28rem, calc(100vw - 2rem)); display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding: .65rem .85rem; border: 1px solid var(--stroke); border-radius: var(--radius); background: var(--surface); color: var(--text); box-shadow: 0 8px 24px #183c3130; font-size: .88rem; }
 .message button { flex: 0 0 auto; }
+.staleNotice button { flex: 0 0 auto; }
 .table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .table th, .table td { padding: .6rem .75rem; border-bottom: 1px solid var(--stroke); vertical-align: top; overflow-wrap: anywhere; }
 .table thead { color: var(--text-muted); font-size: .78rem; }

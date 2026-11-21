@@ -7,9 +7,9 @@ import { ProjectionsSection } from "./projections-section";
 import { SalesGoalModal } from "./sales-goal-modal";
 import { canonicalSalesGoal, initialSalesGoalDraft, salesGoalDirty, type SalesGoalDraft } from "./sales-goal-form";
 
-export function SalesGoalFlow({ id, revision, analysis, visible, canEdit, disabled,
+export function SalesGoalFlow({ id, revision, analysis, visible, stale, canEdit, disabled,
   context, onRefreshStructure, onRefreshAnalysis, onDirtyChange, onBusyChange }: {
-  id: string; revision: number; analysis: AnalysisResponse | null; visible: boolean;
+  id: string; revision: number; analysis: AnalysisResponse | null; visible: boolean; stale: boolean;
   canEdit: boolean; disabled: boolean; context: string;
   onRefreshStructure: () => Promise<boolean>; onRefreshAnalysis: () => void;
   onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
@@ -44,12 +44,12 @@ export function SalesGoalFlow({ id, revision, analysis, visible, canEdit, disabl
     setSavedRevision(null);
   }
   function openForm() {
-    if (!analysis || !canEdit || disabled) return;
+    if (!analysis || !visible || !canEdit || disabled) return;
     setDraft(initialSalesGoalDraft(analysis.salesGoal));
     reset(); setKind("form");
   }
   function openDelete() {
-    if (!analysis?.salesGoal || !canEdit || disabled) return;
+    if (!analysis?.salesGoal || !visible || !canEdit || disabled) return;
     reset(); setKind("delete");
   }
   function close() {
@@ -105,8 +105,8 @@ export function SalesGoalFlow({ id, revision, analysis, visible, canEdit, disabl
   }
   return <>
     {refreshPending && !synced && <p role="status">Actualizando resultados…</p>}
-    {visible && analysis && (!refreshPending || synced) && <ProjectionsSection analysis={analysis} canEdit={canEdit}
-      disabled={disabled || busy} onConfigure={openForm} onDelete={openDelete} />}
+    {((visible && (!refreshPending || synced)) || stale) && analysis && <ProjectionsSection analysis={analysis} canEdit={canEdit}
+      disabled={disabled || busy || stale} onConfigure={openForm} onDelete={openDelete} />}
     {shownKind && <SalesGoalModal kind={shownKind} context={context} saved={analysis?.salesGoal ?? null}
       draft={draft} pendingMode={pendingMode} busy={busy} ready={visible && !disabled} error={error}
       conflict={conflict} refreshPending={refreshPending} confirmDiscard={confirmDiscard}
