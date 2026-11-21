@@ -45,6 +45,8 @@ export function ResultsStatement({ id, revision, hasDrafts, canEdit, disabled,
 }) {
   const [attempt, setAttempt] = useState(0);
   const state = useAnalysis(id, revision, attempt);
+  const displayedAnalysis = state.kind === "ready" ? state.data : state.latest;
+  const stale = state.kind !== "ready" && displayedAnalysis !== null;
   async function refresh() {
     if (state.kind === "mismatch") await onRefreshStructure();
     setAttempt((current) => current + 1);
@@ -55,14 +57,15 @@ export function ResultsStatement({ id, revision, hasDrafts, canEdit, disabled,
       {hasDrafts && <p className={styles.savedNotice}>Calculado con los datos guardados</p>}
     </div>
     <div aria-live="polite" aria-atomic="true">
-      {state.kind === "loading" && <div className={styles.loading}>Actualizando resultados…</div>}
-      {state.kind === "mismatch" && <div className={styles.message}>Los datos cambiaron. Actualizando resultados… <button type="button" onClick={() => void refresh()}>Actualizar cuadro</button></div>}
-      {state.kind === "error" && <div className={styles.message}>No pudimos cargar el cuadro de resultados. La estructura sigue disponible. <button type="button" onClick={() => void refresh()}>Reintentar cuadro</button></div>}
+      {state.kind === "loading" && <div className={stale ? styles.staleNotice : styles.loading}>Actualizando resultados…</div>}
+      {state.kind === "mismatch" && <div className={stale ? styles.staleNotice : styles.message}>Los resultados mostrados pueden estar desactualizados. Los datos cambiaron. <button type="button" onClick={() => void refresh()}>Actualizar cuadro</button></div>}
+      {state.kind === "error" && <div className={stale ? styles.staleNotice : styles.message}>{stale ? "No pudimos actualizar los resultados. Los resultados mostrados pueden estar desactualizados." : "No pudimos cargar el cuadro de resultados. La estructura sigue disponible."} <button type="button" onClick={() => void refresh()}>Reintentar cuadro</button></div>}
     </div>
-    {state.kind === "ready" && state.data.initialized && <StatementTable analysis={state.data} />}
+    {displayedAnalysis?.initialized && <StatementTable analysis={displayedAnalysis} />}
     <SalesGoalFlow id={id} revision={revision}
       analysis={state.kind === "ready" ? state.data : state.latest}
       visible={state.kind === "ready" && state.data.initialized}
+      stale={stale}
       canEdit={canEdit} disabled={disabled} context={context}
       onRefreshStructure={onRefreshStructure}
       onRefreshAnalysis={() => setAttempt((current) => current + 1)}

@@ -63,7 +63,7 @@ try {
       else if (path === "/eerr/capabilities") body = { softDeleteEnabled: false };
       else if (path === `/eerr/${id}`) body = { id, branchId, year: 2026, month: 9, revision: row.revision, loadStatus: row.progress.status, lifecycleStatus: "OPEN", everClosed: false };
       else if (path === `/eerr/${id}/structure`) body = row;
-      else if (path === `/eerr/${id}/analysis`) { reads++; if (fail) { status = 500; body = { message: "Error interno ficticio" }; } else { body = fixture(mismatch ? row.revision - 1 : row.revision, mode); if (delayOld && body.sourceRevision === 2) await new Promise((resolve) => setTimeout(resolve, 700)); if (delayNew && body.sourceRevision === 3) await new Promise((resolve) => setTimeout(resolve, 500)); } }
+      else if (path === `/eerr/${id}/analysis`) { reads++; if (fail) { status = 500; body = { message: "Error interno ficticio" }; } else { body = fixture(mismatch ? row.revision - 1 : row.revision, mode); if (delayOld && body.sourceRevision === 2) await new Promise((resolve) => setTimeout(resolve, 700)); if (delayNew && body.sourceRevision === 3) await new Promise((resolve) => setTimeout(resolve, 1200)); } }
       else if (path === `/eerr/${id}/items/item/amount` && request.method() === "PUT") { writes++; const input = request.postDataJSON(); assert.equal(input.expectedRevision, row.revision); row = { ...row, revision: row.revision + 1, structure: { ...row.structure, nodes: row.structure.nodes.map((node) => node.nodeId === "item" ? { ...node, amount: { ...node.amount, input: input.input, value: "25.00" } } : node) } }; body = row; }
       else { errors.push(`Unexpected API ${path}`); return route.abort(); }
       await route.fulfill({ status, headers, json: body });
@@ -89,16 +89,48 @@ try {
     await editorRow.getByRole("textbox", { name: /Importe o expresión/ }).fill("25");
     await page.getByText("Calculado con los datos guardados").waitFor();
     assert.match(await table.innerText(), /-1\.500,25 ARS/);
+    await editorRow.scrollIntoViewIfNeeded();
+    const position = async () => editorRow.evaluate((element) => ({ top: element.getBoundingClientRect().top, scroll: window.scrollY, max: document.documentElement.scrollHeight - window.innerHeight, height: element.getBoundingClientRect().height }));
+    const beforePosition = await position();
+    const originalTable = await table.elementHandle();
     const beforeSaveReads = reads;
     mode = "zero";
     delayNew = true;
     await editorRow.getByRole("button", { name: /Guardar importe/ }).click();
     await page.getByText("Guardado: Importe", { exact: false }).first().waitFor();
-    assert.equal(await table.count(), 0);
+    await page.getByText("Actualizando resultados…", { exact: true }).first().waitFor();
+    assert.equal(await table.count(), 1);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    assert.equal(await originalTable.evaluate((element) => element.isConnected), true);
+    assert.match(await table.innerText(), /-1\.500,25 ARS/);
+    assert.equal(await page.getByRole("button", { name: "Configurar meta" }).isDisabled(), true);
+    const duringPosition = await position();
+    assert.ok(Math.abs(duringPosition.top - beforePosition.top) <= 48, `La fila se desplazó: antes ${JSON.stringify(beforePosition)}, durante ${JSON.stringify(duringPosition)}`);
+    assert.ok(Math.abs(duringPosition.scroll - beforePosition.scroll) <= 64, `El scroll cambió ${duringPosition.scroll - beforePosition.scroll}px durante la recarga`);
     await table.getByText("No calculable porque los ingresos son cero").first().waitFor();
+    await page.getByText("Actualizando resultados…", { exact: true }).first().waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "Configurar meta" }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Configurar meta" }).isEnabled(), true);
+    const afterPosition = await position();
+    assert.ok(Math.abs(afterPosition.top - beforePosition.top) <= 48, `La fila se desplazó ${afterPosition.top - beforePosition.top}px después de la recarga`);
     delayNew = false;
     assert.ok(reads > beforeSaveReads);
     assert.equal(row.revision, 3);
+    await editorRow.getByRole("button", { name: /Editar importe/ }).click();
+    await editorRow.getByRole("textbox", { name: /Importe o expresión/ }).fill("26");
+    const beforeErrorPosition = await position();
+    fail = true;
+    await editorRow.getByRole("button", { name: /Guardar importe/ }).click();
+    await page.getByRole("button", { name: "Reintentar cuadro" }).waitFor();
+    assert.equal(await table.count(), 1);
+    assert.match(await table.innerText(), /No calculable porque los ingresos son cero/);
+    await page.getByText("Los resultados mostrados pueden estar desactualizados.", { exact: false }).waitFor();
+    const errorPosition = await position();
+    assert.ok(Math.abs(errorPosition.top - beforeErrorPosition.top) <= 48, `La fila se desplazó ${errorPosition.top - beforeErrorPosition.top}px después del error`);
+    fail = false;
+    await page.getByRole("button", { name: "Reintentar cuadro" }).click();
+    await page.getByText("Los resultados mostrados pueden estar desactualizados.", { exact: false }).waitFor({ state: "hidden" });
+    assert.equal(row.revision, 4);
     row = structure(); mode = "complete"; delayOld = true;
     await page.reload();
     await editorRow.getByRole("button", { name: /Editar importe/ }).click();
